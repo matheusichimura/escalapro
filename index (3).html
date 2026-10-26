@@ -1,0 +1,2306 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light only">
+<meta name="theme-color" content="#0047FF">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="EscalaPro">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<title>EscalaPro IA - Gestão Completa</title>
+<script src="https://cdn.tailwindcss.com/3.4.17"></script>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:light}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{background:#f4f6f9;color:#111;font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;}
+.ic{width:1rem;height:1rem;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.chip{cursor:grab;user-select:none;-webkit-user-select:none}.chip:active{cursor:grabbing}.drop-on{outline:2px dashed #0047FF;background:#ebf0ff}
+input,select,textarea{background-color:#fff;color:#111;-webkit-text-fill-color:#111;color-scheme:light; border-radius: 4px;}
+input::placeholder{color:#888;-webkit-text-fill-color:#888}
+button:disabled{cursor:not-allowed}
+.so-print{display:none}
+@media (max-width:640px){
+  .col-loja,.col-total{display:none}
+  .col-nome{position:sticky;left:0;background:#fff;z-index:1;padding-left:8px!important;padding-right:6px!important;min-width:84px;max-width:110px}
+  #aba-escala thead th[id^="th-d"]{width:auto;padding-left:2px;padding-right:2px}
+  #tabelaEscalaCorpo td{padding-left:2px;padding-right:2px}
+  #tabelaEscalaCorpo td.col-nome{padding-left:8px;padding-right:6px}
+}
+@media print{
+  header,nav,#avisos,#toast,#login,#modal,.nao-imprimir{display:none!important}
+  body{background:#fff}
+  main{padding:0!important;max-width:none!important}
+  section:not(#aba-escala){display:none!important}
+  #aba-escala{display:block!important}
+  .so-print{display:block!important}
+  .col-nome{position:static!important}
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact;box-shadow:none!important}
+  @page{size:landscape;margin:10mm}
+}
+.btn-desfazer:disabled{opacity:.4}
+
+@keyframes floatCloud { 0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-12px); } }
+.nuvem-home { animation: floatCloud 5s ease-in-out infinite; transition: transform 0.2s; cursor: pointer; }
+.nuvem-home:hover { transform: scale(1.05) translateY(-5px); }
+@media (prefers-reduced-motion:reduce){.nuvem-home{animation:none}}
+
+/* Ajustes de Marca Kavak */
+.kavak-logo { font-weight: 900; letter-spacing: -1px; font-size: 1.25rem; line-height: 1; color: #0047FF; text-transform: uppercase; }
+.kavak-logo span { color: #111; }
+.btn-kavak { background-color: #0047FF; color: white; font-weight: 600; border-radius: 6px; transition: all 0.2s; }
+.btn-kavak:hover { background-color: #0036cc; transform: translateY(-1px); }
+.btn-outline-kavak { border: 1px solid #0047FF; color: #0047FF; font-weight: 600; border-radius: 6px; transition: all 0.2s; }
+.btn-outline-kavak:hover { background-color: #ebf0ff; }
+.text-kavak-blue { color: #0047FF; }
+.bg-kavak-blue { background-color: #0047FF; }
+.border-kavak-blue { border-color: #0047FF; }
+</style>
+</head>
+<body class="font-sans min-h-screen flex flex-col">
+
+<!-- Header -->
+<header class="bg-white border-b border-gray-200 sticky top-0 z-40">
+  <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap gap-y-2 justify-between items-center">
+    <div class="flex items-center gap-3">
+      <div class="kavak-logo">KAVAK<span>.com</span></div>
+      <div class="h-6 w-px bg-gray-300 hidden sm:block"></div>
+      <div>
+        <h1 class="font-bold text-lg text-gray-900 tracking-tight">EscalaPro <span class="text-kavak-blue">IA</span></h1>
+        <p class="text-[10px] text-gray-500 font-medium uppercase tracking-wider">Gestão e Escalas</p>
+      </div>
+    </div>
+    <div class="flex flex-wrap items-center gap-2">
+      <span id="syncStatus" role="status" aria-live="polite" class="text-[11px] font-medium text-gray-500 px-1"></span>
+      <span id="usuarioInfo" class="text-[11px] font-bold text-gray-700 bg-gray-100 rounded px-2 py-1.5" style="display:none"></span>
+      <button id="btnSenha" class="bg-white border border-gray-300 text-gray-700 px-3 py-2 rounded-md text-xs font-bold shadow-sm transition hover:bg-gray-50" style="display:none">Senha</button>
+      <button id="btnSair" class="bg-white border border-gray-300 text-gray-700 px-3 py-2 rounded-md text-xs font-bold shadow-sm transition hover:bg-gray-50" style="display:none">Sair</button>
+      <button id="btnDesfazer" aria-label="Desfazer a última ação" class="btn-desfazer bg-white border border-gray-300 text-gray-700 px-3 py-2 rounded-md text-xs font-bold flex items-center gap-2 shadow-sm transition hover:bg-gray-50" title="Desfazer a última ação grande (gerar escala, importar, resetar, excluir)">
+        <i data-ic="undo"></i> <span class="hidden sm:inline">Desfazer</span>
+      </button>
+      <button id="btnExportar" aria-label="Exportar backup" class="bg-white border border-gray-300 text-gray-700 px-3 py-2 rounded-md text-xs font-bold flex items-center gap-2 shadow-sm transition hover:bg-gray-50" title="Baixar backup (.json)">
+        <i data-ic="download"></i> <span class="hidden sm:inline">Exportar</span>
+      </button>
+      <button id="btnImportar" aria-label="Importar backup" class="bg-white border border-gray-300 text-gray-700 px-3 py-2 rounded-md text-xs font-bold flex items-center gap-2 shadow-sm transition hover:bg-gray-50" title="Carregar backup (.json)">
+        <i data-ic="upload"></i> <span class="hidden sm:inline">Importar</span>
+      </button>
+      <input type="file" id="arquivoImport" accept="application/json,.json" class="hidden">
+      <button id="btnResetar" aria-label="Resetar dados" class="bg-white border border-gray-300 text-gray-700 px-3 py-2 rounded-md text-xs font-bold flex items-center gap-2 shadow-sm transition hover:bg-gray-50">
+        <i data-ic="refresh"></i> <span class="hidden sm:inline">Resetar</span>
+      </button>
+      <button id="btnGerar" class="btn-kavak px-4 py-2 text-xs flex items-center gap-2 shadow-sm">
+        <i data-ic="sparkles"></i> Gerar Escala
+      </button>
+    </div>
+  </div>
+</header>
+
+<!-- Nav -->
+<nav class="bg-white border-b border-gray-200 shadow-sm">
+  <div class="max-w-7xl mx-auto px-4 flex gap-1 overflow-x-auto">
+    <button data-act="tab" data-tab="home" id="btn-home" class="py-3 px-4 border-b-2 text-xs font-bold flex items-center gap-2 transition whitespace-nowrap text-gray-500 border-transparent hover:text-kavak-blue"><i data-ic="home"></i> Início</button>
+    <button data-act="tab" data-tab="escala" id="btn-escala" class="py-3 px-4 border-b-2 text-xs font-bold flex items-center gap-2 transition whitespace-nowrap text-gray-500 border-transparent hover:text-kavak-blue"><i data-ic="calendar"></i> Escalas</button>
+    <button data-act="tab" data-tab="equipe" id="btn-equipe" class="py-3 px-4 border-b-2 text-xs font-bold flex items-center gap-2 transition whitespace-nowrap text-gray-500 border-transparent hover:text-kavak-blue"><i data-ic="users"></i> Equipe</button>
+    <button data-act="tab" data-tab="lojas" id="btn-lojas" class="py-3 px-4 border-b-2 text-xs font-bold flex items-center gap-2 transition whitespace-nowrap text-gray-500 border-transparent hover:text-kavak-blue"><i data-ic="store"></i> Lojas</button>
+    <button data-act="tab" data-tab="acessos" id="btn-acessos" style="display:none" class="py-3 px-4 border-b-2 text-xs font-bold flex items-center gap-2 transition whitespace-nowrap text-gray-500 border-transparent hover:text-kavak-blue"><i data-ic="users"></i> Acessos</button>
+  </div>
+</nav>
+
+<main class="max-w-7xl mx-auto px-4 py-6 flex-1 w-full space-y-5">
+
+  <div id="avisos" class="empty:hidden"></div>
+
+  <section id="aba-home" class="space-y-6 hidden">
+    <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h2 class="text-lg font-bold text-gray-900">Linha do Tempo</h2>
+          <p class="text-xs text-gray-500">Acompanhe os próximos 14 dias. Clique em um dia para ver o status das lojas.</p>
+        </div>
+      </div>
+      <div class="overflow-x-auto pb-2">
+        <div id="timelineHome" class="flex gap-2 min-w-max"></div>
+      </div>
+    </div>
+
+    <div id="alertasVazia"></div>
+
+    <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200 relative overflow-hidden">
+      <div class="absolute top-0 right-0 w-64 h-64 bg-blue-50 rounded-full -translate-y-1/2 translate-x-1/4 pointer-events-none"></div>
+      <div class="relative z-10">
+        <h2 class="text-lg font-bold text-gray-900 mb-1">Visão Geral das Lojas</h2>
+        <p id="subtituloNuvens" class="text-xs text-gray-500 mb-8"></p>
+        <div id="nuvensHome" class="flex flex-wrap justify-center gap-12 p-4"></div>
+      </div>
+    </div>
+
+    <div id="quadroMes" class="bg-white p-6 rounded-lg shadow-sm border border-gray-200"></div>
+  </section>
+
+  <section id="aba-escala" class="space-y-4 hidden">
+    <div id="tituloImpressao" class="so-print text-sm font-bold text-gray-900"></div>
+    <div class="nao-imprimir bg-white p-4 rounded-lg shadow-sm border border-gray-200 flex flex-wrap items-center gap-x-5 gap-y-3">
+      <label class="flex items-center gap-2 text-xs font-bold text-gray-700">Loja
+        <select id="filtroLoja" class="border border-gray-300 rounded px-3 py-1.5 text-xs bg-white font-normal focus:ring-2 focus:ring-kavak-blue focus:border-kavak-blue outline-none"></select>
+      </label>
+      <label class="flex items-center gap-2 text-xs font-bold text-gray-700">Folgas por semana
+        <select id="cfgFolgas" class="border border-gray-300 rounded px-3 py-1.5 text-xs bg-white font-normal focus:ring-2 focus:ring-kavak-blue focus:border-kavak-blue outline-none"><option>1</option><option>2</option></select>
+      </label>
+      <label class="flex items-center gap-2 text-xs font-bold text-gray-700">Mínimo por dia
+        <select id="cfgMin" class="border border-gray-300 rounded px-3 py-1.5 text-xs bg-white font-normal focus:ring-2 focus:ring-kavak-blue focus:border-kavak-blue outline-none"><option>1</option><option>2</option><option>3</option></select>
+      </label>
+
+      <div class="flex items-center gap-3 sm:ml-auto">
+        <span id="contadorEquipe" class="text-xs text-gray-500 font-medium"></span>
+        <button id="btnAddInspetor" class="bg-indigo-50 text-indigo-700 hover:bg-indigo-100 px-3 py-1.5 rounded text-xs font-bold flex items-center gap-2 transition border border-indigo-200">
+          <i data-ic="plus"></i> Inspetor Parceiro
+        </button>
+        <button id="btnTexto" class="border border-gray-300 hover:bg-gray-50 text-gray-700 px-3 py-1.5 rounded text-xs font-bold flex items-center gap-2 transition"><i data-ic="copy"></i> Texto WhatsApp</button>
+        <button id="btnImprimir" class="border border-gray-300 hover:bg-gray-50 text-gray-700 px-3 py-1.5 rounded text-xs font-bold flex items-center gap-2 transition">🖨️ Imprimir / PDF</button>
+        <button id="btnSugestoes" class="border border-gray-300 hover:bg-gray-50 text-gray-700 px-3 py-1.5 rounded text-xs font-bold flex items-center gap-2 transition"><i data-ic="users"></i> Reforços</button>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+      <div class="p-4 border-b border-gray-100 bg-gray-50/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+        <div>
+          <h2 class="font-bold text-sm text-gray-900">Grade Semanal de Turnos</h2>
+          <p class="text-[11px] text-gray-500">Clique em um quadradinho para alternar entre Trabalho (T) e Folga (F). Cada data é independente: mudar a semana 1 não altera a semana 4.</p>
+        </div>
+        <div class="nao-imprimir flex bg-gray-200 p-1 rounded-md overflow-x-auto">
+          <button data-act="setSemana" data-sem="1" class="btn-semana px-3 py-1 text-xs font-bold rounded transition">Semana 1</button>
+          <button data-act="setSemana" data-sem="2" class="btn-semana px-3 py-1 text-xs font-bold rounded transition">Semana 2</button>
+          <button data-act="setSemana" data-sem="3" class="btn-semana px-3 py-1 text-xs font-bold rounded transition">Semana 3</button>
+          <button data-act="setSemana" data-sem="4" class="btn-semana px-3 py-1 text-xs font-bold rounded transition">Semana 4</button>
+          <button data-act="setSemana" data-sem="5" class="btn-semana px-3 py-1 text-xs font-bold rounded transition">Semana 5</button>
+        </div>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse text-xs">
+          <thead>
+            <tr class="bg-gray-50 text-gray-600 font-bold uppercase tracking-wider text-[10px] border-b border-gray-200">
+              <th class="py-2.5 px-4 col-nome">Funcionário</th><th class="py-2.5 px-3 col-loja">Loja</th>
+              <th id="th-d0" class="py-2.5 px-2 text-center w-14">Seg</th>
+              <th id="th-d1" class="py-2.5 px-2 text-center w-14">Ter</th>
+              <th id="th-d2" class="py-2.5 px-2 text-center w-14">Qua</th>
+              <th id="th-d3" class="py-2.5 px-2 text-center w-14">Qui</th>
+              <th id="th-d4" class="py-2.5 px-2 text-center w-14">Sex</th>
+              <th id="th-d5" class="py-2.5 px-2 text-center w-14">Sáb</th>
+              <th id="th-d6" class="py-2.5 px-2 text-center w-14">Dom</th>
+              <th class="py-2.5 px-4 text-center col-total">Dias Trab.</th>
+            </tr>
+          </thead>
+          <tbody id="tabelaEscalaCorpo" class="divide-y divide-gray-100"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+      <div class="p-4 border-b border-gray-100 bg-gray-50/50">
+        <h2 class="font-bold text-sm text-gray-900">Cobertura por Loja</h2>
+        <p class="text-[11px] text-gray-500">Pessoas trabalhando no dia / total da loja (sem contar quem está de férias). Dias em vermelho estão abaixo do mínimo.</p>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-xs text-center">
+          <thead>
+            <tr class="bg-gray-50 text-gray-600 font-bold text-[10px]">
+              <th class="py-2 px-4 text-left">Loja</th>
+              <th id="th-c0">Seg</th><th id="th-c1">Ter</th><th id="th-c2">Qua</th><th id="th-c3">Qui</th><th id="th-c4">Sex</th><th id="th-c5">Sáb</th><th id="th-c6">Dom</th>
+            </tr>
+          </thead>
+          <tbody id="tabelaCobertura" class="divide-y divide-gray-100"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section id="aba-equipe" class="space-y-4 hidden">
+    <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200 max-w-xl space-y-3">
+      <h2 class="font-bold text-sm text-gray-900">Cadastrar Novo Funcionário</h2>
+      <div class="space-y-2">
+        <input type="text" id="novoNomeFunc" aria-label="Nome do funcionário" placeholder="Nome do Funcionário" class="w-full border border-gray-300 rounded px-3 py-2 text-xs focus:ring-2 focus:ring-kavak-blue outline-none">
+        <select id="novaLojaFunc" aria-label="Loja do funcionário" class="w-full border border-gray-300 rounded px-3 py-2 text-xs bg-white focus:ring-2 focus:ring-kavak-blue outline-none"></select>
+        <button id="btnAddFunc" class="w-full btn-kavak py-2 text-xs">Adicionar Funcionário</button>
+      </div>
+    </div>
+
+    <div class="flex justify-between items-center max-w-4xl">
+      <div class="text-xs text-gray-500 font-medium">Total: <span id="totalAtivos"></span> funcionários ativos.</div>
+      <button data-act="modalAfastar" class="bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 rounded text-xs font-bold shadow-sm transition flex items-center gap-2">
+        <i data-ic="alert"></i> Afastados (Férias/Licenças)
+      </button>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden max-w-4xl">
+      <div class="p-4 border-b border-gray-100 bg-gray-50 font-bold text-xs text-gray-700">Lista de Funcionários Ativos <span class="font-normal text-gray-500">· preencha as datas de férias</span></div>
+      <div id="listaEquipePainel" class="divide-y divide-gray-100"></div>
+    </div>
+  </section>
+
+  <section id="aba-lojas" class="space-y-4 hidden">
+    <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200 max-w-xl space-y-3">
+      <h2 class="font-bold text-sm text-gray-900">Adicionar Nova Loja</h2>
+      <div class="flex gap-2">
+        <input type="text" id="novaLojaNome" aria-label="Nome da loja" placeholder="Ex: Shopping Morumbi" class="flex-1 min-w-0 border border-gray-300 rounded px-3 py-2 text-xs focus:ring-2 focus:ring-kavak-blue outline-none">
+        <button id="btnAddLoja" class="btn-kavak px-4 py-2 text-xs">Adicionar</button>
+      </div>
+    </div>
+    <div class="flex flex-wrap items-center gap-3">
+      <p class="text-[11px] text-gray-500">Arraste uma pessoa para outra loja para movê-la. No celular, toque na pessoa e escolha a loja.</p>
+    </div>
+    <div id="listaLojasPainel" class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"></div>
+  </section>
+  <section id="aba-acessos" class="space-y-4 hidden">
+    <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200 max-w-xl space-y-3">
+      <h2 class="font-bold text-sm text-gray-900">Criar / atualizar acesso</h2>
+      <p class="text-[11px] text-gray-500"><b>Supervisor</b> edita tudo e gerencia acessos. <b>Funcionário</b> só visualiza Início e Escalas. Se o usuário já existir, os campos preenchidos o atualizam.</p>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <input type="text" id="acUsuario" placeholder="Usuário (ex: joao.silva)" autocapitalize="none" class="border border-gray-300 rounded px-3 py-2 text-xs focus:ring-2 focus:ring-kavak-blue outline-none">
+        <input type="text" id="acNome" placeholder="Nome para exibir" class="border border-gray-300 rounded px-3 py-2 text-xs focus:ring-2 focus:ring-kavak-blue outline-none">
+        <input type="text" id="acSenha" placeholder="Senha (mín. 6 caracteres)" autocomplete="off" class="border border-gray-300 rounded px-3 py-2 text-xs focus:ring-2 focus:ring-kavak-blue outline-none">
+        <select id="acPapel" class="border border-gray-300 rounded px-3 py-2 text-xs bg-white focus:ring-2 focus:ring-kavak-blue outline-none">
+          <option value="funcionario">Funcionário (só visualiza)</option>
+          <option value="supervisor">Supervisor (edita tudo)</option>
+        </select>
+      </div>
+      <button id="btnAddUsuario" class="w-full btn-kavak py-2 text-xs">Salvar acesso</button>
+    </div>
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden max-w-4xl">
+      <div class="p-4 border-b border-gray-100 bg-gray-50 font-bold text-xs text-gray-700">Acessos cadastrados</div>
+      <div id="listaAcessos" class="divide-y divide-gray-100"><div class="p-4 text-xs text-gray-500">Carregando…</div></div>
+    </div>
+  </section>
+</main>
+
+<!-- Login -->
+<div id="login" class="fixed inset-0 z-[60] bg-gray-100 flex items-center justify-center p-4">
+  <form id="formLogin" class="bg-white rounded-lg shadow-xl border border-gray-200 w-full max-w-sm p-6 space-y-4">
+    <div>
+      <div class="kavak-logo">KAVAK<span>.com</span></div>
+      <h2 class="font-bold text-lg text-gray-900 mt-3">EscalaPro <span class="text-kavak-blue">IA</span></h2>
+      <p class="text-xs text-gray-500">Entre com seu usuário e senha.</p>
+    </div>
+    <div class="space-y-2">
+      <input type="text" id="lgUsuario" placeholder="Usuário" autocomplete="username" autocapitalize="none" class="w-full border border-gray-300 rounded px-3 py-2.5 text-sm focus:ring-2 focus:ring-kavak-blue outline-none">
+      <input type="password" id="lgSenha" placeholder="Senha" autocomplete="current-password" class="w-full border border-gray-300 rounded px-3 py-2.5 text-sm focus:ring-2 focus:ring-kavak-blue outline-none">
+    </div>
+    <p id="lgErro" class="text-xs text-rose-600 font-medium min-h-[1rem]"></p>
+    <button type="submit" id="lgBtn" class="w-full btn-kavak py-2.5 text-sm">Entrar</button>
+  </form>
+</div>
+
+<!-- Modal Unificado -->
+<div id="modal" class="fixed inset-0 bg-gray-900/60 hidden items-center justify-center p-4 z-50">
+  <div id="modalContainer" class="bg-white rounded-lg shadow-xl w-full flex flex-col transition-all duration-300 max-w-md max-h-[90vh]">
+    <div class="flex justify-between items-start p-5 border-b border-gray-100 flex-shrink-0">
+      <h3 id="mTitulo" class="font-bold text-sm text-gray-900"></h3>
+      <button id="mFechar" onclick="fechar()" class="text-gray-400 hover:text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-full p-1 transition" aria-label="Fechar">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+      </button>
+    </div>
+    <div id="mCorpo" class="text-xs text-gray-600 flex-1 overflow-y-auto min-h-0 p-5"></div>
+    <div class="flex justify-end gap-2 flex-shrink-0 p-4 border-t border-gray-100 bg-gray-50 rounded-b-lg">
+      <div id="mBtns" class="flex gap-2"></div>
+    </div>
+  </div>
+</div>
+
+<div id="toast" role="status" aria-live="polite" class="fixed left-1/2 -translate-x-1/2 bottom-6 bg-gray-900 text-white text-xs px-4 py-2 rounded shadow-lg hidden z-50"></div>
+
+<script>
+const DIAS = ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'];
+
+const IC = {
+  home: '<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>',
+  sparkles:'<path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 16v4M17 18h4"/>',
+  calendar:'<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
+  users:'<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>',
+  store:'<path d="M3 9l1-5h16l1 5"/><path d="M4 9v11h16V9"/><path d="M9 20v-6h6v6"/>',
+  copy:'<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
+  send:'<path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/>',
+  plus:'<path d="M12 5v14M5 12h14"/>',
+  refresh:'<path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M3 16v5h5"/><path d="M21 8V3h-5"/>',
+  alert:'<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>',
+  download:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>',
+  upload:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>',
+  undo:'<path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/>'
+};
+
+// Troca <i data-ic> por SVG. Roda na carga e toda vez que o modal recebe conteúdo novo.
+function aplicarIcones(root) {
+  (root || document).querySelectorAll('[data-ic]').forEach(el => {
+    el.outerHTML = '<svg class="ic" viewBox="0 0 24 24">' + (IC[el.dataset.ic] || '') + '</svg>';
+  });
+}
+aplicarIcones();
+
+const $ = id => document.getElementById(id);
+const isoDe = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+const hoje = () => isoDe(new Date());
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+const somaDias = (iso, n) => { const d = new Date(iso + 'T12:00:00'); d.setDate(d.getDate() + n); return isoDe(d); };
+const diaIdx = iso => (new Date(iso + 'T12:00:00').getDay() + 6) % 7;      // 0 = Seg ... 6 = Dom
+const fmtCurto = iso => iso.slice(8, 10) + '/' + iso.slice(5, 7);
+
+const dataValida = iso => /^\d{4}-\d{2}-\d{2}$/.test(iso) && isoDe(new Date(iso + 'T12:00:00')) === iso;
+// Validação ÚNICA de férias (edição manual e IA). `ferias` = períodos atuais; `ignorar` = índice sendo editado.
+function erroPeriodoFerias(ferias, p, ignorar = -1) {
+  if (p.ini && !dataValida(p.ini)) return 'Data inicial inválida.';
+  if (p.fim && !dataValida(p.fim)) return 'Data final inválida.';
+  if (p.fim && !p.ini) return 'Informe a data inicial.';
+  if (p.ini && p.fim && p.fim < p.ini) return 'A data final não pode ser antes da data inicial.';
+  if (p.ini && ferias.some((o, j) => j !== ignorar && o.ini && o.ini <= (p.fim || '9999-12-31') && (o.fim || '9999-12-31') >= p.ini)) return 'Este período se sobrepõe a outro período de férias da mesma pessoa.';
+  return '';
+}
+// Próximo período de férias que começa nos próximos `dias` dias (e a pessoa ainda não está de férias hoje)
+function feriasProximas(f, dias = 7) {
+  if (f.afastado || deFeriasEm(f, hoje())) return null;
+  const lim = somaDias(hoje(), dias);
+  const p = periodos(f).filter(q => q.ini > hoje() && q.ini <= lim).sort((a, b) => a.ini.localeCompare(b.ini))[0];
+  if (!p) return null;
+  const n = Math.round((new Date(p.ini + 'T12:00:00') - new Date(hoje() + 'T12:00:00')) / 864e5);
+  return { ini: p.ini, fim: p.fim, n };
+}
+const emPeriodo = (p, h) => !!p.ini && p.ini <= h && (!p.fim || h <= p.fim);
+const periodos = f => (f.ferias || []).filter(p => p.ini);
+const deFeriasEm = (f, iso) => periodos(f).some(p => p.ini <= iso && (!p.fim || iso <= p.fim));
+const emFerias = f => f.afastado || deFeriasEm(f, hoje());
+
+// Segunda-feira da "Semana N" (Semana 1 = semana atual)
+function getDataDaSemana(numSemana) {
+  const d = new Date();
+  const diaSemanaHoje = d.getDay();
+  const diffParaSegunda = (diaSemanaHoje === 0 ? -6 : 1 - diaSemanaHoje);
+  d.setDate(d.getDate() + diffParaSegunda + (numSemana - 1) * 7);
+  return isoDe(d);
+}
+
+// Status real de uma pessoa em uma DATA: 'FÉ' | 'T' | 'F'.
+// Ordem: férias > ajuste manual/gerado daquela data (f.dias) > padrão semanal (f.escala).
+function statusDia(f, iso) {
+  if (deFeriasEm(f, iso)) return 'FÉ';
+  const o = f.dias && f.dias[iso];
+  if (o === 'T' || o === 'F') return o;
+  return f.escala[diaIdx(iso)] || 'T';
+}
+
+let dataSelecionada = hoje();
+let semanaAtiva = 1;
+
+// ---------- Dados ----------
+const KEY = 'escalapro_v8';
+const UNDO_KEY = KEY + '_undo';
+const BK_KEY = KEY + '_backup';
+
+function exemplo() {
+  const base = [['Thiago','SP Market',6],['Bruno Souza','SP Market',0],['José','SP Market',4],
+    ['Bruno Alves','',1],
+    ['Bruno Domingues','KC',2],['Lucas Paulo','KC',5],
+    ['Bruno Thome','Arena',3],['Ericson','Arena',4],['Ironildo','Arena',6],
+    ['Edson','Morumbi',5],['Matheus','Morumbi',6],['Klever','Morumbi',0],
+    ['Jopa','Tatuapé',0],['João Teles','Tatuapé',1],['Vagner','Tatuapé',1],
+    ['Danilo','Frei Caneca',2],['Lucas Q','Frei Caneca',3],['Gerson','Frei Caneca',2]];
+  return {
+    lojas: ['SP Market','KC','Arena','Morumbi','Tatuapé','Frei Caneca'],
+    funcs: base.map(([nome, loja, f], i) => ({ id: i + 1, nome, loja, escala: 'TTTTTTT'.slice(0, f) + 'F' + 'TTTTTTT'.slice(f + 1), dias: {}, isInspetor: false, afastado: false, ferias: [] })),
+    cfg: { folgas: 1, min: 1 }
+  };
+}
+
+function valido(d) {
+  return !!d && Array.isArray(d.lojas) && Array.isArray(d.funcs) &&
+    d.funcs.every(f => f && typeof f === 'object' && Number.isFinite(+f.id) && typeof f.nome === 'string');
+}
+
+// Garante o formato de S (carga, importação e desfazer passam por aqui)
+function normalizar() {
+  delete S.versao; delete S.exportadoEm; delete S.pos;
+  S.lojas = [...new Set(S.lojas.map(String).filter(Boolean))];
+  const c = S.cfg || {};
+  S.cfg = { folgas: +c.folgas === 2 ? 2 : 1, min: [1, 2, 3].includes(+c.min) ? +c.min : 1 };
+  S.quadro = (Array.isArray(S.quadro) ? S.quadro : [])
+    .filter(a => a && typeof a.texto === 'string' && a.texto.trim())
+    .slice(0, 200)
+    .map((a, i) => ({
+      id: +a.id || Date.now() + i,
+      mes: /^\d{4}-\d{2}$/.test(a.mes) ? a.mes : hoje().slice(0, 7),
+      dia: /^\d{4}-\d{2}-\d{2}$/.test(a.dia) ? a.dia : '',
+      tipo: ['info', 'importante', 'urgente'].includes(a.tipo) ? a.tipo : 'info',
+      texto: a.texto.trim().slice(0, 400)
+    }));
+  const limite = somaDias(hoje(), -60);
+  const ids = new Set();
+  S.funcs.forEach(f => {
+    f.id = +f.id;
+    while (ids.has(f.id)) f.id += 1000;
+    ids.add(f.id);
+    f.loja = typeof f.loja === 'string' && S.lojas.includes(f.loja) ? f.loja : '';
+    f.escala = typeof f.escala === 'string' && /^[TF]{7}$/.test(f.escala) ? f.escala : 'TTTTTTF';
+    if (!Array.isArray(f.ferias)) f.ferias = (f.ini || f.fim) ? [{ ini: f.ini || '', fim: f.fim || '' }] : [];
+    f.ferias = f.ferias.slice(0, 2).map(p => ({ ini: (p && p.ini) || '', fim: (p && p.fim) || '' }));
+    delete f.ini; delete f.fim;
+    f.isInspetor = !!f.isInspetor;
+    f.afastado = !!f.afastado;
+    const dias = {};
+    if (f.dias && typeof f.dias === 'object') {
+      Object.keys(f.dias).forEach(k => {
+        if (/^\d{4}-\d{2}-\d{2}$/.test(k) && k >= limite && (f.dias[k] === 'T' || f.dias[k] === 'F')) dias[k] = f.dias[k];
+      });
+    }
+    f.dias = dias;
+  });
+}
+
+let S = null;
+try { S = JSON.parse(localStorage.getItem(KEY)); } catch (e) {}
+if (!valido(S)) S = exemplo();
+normalizar();
+
+// ---------- Servidor (planilha Google via Apps Script) + login ----------
+// Cole abaixo a URL do app da web (termina em /exec). Veja as instruções no topo do Code.gs.
+// Vazio = modo local: sem login, dados só neste navegador (como era antes).
+const API_URL = 'https://script.google.com/macros/s/AKfycbxd805OZf6k4Zo4_lq7CTW7bZCOsIeH33VehOIH5Y7U4XDWfqrk-ZlY_wfyU5YP0XiE/exec';
+const MODO_LOCAL = !API_URL;
+const SESSAO_KEY = KEY + '_sessao';
+const PEND_KEY = KEY + '_pendente';   // cópia das alterações ainda não confirmadas pelo servidor
+const gravarPendente = j => { try { localStorage.setItem(PEND_KEY, JSON.stringify({ usuario: SESSAO && SESSAO.usuario, base: versaoRemota, em: Date.now(), dados: j })); } catch (e) {} };
+const limparPendente = () => { try { localStorage.removeItem(PEND_KEY); } catch (e) {} };
+const temPendencia = () => !MODO_LOCAL && !!SESSAO && podeEditar() && remotoPronto && !!(envioTimer || enviando || JSON.stringify(S) !== ultimoSync);
+let SESSAO = null;                         // { token, usuario, nome, papel }
+let versaoRemota = 0, ultimoSync = '', remotoPronto = false;
+let envioTimer = null, enviando = false, pendente = false;
+const ehSupervisor = () => !!SESSAO && SESSAO.papel === 'supervisor';
+const podeEditar = () => ehSupervisor();
+
+const MSG_ERRO = {
+  senha_curta: 'A senha precisa ter ao menos 6 caracteres.',
+  senha_atual: 'A senha atual está incorreta.',
+  usuario_invalido: 'Usuário inválido: use 3 a 30 letras minúsculas, números, ponto, hífen ou _.',
+  ultimo_supervisor: 'Precisa existir ao menos um supervisor ativo.',
+  proprio_acesso: 'Você não pode rebaixar, desativar ou excluir o seu próprio acesso.',
+  permissao: 'Você não tem permissão para isso.',
+  nao_encontrado: 'Usuário não encontrado.',
+  papel_invalido: 'Papel inválido.'
+};
+
+let horaSync = '';
+function setSync(estado) {
+  if (estado === 'ok') horaSync = new Date().toTimeString().slice(0, 5);
+  const t = { ok: '☁️ Salvo' + (horaSync ? ' às ' + horaSync : ''), enviando: '⏳ Salvando…', carregando: '⏳ Carregando…', erro: '⚠️ Sem conexão: alterações NÃO salvas, tentando de novo', local: '💾 Modo local', leitura: '👁️ Somente leitura' };
+  $('syncStatus').textContent = t[estado] || '';
+}
+
+async function api(acao, corpo) {
+  // Tempo limite: o servidor (Apps Script) às vezes demora na primeira chamada; sem limite a tela ficava presa.
+  const ctrl = new AbortController();
+  const limite = setTimeout(() => ctrl.abort(), acao === 'ia_escala' ? 120000 : 30000);
+  let j;
+  try {
+    const resp = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ acao, token: SESSAO && SESSAO.token, ...(corpo || {}) }), signal: ctrl.signal });
+    j = await resp.json();
+  } catch (e) {
+    if (e && e.name === 'AbortError') throw new Error('timeout');
+    throw e;
+  } finally { clearTimeout(limite); }
+  if (j && j.erro === 'sessao' && acao !== 'login') {
+    sairLocal('Sua sessão expirou. Entre novamente.');
+    const e = new Error('sessao'); e.sessaoExpirada = true; throw e;
+  }
+  return j;
+}
+
+function sairLocal(msg) {
+  SESSAO = null; remotoPronto = false;
+  try { localStorage.removeItem(SESSAO_KEY); localStorage.removeItem(UNDO_KEY); } catch (e) {}
+  try { if (msg) sessionStorage.setItem('msgLogin', msg); } catch (e) {}
+  location.reload();
+}
+
+function salvar() {
+  const j = JSON.stringify(S);
+  if (MODO_LOCAL) { try { localStorage.setItem(KEY, j); } catch (e) {} return; }
+  if (remotoPronto && podeEditar() && j !== ultimoSync) { gravarPendente(j); agendarEnvio(); }   // cópia local até o servidor confirmar
+}
+
+function agendarEnvio() {
+  clearTimeout(envioTimer);
+  setSync('enviando');
+  envioTimer = setTimeout(() => { envioTimer = null; enviar(); }, 900);
+}
+
+async function enviar(forcar) {
+  if (MODO_LOCAL || !podeEditar() || !remotoPronto) return;
+  if (enviando) { pendente = true; return; }
+  enviando = true; setSync('enviando');
+  const j = JSON.stringify(S);
+  try {
+    const r = await api('salvar', { dados: S, versao: versaoRemota, forcar: !!forcar });
+    if (r.erro === 'conflito') { enviando = false; mostrarConflito(r); return; }
+    if (!r.ok) throw new Error(r.erro || 'erro');
+    versaoRemota = r.versao; ultimoSync = j; setSync('ok');
+    if (JSON.stringify(S) === j) limparPendente();
+  } catch (e) {
+    enviando = false;
+    if (e.sessaoExpirada) return;
+    setSync('erro');
+    clearTimeout(envioTimer);
+    envioTimer = setTimeout(() => { envioTimer = null; enviar(); }, 8000);
+    return;
+  }
+  enviando = false;
+  if (pendente || JSON.stringify(S) !== ultimoSync) { pendente = false; agendarEnvio(); }
+}
+
+function mostrarConflito(r) {
+  clearTimeout(envioTimer); envioTimer = null;
+  setSync('erro');
+  modal('Alguém salvou antes de você',
+    'Outro supervisor alterou os dados enquanto você editava. Escolha qual versão manter:<br><br><b>Usar a do servidor</b> descarta as suas últimas alterações. <b>Sobrescrever</b> grava a sua versão por cima.',
+    [{ txt: 'Usar a do servidor', cls: BTN_CANCELA, fn: () => {
+        if (r.dados && valido(r.dados)) { S = r.dados; normalizar(); }
+        versaoRemota = r.versao; ultimoSync = JSON.stringify(S); limparPendente();
+        atualizarTudo(); setSync('ok');
+     } },
+     { txt: 'Sobrescrever com a minha', cls: 'btn-kavak text-white', fn: () => { versaoRemota = r.versao; enviar(true); } }],
+    false, true);
+}
+
+// Retorna 'ok' | 'vazio' (planilha sem dados, só supervisor) | 'igual' | 'pendente' (atualização silenciosa)
+async function carregarRemoto(silencioso) {
+  const r = await api('carregar');
+  if (!r.ok) throw new Error(r.erro || 'erro');
+  if (r.dados && valido(r.dados)) {
+    if (silencioso) {
+      if (r.versao === versaoRemota) return 'igual';
+      if (envioTimer || enviando || JSON.stringify(S) !== ultimoSync) return 'pendente';
+    }
+    S = r.dados; normalizar();
+    versaoRemota = r.versao; ultimoSync = JSON.stringify(S); remotoPronto = true;
+    return 'ok';
+  }
+  versaoRemota = r.versao || 0;
+  if (podeEditar()) return 'vazio';
+  S = { lojas: [], funcs: [], cfg: { folgas: 1, min: 1 } }; normalizar();
+  ultimoSync = JSON.stringify(S); remotoPronto = true;
+  return 'ok';
+}
+
+function perguntarMigracao() {
+  modal('A planilha ainda está vazia',
+    `Enviar os dados que estão neste aparelho (<b>${S.lojas.length}</b> loja(s) e <b>${S.funcs.length}</b> funcionário(s)) ou começar do zero?`,
+    [{ txt: 'Começar do zero', cls: BTN_CANCELA, fn: () => {
+        S = { lojas: [], funcs: [], cfg: { folgas: 1, min: 1 } }; normalizar();
+        ultimoSync = ''; remotoPronto = true; atualizarTudo();
+     } },
+     { txt: 'Enviar dados deste aparelho', cls: 'btn-kavak text-white', fn: () => { ultimoSync = ''; remotoPronto = true; atualizarTudo(); } }],
+    false, true);
+}
+
+function aplicarPapel() {
+  const sup = podeEditar();
+  const vis = (id, on) => { const el = $(id); if (el) el.style.display = on ? '' : 'none'; };
+  ['btn-equipe', 'btn-lojas', 'btnGerar', 'btnResetar', 'btnImportar', 'btnExportar', 'btnDesfazer', 'btnAddInspetor'].forEach(id => vis(id, sup));
+  vis('btn-acessos', ehSupervisor() && !MODO_LOCAL);
+  vis('btnSair', !MODO_LOCAL); vis('btnSenha', !MODO_LOCAL); vis('usuarioInfo', !MODO_LOCAL);
+  if (!MODO_LOCAL && SESSAO) $('usuarioInfo').textContent = (SESSAO.nome || SESSAO.usuario) + ' · ' + (SESSAO.papel === 'supervisor' ? 'Supervisor' : 'Funcionário');
+  $('cfgFolgas').disabled = !sup; $('cfgMin').disabled = !sup;
+}
+
+function mostrarLogin(msg) {
+  $('login').style.display = 'flex';
+  $('lgErro').textContent = msg || '';
+  setTimeout(() => $('lgUsuario').focus(), 50);
+}
+
+async function entrarRemoto() {
+  undoStack = []; persistirUndo();
+  aplicarPapel();
+  setSync('carregando');
+  let res;
+  try { res = await carregarRemoto(false); }
+  catch (e) {
+    if (e.sessaoExpirada) return;
+    SESSAO = null;
+    try { localStorage.removeItem(SESSAO_KEY); } catch (e2) {}
+    mostrarLogin('Não consegui carregar os dados da planilha. Verifique a internet e tente de novo.');
+    return;
+  }
+  setSync(podeEditar() ? 'ok' : 'leitura');
+  mudarAba('home');
+  if (res === 'vazio') return perguntarMigracao();
+  oferecerPendente();
+}
+
+// Alterações feitas neste aparelho que não chegaram ao servidor (internet caiu / página fechada)
+function oferecerPendente() {
+  if (!podeEditar()) return;
+  let pend = null;
+  try { pend = JSON.parse(localStorage.getItem(PEND_KEY)); } catch (e) {}
+  if (!pend || pend.usuario !== SESSAO.usuario || typeof pend.dados !== 'string' || Date.now() - pend.em > 7 * 864e5) { if (pend) limparPendente(); return; }
+  let d = null;
+  try { d = JSON.parse(pend.dados); } catch (e) {}
+  if (!valido(d)) return limparPendente();
+  if (pend.dados === JSON.stringify(S)) return limparPendente();   // servidor já tem tudo
+  const quando = new Date(pend.em);
+  const hora = quando.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+  const servidorMudou = pend.base !== versaoRemota;
+  modal('Alterações não enviadas encontradas',
+    `Este aparelho tem alterações de <b>${hora}</b> que não chegaram ao servidor.
+     ${servidorMudou ? '<p class="mt-2 text-amber-700 font-bold">⚠️ O servidor foi alterado depois disso. Restaurar vai sobrescrever essas mudanças mais novas.</p>' : ''}
+     <p class="mt-2"><b>Restaurar e enviar</b> grava essas alterações. <b>Descartar</b> mantém o que está no servidor.</p>`,
+    [{ txt: 'Descartar', cls: BTN_CANCELA, fn: () => { limparPendente(); toast('Alterações pendentes descartadas.'); } },
+     { txt: 'Restaurar e enviar', cls: 'btn-kavak text-white', fn: () => {
+        snapshot('restauração de alterações pendentes');
+        S = d; normalizar(); atualizarTudo(); toast('Alterações restauradas e sendo enviadas.');
+     } }],
+    false, true);
+}
+
+async function iniciar() {
+  if (MODO_LOCAL) {
+    SESSAO = { usuario: 'local', nome: 'Modo local', papel: 'supervisor' };
+    remotoPronto = true;
+    $('login').style.display = 'none';
+    setSync('local'); aplicarPapel(); mudarAba('home');
+    return;
+  }
+  let msg = '';
+  try { msg = sessionStorage.getItem('msgLogin') || ''; sessionStorage.removeItem('msgLogin'); } catch (e) {}
+  let salva = null;
+  try { salva = JSON.parse(localStorage.getItem(SESSAO_KEY)); } catch (e) {}
+  if (salva && salva.token) {
+    SESSAO = salva;
+    try {
+      const r = await api('me');
+      if (r.ok) {
+        SESSAO = { token: salva.token, usuario: r.usuario, nome: r.nome, papel: r.papel };
+        $('login').style.display = 'none';
+        await entrarRemoto();
+        return;
+      }
+    } catch (e) {
+      if (e.sessaoExpirada) return;
+      SESSAO = null;
+      mostrarLogin('Sem conexão com o servidor. Verifique a internet e tente de novo.');
+      return;
+    }
+  }
+  SESSAO = null;
+  mostrarLogin(msg);
+}
+
+// ---------- Acessos (só supervisor) ----------
+let usuariosCache = [];
+
+async function carregarUsuarios() {
+  try {
+    const r = await api('usuarios');
+    if (r.ok) { usuariosCache = r.usuarios; renderAcessos(); }
+    else toast(MSG_ERRO[r.erro] || 'Erro ao listar acessos');
+  } catch (e) { if (!e.sessaoExpirada) toast('Sem conexão com o servidor'); }
+}
+
+function renderAcessos() {
+  $('listaAcessos').innerHTML = usuariosCache.length ? usuariosCache.map(u => {
+    const eu = !!SESSAO && u.usuario === SESSAO.usuario;
+    const id = esc(u.usuario);
+    return `<div class="p-3 flex flex-wrap items-center gap-2 text-xs ${u.ativo ? '' : 'bg-gray-50 text-gray-400'}">
+      <b class="w-32 truncate">${id}</b>
+      <span class="flex-1 min-w-[6rem] truncate">${esc(u.nome)}${eu ? ' <span class="text-kavak-blue font-bold">(você)</span>' : ''}${u.ativo ? '' : ' · desativado'}</span>
+      <select data-act="uPapel" data-u="${id}" ${eu ? 'disabled' : ''} class="border border-gray-300 rounded px-2 py-1 bg-white text-gray-700">
+        <option value="funcionario" ${u.papel === 'funcionario' ? 'selected' : ''}>Funcionário</option>
+        <option value="supervisor" ${u.papel === 'supervisor' ? 'selected' : ''}>Supervisor</option>
+      </select>
+      <button data-act="uSenha" data-u="${id}" class="text-kavak-blue font-bold">Nova senha</button>
+      ${eu ? '' : `<button data-act="uAtivo" data-u="${id}" class="text-amber-600 font-bold">${u.ativo ? 'Desativar' : 'Ativar'}</button>
+      <button data-act="uExcluir" data-u="${id}" class="text-rose-500 font-bold">Excluir</button>`}
+    </div>`;
+  }).join('') : '<div class="p-4 text-xs text-gray-500">Nenhum acesso cadastrado.</div>';
+}
+
+async function salvarUsuarioRemoto(corpo, msgOk) {
+  try {
+    const r = await api('salvarUsuario', corpo);
+    if (r.ok) { toast(msgOk); await carregarUsuarios(); return true; }
+    toast(MSG_ERRO[r.erro] || ('Erro: ' + (r.erro || 'desconhecido')));
+  } catch (e) { if (!e.sessaoExpirada) toast('Sem conexão com o servidor'); }
+  return false;
+}
+
+// ---------- Desfazer ----------
+let undoStack = [];
+try { undoStack = JSON.parse(localStorage.getItem(UNDO_KEY)) || []; if (!Array.isArray(undoStack)) undoStack = []; } catch (e) { undoStack = []; }
+
+function persistirUndo() {
+  while (undoStack.length) {
+    try { localStorage.setItem(UNDO_KEY, JSON.stringify(undoStack)); return; }
+    catch (e) { undoStack.shift(); }
+  }
+  try { localStorage.removeItem(UNDO_KEY); } catch (e) {}
+}
+function atualizarBtnDesfazer() {
+  const b = $('btnDesfazer');
+  b.disabled = !undoStack.length;
+  b.title = undoStack.length ? 'Desfazer: ' + undoStack[undoStack.length - 1].rotulo : 'Nada para desfazer';
+}
+function snapshot(rotulo) {
+  undoStack.push({ rotulo, dados: JSON.stringify(S) });
+  if (undoStack.length > 5) undoStack.shift();
+  persistirUndo();
+  atualizarBtnDesfazer();
+}
+function desfazer() {
+  const u = undoStack.pop();
+  if (!u) return toast('Nada para desfazer');
+  try { S = JSON.parse(u.dados); normalizar(); } catch (e) { return toast('Não foi possível desfazer'); }
+  persistirUndo();
+  atualizarTudo();
+  toast('Desfeito: ' + u.rotulo);
+}
+
+// ---------- Backup ----------
+function exportar() {
+  const blob = new Blob([JSON.stringify({ versao: 8, exportadoEm: new Date().toISOString(), ...S }, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'escalapro-' + hoje() + '.json';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1500);
+  try { localStorage.setItem(BK_KEY, String(Date.now())); } catch (e) {}
+  renderAvisos();
+  toast('Backup baixado!');
+}
+
+function importarArquivo(file) {
+  if (!file) return;
+  file.text().then(txt => {
+    let d;
+    try { d = JSON.parse(txt); } catch (e) { return toast('❌ Arquivo inválido (não é JSON)'); }
+    if (!valido(d)) return toast('❌ Esse arquivo não parece um backup do EscalaPro');
+    confirmar('Importar backup',
+      `Isso substitui <b>todos</b> os dados atuais por: <b>${d.lojas.length}</b> loja(s) e <b>${d.funcs.length}</b> funcionário(s)${d.exportadoEm ? ' (backup de ' + esc(String(d.exportadoEm).slice(0, 10)) + ')' : ''}.<br><br>Você pode desfazer logo em seguida.`,
+      'Importar', () => {
+        snapshot('importação de backup');
+        S = d; normalizar();
+        atualizarTudo();
+        toast('Backup importado!');
+      });
+  }).catch(() => toast('❌ Não consegui ler o arquivo'));
+}
+
+function renderAvisos() {
+  if (!MODO_LOCAL) { $('avisos').innerHTML = ''; return; }   // com servidor, os dados já ficam na planilha
+  let ult = 0;
+  try { ult = +localStorage.getItem(BK_KEY) || 0; } catch (e) {}
+  const dias = ult ? Math.floor((Date.now() - ult) / 864e5) : null;
+  $('avisos').innerHTML = (dias === null || dias >= 7)
+    ? `<div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-4 py-3 text-xs flex flex-wrap items-center gap-3 justify-between">
+         <span>⚠️ Os dados ficam só neste navegador (outro aparelho ou limpar o cache apaga tudo). ${dias === null ? 'Você ainda não fez backup.' : 'Último backup há ' + dias + ' dias.'}</span>
+         <button data-act="exportar" class="btn-outline-kavak px-3 py-1.5 text-xs bg-white">Exportar backup</button>
+       </div>`
+    : '';
+}
+
+// ---------- Interface ----------
+function toast(msg) {
+  const t = $('toast'); t.textContent = msg; t.classList.remove('hidden');
+  clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.add('hidden'), 3500);
+}
+
+function modal(titulo, corpo, botoes, isLarge = false, bloqueia = false) {
+  $('mFechar').style.display = bloqueia ? 'none' : '';   // bloqueia = só fecha escolhendo um botão
+  $('mTitulo').innerHTML = titulo;
+  $('mCorpo').innerHTML = corpo;
+  $('mCorpo').className = "text-xs text-gray-600 flex-1 overflow-y-auto min-h-0 p-5";
+  aplicarIcones($('mCorpo'));
+
+  if (isLarge) {
+    $('modalContainer').className = 'bg-white rounded-lg shadow-xl w-[95vw] max-w-6xl flex flex-col transition-all duration-300 max-h-[90vh]';
+    $('mCorpo').classList.remove('p-5');
+    $('mCorpo').classList.add('p-0');
+  } else {
+    $('modalContainer').className = 'bg-white rounded-lg shadow-xl w-full flex flex-col transition-all duration-300 max-w-md max-h-[90vh]';
+  }
+
+  const b = $('mBtns'); b.innerHTML = '';
+  botoes.forEach(({ txt, cls, fn, fecha = true }) => {
+    const el = document.createElement('button');
+    el.textContent = txt; el.className = 'px-3.5 py-2 rounded text-xs font-bold transition ' + cls;
+    el.onclick = () => { if (fecha) fechar(); if (fn) fn(); };
+    b.appendChild(el);
+  });
+  $('modal').classList.remove('hidden'); $('modal').classList.add('flex');
+}
+
+function fechar() { $('modal').classList.add('hidden'); $('modal').classList.remove('flex'); }
+const BTN_CANCELA = 'border border-gray-300 text-gray-600 hover:bg-gray-50';
+
+function confirmar(titulo, msg, rotulo, fn) {
+  modal(titulo, msg, [{ txt: 'Cancelar', cls: BTN_CANCELA }, { txt: rotulo, cls: 'btn-kavak text-white', fn }]);
+}
+
+const ATIVA = 'py-3 px-4 border-b-2 text-xs font-bold flex items-center gap-2 transition whitespace-nowrap border-kavak-blue text-kavak-blue';
+const INATIVA = 'py-3 px-4 border-b-2 text-xs font-bold flex items-center gap-2 transition whitespace-nowrap border-transparent text-gray-500 hover:text-kavak-blue';
+
+function mudarAba(aba) {
+  if (!podeEditar() && (aba === 'equipe' || aba === 'lojas')) aba = 'home';
+  if (aba === 'acessos' && (!ehSupervisor() || MODO_LOCAL)) aba = 'home';
+  ['home','escala','equipe','lojas','acessos'].forEach(a => {
+    $('aba-' + a).classList.toggle('hidden', a !== aba);
+    $('btn-' + a).className = a === aba ? ATIVA : INATIVA;
+  });
+  atualizarTudo();
+  if (aba === 'acessos') carregarUsuarios();
+}
+
+function atualizarSelects() {
+  const f = $('filtroLoja'), atual = f.value;
+  f.innerHTML = '<option value="todas">Todas as Lojas</option><option value="__volante">Volantes (sem loja)</option>' + S.lojas.map(l => `<option value="${esc(l)}">${esc(l)}</option>`).join('');
+  f.value = (S.lojas.includes(atual) || atual === '__volante') ? atual : 'todas';
+
+  const n = $('novaLojaFunc'), nv = n.value;
+  n.innerHTML = '<option value="">Sem Loja (Volante)</option>' + S.lojas.map(l => `<option value="${esc(l)}">${esc(l)}</option>`).join('');
+  if (S.lojas.includes(nv) || nv === '') n.value = nv;
+
+  $('cfgFolgas').value = S.cfg.folgas; $('cfgMin').value = S.cfg.min;
+}
+
+function funcsVisiveis() {
+  const f = $('filtroLoja').value;
+  return S.funcs.filter(x => {
+    if (x.afastado) return false;
+    if (f === 'todas') return true;
+    if (f === '__volante') return x.loja === '';
+    return x.loja === f;
+  }).sort((a, b) => {
+    if (a.isInspetor && !b.isInspetor) return 1;
+    if (!a.isInspetor && b.isInspetor) return -1;
+    return S.lojas.indexOf(a.loja) - S.lojas.indexOf(b.loja);
+  });
+}
+
+function badgeCob(n, total, ruim, extraInsp) {
+  const cor = ruim === null ? 'bg-gray-50 text-gray-600 border border-gray-200'
+    : ruim ? 'bg-rose-50 text-rose-700 border border-rose-200'
+    : 'bg-emerald-50 text-emerald-700 border border-emerald-200';
+  const badge = extraInsp > 0 ? `<div class="text-[10px] text-indigo-600 font-bold mt-1">+${extraInsp} insp</div>` : '';
+  return `<td class="py-2 px-1"><span class="inline-block min-w-[3rem] px-2 py-1 rounded font-bold ${cor}">${n}/${total}</span>${badge}</td>`;
+}
+
+function renderCobertura() {
+  const seg = getDataDaSemana(semanaAtiva);
+  const datas = DIAS.map((_, i) => somaDias(seg, i));
+  const f = $('filtroLoja').value;
+  const linhas = [];
+
+  S.lojas.filter(l => (f === 'todas' || l === f) && !lojaTemCadastro(l)).forEach(l => {
+    linhas.push(`<tr class="bg-gray-50/60"><td class="py-2 px-4 text-left font-bold text-gray-500">${esc(l)}</td><td colspan="7" class="py-2 text-gray-400">Sem funcionários cadastrados</td></tr>`);
+  });
+  S.lojas.filter(l => (f === 'todas' || l === f) && lojaTemCadastro(l)).forEach(l => {
+    const comuns = S.funcs.filter(x => x.loja === l && !x.isInspetor && !x.afastado);
+    const insp = S.funcs.filter(x => x.loja === l && x.isInspetor && !x.afastado);
+    const cel = datas.map(iso => {
+      const ativos = comuns.filter(x => statusDia(x, iso) !== 'FÉ');
+      const n = ativos.filter(x => statusDia(x, iso) === 'T').length;
+      const nInsp = insp.filter(x => statusDia(x, iso) === 'T').length;
+      return badgeCob(n, ativos.length, n < S.cfg.min, nInsp);
+    }).join('');
+    linhas.push(`<tr><td class="py-2 px-4 text-left font-bold text-gray-700">${esc(l)}</td>${cel}</tr>`);
+  });
+
+  // Volantes: não pertencem a nenhuma loja, mas aparecem como reserva disponível por dia (sem mínimo)
+  const vol = S.funcs.filter(x => x.loja === '' && !x.isInspetor && !x.afastado);
+  if ((f === 'todas' || f === '__volante') && vol.length) {
+    const cel = datas.map(iso => {
+      const ativos = vol.filter(x => statusDia(x, iso) !== 'FÉ');
+      const n = ativos.filter(x => statusDia(x, iso) === 'T').length;
+      return badgeCob(n, ativos.length, null, 0);
+    }).join('');
+    linhas.push(`<tr class="bg-gray-50/60"><td class="py-2 px-4 text-left font-bold text-gray-500">🧭 Volantes <span class="font-normal">(reserva)</span></td>${cel}</tr>`);
+  }
+
+  $('tabelaCobertura').innerHTML = linhas.join('') || '<tr><td colspan="8" class="py-5 text-gray-500">Sem dados para exibir.</td></tr>';
+}
+
+function renderEscala() {
+  document.querySelectorAll('.btn-semana').forEach(btn => {
+    const isAtivo = +btn.dataset.sem === semanaAtiva;
+    btn.className = `btn-semana px-3 py-1 text-xs font-bold rounded transition ${isAtivo ? 'bg-white text-kavak-blue shadow-sm' : 'text-gray-500 hover:text-gray-800'}`;
+  });
+
+  const seg = getDataDaSemana(semanaAtiva);
+  const datas = DIAS.map((_, i) => somaDias(seg, i));
+
+  datas.forEach((iso, i) => {
+    $('th-d' + i).innerHTML = `${DIAS[i]} <div class="text-[9px] font-normal text-gray-400 mt-0.5">${fmtCurto(iso)}</div>`;
+    $('th-c' + i).innerHTML = `${DIAS[i]} <div class="text-[9px] font-normal text-gray-400">${fmtCurto(iso)}</div>`;
+  });
+
+  const fl = $('filtroLoja').value;
+  $('tituloImpressao').textContent = `Escala · ${fl === 'todas' ? 'Todas as lojas' : fl === '__volante' ? 'Volantes' : fl} · ${fmtCurto(datas[0])} a ${fmtCurto(datas[6])}`;
+
+  const lista = funcsVisiveis();
+  const nf = lista.filter(emFerias).length;
+  $('contadorEquipe').textContent = `${lista.length} funcionários exibidos${nf ? ` · ${nf} de férias hoje` : ''}`;
+
+  $('tabelaEscalaCorpo').innerHTML = lista.length ? lista.map(f => {
+    const sts = datas.map(iso => statusDia(f, iso));
+    const trab = sts.filter(s => s === 'T').length;
+    const fer = sts.filter(s => s === 'FÉ').length;
+
+    const rowBg = f.isInspetor ? 'bg-indigo-50/30 hover:bg-indigo-50/60' : (fer === 7 ? 'bg-violet-50/60' : 'hover:bg-gray-50');
+    const textCor = f.isInspetor ? 'text-indigo-700' : (fer === 7 ? 'text-violet-800' : 'text-gray-900');
+
+    const nomeHTML = f.isInspetor
+      ? `<span class="flex items-center gap-2 font-bold text-indigo-700">⭐ Inspetor Parceiro <button data-act="delInspetor" data-id="${f.id}" class="text-rose-400 hover:text-rose-600 text-[10px] ml-1" title="Remover inspetor" aria-label="Remover inspetor">✕</button></span>`
+      : esc(f.nome) + (() => {
+        const fp = feriasProximas(f);
+        if (!fp) return '';
+        const txt = `Entra de férias em ${fmtCurto(fp.ini)} (${fp.n === 1 ? 'amanhã' : 'em ' + fp.n + ' dias'})`;
+        return ` <span title="${txt}" aria-label="${txt}" class="ml-1 whitespace-nowrap bg-violet-100 text-violet-700 border border-violet-300 px-1.5 py-0.5 rounded text-[10px] font-bold">🏖️ ${fp.n === 1 ? 'amanhã' : fp.n + 'd'}</span>`;
+      })();
+
+    const cols = datas.map((iso, i) => {
+      const st = sts[i];
+      const emFer = st === 'FÉ';
+      const cor = emFer ? 'bg-violet-100 text-violet-700 border-violet-300' : st === 'T' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-amber-50 text-amber-700 border-amber-200';
+      return `<td class="py-2.5 px-2 text-center">
+        <button data-act="toggle" data-id="${f.id}" data-iso="${iso}" ${(emFer || !podeEditar()) ? 'disabled' : ''} aria-label="${esc(f.nome)} ${DIAS[i]} ${fmtCurto(iso)}: ${emFer ? 'férias' : st === 'T' ? 'trabalha' : 'folga'}" class="w-8 h-8 mx-auto rounded font-bold text-xs border transition flex items-center justify-center ${cor}">${st}</button>
+      </td>`;
+    }).join('');
+
+    const nomeLoja = f.loja === '' ? '<span class="bg-gray-100 text-gray-500 px-2 py-0.5 rounded font-medium">Volante</span>' : `<span class="bg-gray-100 text-gray-700 px-2 py-0.5 rounded font-medium">${esc(f.loja)}</span>`;
+    const total = fer === 7 ? 'Férias' : `${trab} dias${fer ? ` · ${fer} fér.` : ''}`;
+    const totCor = fer === 7 ? 'text-violet-700' : (trab === 7 ? 'text-rose-600' : 'text-gray-700');
+
+    return `<tr class="${rowBg} transition">
+      <td class="py-2.5 px-4 font-semibold col-nome ${textCor}">${nomeHTML}<span class="sm:hidden block text-[10px] font-normal text-gray-500">${esc(f.loja || 'Volante')}</span></td>
+      <td class="py-2.5 px-3 col-loja">${nomeLoja}</td>
+      ${cols}
+      <td class="py-2.5 px-4 text-center font-bold whitespace-nowrap col-total ${totCor}" title="${trab === 7 ? 'Sem folga nesta semana' : ''}">${total}</td></tr>`;
+  }).join('') : '<tr><td colspan="10" class="py-6 text-center text-gray-500">Nenhum funcionário ativo exibido para esta loja.</td></tr>';
+
+  renderCobertura();
+}
+
+function renderEquipe() {
+  const listaNormal = S.funcs.filter(f => !f.isInspetor && !f.afastado);
+  $('totalAtivos').textContent = listaNormal.length;
+
+  $('listaEquipePainel').innerHTML = listaNormal.length ? listaNormal.map(f => {
+    f.ferias = f.ferias || [];
+    let htmlPeriodos = '';
+    const qtd = Math.max(1, f.ferias.length);
+    for (let i = 0; i < qtd && i < 2; i++) {
+      const p = f.ferias[i] || { ini: '', fim: '' };
+      const on = emPeriodo(p, hoje());
+      const c = 'border rounded px-2 py-1 text-xs ' + (on ? 'border-violet-400 bg-violet-50' : 'border-gray-300');
+      htmlPeriodos += `
+        <div class="flex items-center gap-2 flex-wrap ${on ? 'text-violet-700' : 'text-gray-500'}">
+          <b class="font-bold text-xs">Férias ${i + 1}</b>
+          <input type="date" aria-label="Início das férias ${i + 1} de ${esc(f.nome)}" data-act="fIni" data-i="${i}" data-id="${f.id}" value="${p.ini || ''}" class="${c} focus:ring-2 focus:ring-kavak-blue outline-none">
+          <span class="text-xs">até</span>
+          <input type="date" aria-label="Fim das férias ${i + 1} de ${esc(f.nome)}" data-act="fFim" data-i="${i}" data-id="${f.id}" value="${p.fim || ''}" class="${c} focus:ring-2 focus:ring-kavak-blue outline-none">
+          ${i > 0 ? `<button data-act="fRemoverPeriodo" data-i="${i}" data-id="${f.id}" class="text-gray-400 hover:text-rose-500 font-bold px-1" title="Remover período" aria-label="Remover período de férias ${i + 1}">✕</button>` : ''}
+        </div>`;
+    }
+
+    const lojaOptions = '<option value="">Sem Loja (Volante)</option>' + S.lojas.map(l => `<option value="${esc(l)}" ${f.loja === l ? 'selected' : ''}>${esc(l)}</option>`).join('');
+
+    return `
+    <div class="p-3 flex flex-col sm:flex-row sm:items-start justify-between gap-3 text-xs border-b border-gray-100">
+      <div class="flex flex-col gap-2 flex-1">
+        <div class="flex items-center gap-2 flex-wrap">
+          <input type="text" aria-label="Nome do funcionário" value="${esc(f.nome)}" data-act="nome" data-id="${f.id}" class="border border-gray-300 bg-white text-gray-900 rounded px-2 py-1.5 font-medium w-48 focus:ring-2 focus:ring-kavak-blue outline-none">
+          <select aria-label="Loja de ${esc(f.nome)}" data-act="lojaF" data-id="${f.id}" class="border border-gray-300 rounded px-2 py-1.5 bg-white text-gray-700 focus:ring-2 focus:ring-kavak-blue outline-none">
+            ${lojaOptions}
+          </select>
+          ${emFerias(f) ? '<span class="bg-violet-100 text-violet-700 px-2 py-0.5 rounded font-bold">De férias</span>' : ''}
+          ${(() => { const fp = feriasProximas(f); return fp ? `<span class="bg-violet-50 text-violet-700 border border-violet-200 px-2 py-0.5 rounded font-bold">🏖️ entra de férias em ${fmtCurto(fp.ini)}</span>` : ''; })()}
+          <button data-act="afastarF" data-id="${f.id}" class="text-amber-600 hover:text-amber-800 font-bold text-[11px] ml-auto sm:ml-2">Afastar</button>
+        </div>
+        <div class="flex flex-col gap-1 mt-1">
+          ${htmlPeriodos}
+          <button data-act="fAddPeriodo" data-id="${f.id}" class="text-kavak-blue hover:text-blue-800 font-bold text-[11px] flex items-center gap-1 mt-1 w-fit ${f.ferias.length >= 2 || f.ferias.length === 0 ? 'hidden' : ''}">
+            + Adicionar outro período
+          </button>
+        </div>
+      </div>
+      <button data-act="delF" data-id="${f.id}" class="text-rose-500 hover:text-rose-700 font-bold self-end sm:self-start mt-2 sm:mt-0">Excluir</button>
+    </div>`;
+  }).join('') : '<div class="p-4 text-xs text-gray-500">Nenhum funcionário ativo cadastrado.</div>';
+}
+
+function chipHTML(f) {
+  const fer = emFerias(f);
+  return `<div class="chip px-2.5 py-1.5 rounded border text-xs font-medium ${fer ? 'bg-violet-100 text-violet-700 border-violet-300' : 'bg-white text-gray-700 border-gray-300 shadow-sm'}" draggable="true" data-drag="${f.id}" data-act="moverChip" data-id="${f.id}" title="Arraste para outra loja ou toque para escolher">${esc(f.nome)}${fer ? ' · férias' : ''}</div>`;
+}
+
+function renderLojas() {
+  const cards = S.lojas.map(l => {
+    const fs = S.funcs.filter(f => f.loja === l && !f.isInspetor && !f.afastado);
+    return `<div class="loja-drop bg-white rounded-lg shadow-sm border border-gray-200 p-3 space-y-2 transition" data-loja="${esc(l)}">
+      <div class="flex items-center justify-between text-xs">
+        <span class="font-bold text-gray-900">📍 ${esc(l)} <span class="text-gray-400 font-normal">· ${fs.length}</span></span>
+        <button data-act="delL" data-loja="${esc(l)}" class="text-rose-500 hover:text-rose-700 font-bold">Remover</button>
+      </div>
+      <div class="flex flex-wrap gap-1.5 min-h-[2.5rem] items-start">${fs.map(chipHTML).join('') || '<span class="text-[11px] text-gray-400">Arraste alguém para cá</span>'}</div>
+    </div>`;
+  });
+
+  const vol = S.funcs.filter(f => f.loja === '' && !f.isInspetor && !f.afastado);
+  cards.push(`<div class="loja-drop bg-gray-50 rounded-lg border border-dashed border-gray-300 p-3 space-y-2 transition" data-loja="">
+      <div class="flex items-center justify-between text-xs">
+        <span class="font-bold text-gray-600">🧭 Volantes (sem loja) <span class="text-gray-400 font-normal">· ${vol.length}</span></span>
+      </div>
+      <div class="flex flex-wrap gap-1.5 min-h-[2.5rem] items-start">${vol.map(chipHTML).join('') || '<span class="text-[11px] text-gray-400">Arraste alguém para cá para deixá-lo sem loja</span>'}</div>
+    </div>`);
+
+  $('listaLojasPainel').innerHTML = cards.join('');
+}
+
+// ---------- Loja vazia: cobertura por inspetor parceiro / volante ----------
+const NOMES_MES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+let quadroMesVis = hoje().slice(0, 7);
+
+// "Equipe cadastrada" inclui afastados: loja cuja equipe toda está afastada CONTINUA aparecendo como vazia.
+// Só loja sem nenhum funcionário cadastrado fica de fora dos alertas (aparece à parte, como "sem cadastro").
+const cadastradosDaLoja = l => S.funcs.filter(f => f.loja === l && !f.isInspetor);
+const lojaTemCadastro = l => cadastradosDaLoja(l).length > 0;
+const lojaEquipeTodaAfastada = l => lojaTemCadastro(l) && cadastradosDaLoja(l).every(f => f.afastado);
+const lojaVaziaEm = (l, iso) => lojaTemCadastro(l) &&
+  !S.funcs.some(f => f.loja === l && !f.isInspetor && !f.afastado && statusDia(f, iso) === 'T');
+const fmtDiaSemana = iso => DIAS[diaIdx(iso)] + ' ' + fmtCurto(iso);
+
+// Lógica ÚNICA de reforço (tela inicial, alertas, nuvens, quadro e botão Reforços).
+// Ordem: 1) inspetor parceiro da própria loja  2) volante  3) inspetor sem loja  4) inspetor de outra loja.
+// Cada pessoa cobre no máximo uma loja por dia. O inspetor NÃO conta para o mínimo da loja.
+function escolherReforcos(iso, lojas, opts = {}) {
+  const trab = f => !f.afastado && statusDia(f, iso) === 'T';
+  const usados = new Set();
+  const pegar = lista => { const x = lista.find(f => !usados.has(f.id)); if (x) usados.add(x.id); return x || null; };
+  const res = lojas.map(l => ({ loja: l, por: null }));
+  if (!opts.semProprio) res.forEach(r => {   // semProprio: o inspetor da loja já está lá, então não é "reforço"
+    const i = pegar(S.funcs.filter(f => f.isInspetor && f.loja === r.loja && trab(f)));
+    if (i) r.por = { tipo: 'insp', nome: i.nome, origem: i.loja };
+  });
+  res.forEach(r => {
+    if (r.por) return;
+    const v = pegar(S.funcs.filter(f => !f.isInspetor && f.loja === '' && trab(f)));
+    if (v) { r.por = { tipo: 'vol', nome: v.nome, origem: '' }; return; }
+    const i = pegar(S.funcs.filter(f => f.isInspetor && f.loja === '' && trab(f)))
+           || pegar(S.funcs.filter(f => f.isInspetor && f.loja !== r.loja && trab(f)));
+    if (i) r.por = { tipo: 'insp', nome: i.nome, origem: i.loja };
+  });
+  return res;
+}
+
+const coberturaEm = iso => escolherReforcos(iso, S.lojas.filter(l => lojaVaziaEm(l, iso)));
+
+function textoCobertura(por, loja) {
+  if (!por) return '<span class="font-bold text-rose-700">⛔ Sem cobertura (nenhum inspetor ou volante livre)</span>';
+  if (por.tipo === 'vol') return `<span class="font-bold text-emerald-700">🧭 Volante: ${esc(por.nome)}</span>`;
+  const de = por.origem && por.origem !== loja ? ` <span class="font-normal text-gray-500">(hoje em ${esc(por.origem)})</span>` : '';
+  return `<span class="font-bold text-indigo-700">🛡️ Inspetor parceiro: ${esc(por.nome)}${de}</span>`;
+}
+
+function renderAlertasVazia() {
+  const el = $('alertasVazia');
+  if (!el) return;
+  const iso = dataSelecionada;
+  const cob = coberturaEm(iso);
+  const semCob = cob.filter(c => !c.por).length;
+  const [y, m, d] = iso.split('-');
+  const rotulo = iso === hoje() ? `hoje (${d}/${m})` : `${DIAS[diaIdx(iso)]} ${d}/${m}`;
+
+  let topo;
+  if (!cob.length) {
+    topo = `<div class="bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg px-4 py-3 text-xs font-medium">✅ Nenhuma loja ficará vazia ${rotulo}.</div>`;
+  } else {
+    const linhas = cob.map(c => `
+      <div data-act="irLoja" data-loja="${esc(c.loja)}" class="cursor-pointer flex flex-wrap items-center gap-x-3 gap-y-1 bg-white/70 hover:bg-white border ${c.por ? 'border-amber-200' : 'border-rose-300'} rounded-md px-3 py-2">
+        <span class="font-bold text-gray-900">🔴 ${esc(c.loja)} ficará vazia${lojaEquipeTodaAfastada(c.loja) ? ' <span class="font-normal text-gray-500">(equipe toda afastada)</span>' : ''}</span>
+        <span class="text-gray-400">→</span>
+        ${textoCobertura(c.por, c.loja)}
+      </div>`).join('');
+    topo = `<div class="${semCob ? 'bg-rose-50 border-rose-200' : 'bg-amber-50 border-amber-200'} border rounded-lg p-4 text-xs space-y-2">
+      <div class="font-bold ${semCob ? 'text-rose-800' : 'text-amber-800'}">${cob.length === 1 ? '1 loja vazia' : cob.length + ' lojas vazias'} ${rotulo}${semCob ? ` · ${semCob} sem cobertura` : ' · todas com cobertura'}</div>
+      <div class="space-y-1.5">${linhas}</div>
+    </div>`;
+  }
+
+  // Próximos 14 dias com loja vazia (exceto o dia já detalhado)
+  const prox = [];
+  for (let i = 0; i < 14; i++) {
+    const di = somaDias(hoje(), i);
+    if (di === iso) continue;
+    const c = coberturaEm(di);
+    if (c.length) prox.push({ di, c });
+  }
+  const chips = prox.length
+    ? `<div class="flex flex-wrap gap-2 text-[11px] mt-3">
+         <span class="text-gray-500 font-medium self-center">Outros dias com loja vazia:</span>
+         ${prox.map(({ di, c }) => {
+           const ruim = c.some(x => !x.por);
+           return `<button data-act="selData" data-iso="${di}" class="px-2 py-1 rounded border font-bold ${ruim ? 'bg-rose-50 border-rose-200 text-rose-700' : 'bg-amber-50 border-amber-200 text-amber-700'}" title="${esc(c.map(x => x.loja).join(', '))}">${fmtDiaSemana(di)} · ${c.length} ${ruim ? '⛔' : '✅'}</button>`;
+         }).join('')}
+       </div>` : '';
+  const semCad = S.lojas.filter(l => !lojaTemCadastro(l));
+  const notaCad = semCad.length ? `<p class="text-[11px] text-gray-500 mt-3">ℹ️ Sem funcionários cadastrados (fora dos alertas): ${semCad.map(esc).join(', ')}</p>` : '';
+  el.innerHTML = topo + chips + notaCad;
+}
+
+// ---------- Quadro de avisos do mês ----------
+const TIPOS_AVISO = {
+  info:       { rot: 'Informativo', cls: 'bg-sky-50 border-sky-200 text-sky-900',       ic: '📌' },
+  importante: { rot: 'Importante',  cls: 'bg-amber-50 border-amber-200 text-amber-900', ic: '⚠️' },
+  urgente:    { rot: 'Urgente',     cls: 'bg-rose-50 border-rose-200 text-rose-900',    ic: '🚨' }
+};
+
+function renderQuadro() {
+  const el = $('quadroMes');
+  if (!el) return;
+  const mes = quadroMesVis;
+  const [ano, mm] = mes.split('-').map(Number);
+  const primeiro = mes + '-01';
+  const ultimo = somaDias(isoDe(new Date(ano, mm, 1)), -1);
+  const ini = mes === hoje().slice(0, 7) ? hoje() : primeiro;
+  const passado = mes < hoje().slice(0, 7);
+
+  // Automático: lojas vazias no mês, com cobertura
+  const porLoja = {};
+  if (!passado) {
+    for (let di = ini; di <= ultimo; di = somaDias(di, 1)) {
+      coberturaEm(di).forEach(c => { (porLoja[c.loja] = porLoja[c.loja] || []).push({ di, por: c.por }); });
+    }
+  }
+  const lojasVaz = Object.keys(porLoja);
+  const blocoVazias = lojasVaz.length
+    ? lojasVaz.map(l => {
+        const dias = porLoja[l];
+        const sem = dias.filter(x => !x.por).length;
+        return `<div data-act="irLoja" data-loja="${esc(l)}" class="cursor-pointer border ${sem ? 'border-rose-200 bg-rose-50' : 'border-amber-200 bg-amber-50'} rounded-md p-3 text-xs">
+          <div class="font-bold text-gray-900">🔴 ${esc(l)} <span class="font-normal text-gray-500">· vazia em ${dias.length} dia(s)${sem ? ` · <b class="text-rose-700">${sem} sem cobertura</b>` : ''}</span></div>
+          <div class="mt-1.5 flex flex-wrap gap-1.5">${dias.map(x => `<span class="px-1.5 py-0.5 rounded bg-white border ${x.por ? 'border-gray-200 text-gray-700' : 'border-rose-300 text-rose-700 font-bold'}" title="${x.por ? esc((x.por.tipo === 'insp' ? 'Inspetor: ' : 'Volante: ') + x.por.nome) : 'Sem cobertura'}">${fmtDiaSemana(x.di)} ${x.por ? (x.por.tipo === 'insp' ? '🛡️' : '🧭') : '⛔'}</span>`).join('')}</div>
+        </div>`;
+      }).join('')
+    : `<p class="text-xs text-gray-500">${passado ? 'Mês encerrado.' : '✅ Nenhuma loja vazia prevista neste mês.'}</p>`;
+
+  // Automático: férias que tocam o mês
+  const ferias = [];
+  S.funcs.filter(f => !f.afastado).forEach(f => periodos(f).forEach(p => {
+    const fim = p.fim || '9999-12-31';
+    if (p.ini <= ultimo && fim >= primeiro) ferias.push({ f, p });
+  }));
+  ferias.sort((a, b) => a.p.ini.localeCompare(b.p.ini));
+  const blocoFerias = ferias.length
+    ? ferias.map(({ f, p }) => `<div class="text-xs flex flex-wrap gap-x-2 border border-gray-200 rounded-md px-3 py-2 bg-gray-50"><b class="text-gray-800">🏖️ ${esc(f.nome)}</b><span class="text-gray-500">${esc(f.loja || (f.isInspetor ? 'Inspetor' : 'Volante'))}</span><span class="text-gray-700">${fmtCurto(p.ini)} a ${p.fim ? fmtCurto(p.fim) : 'sem data final'}</span></div>`).join('')
+    : '<p class="text-xs text-gray-500">Ninguém de férias neste mês.</p>';
+
+  // Avisos manuais
+  const ordem = { urgente: 0, importante: 1, info: 2 };
+  const avisos = S.quadro.filter(a => a.mes === mes)
+    .sort((a, b) => (ordem[a.tipo] - ordem[b.tipo]) || (a.dia || '9').localeCompare(b.dia || '9'));
+  const edita = podeEditar();
+  const blocoAvisos = avisos.length
+    ? avisos.map(a => {
+        const t = TIPOS_AVISO[a.tipo];
+        return `<div class="border ${t.cls} rounded-md p-3 text-xs shadow-sm relative">
+          <div class="flex items-center justify-between gap-2 mb-1">
+            <span class="font-bold">${t.ic} ${t.rot}${a.dia ? ' · ' + fmtDiaSemana(a.dia) : ''}</span>
+            ${edita ? `<button data-act="quadroDel" data-id="${a.id}" class="text-gray-400 hover:text-rose-600 font-bold" title="Excluir aviso" aria-label="Excluir aviso">✕</button>` : ''}
+          </div>
+          <div class="whitespace-pre-wrap break-words">${esc(a.texto)}</div>
+        </div>`;
+      }).join('')
+    : '<p class="text-xs text-gray-500">Nenhum aviso publicado para este mês.</p>';
+
+  el.innerHTML = `
+    <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+      <div>
+        <h2 class="text-lg font-bold text-gray-900">📋 Quadro de Avisos do Mês</h2>
+        <p class="text-xs text-gray-500">Avisos da supervisão, lojas vazias previstas e férias do mês.</p>
+      </div>
+      <div class="flex items-center gap-2">
+        <button data-act="quadroMes" data-d="-1" class="border border-gray-300 rounded px-2.5 py-1.5 text-xs font-bold hover:bg-gray-50" aria-label="Mês anterior">‹</button>
+        <span class="text-xs font-bold text-gray-800 min-w-[110px] text-center">${NOMES_MES[mm - 1]} ${ano}</span>
+        <button data-act="quadroMes" data-d="1" class="border border-gray-300 rounded px-2.5 py-1.5 text-xs font-bold hover:bg-gray-50" aria-label="Próximo mês">›</button>
+        ${edita ? '<button data-act="quadroAdd" class="btn-kavak px-3 py-1.5 text-xs">+ Novo aviso</button>' : ''}
+      </div>
+    </div>
+    <div class="grid gap-5 lg:grid-cols-3">
+      <div class="space-y-2"><h3 class="text-[11px] font-bold uppercase tracking-wider text-gray-500">Avisos</h3>${blocoAvisos}</div>
+      <div class="space-y-2"><h3 class="text-[11px] font-bold uppercase tracking-wider text-gray-500">Lojas vazias previstas</h3>${blocoVazias}</div>
+      <div class="space-y-2"><h3 class="text-[11px] font-bold uppercase tracking-wider text-gray-500">Férias no mês</h3>${blocoFerias}</div>
+    </div>`;
+}
+
+function novoAviso() {
+  const mes = quadroMesVis;
+  modal('Novo aviso · ' + NOMES_MES[+mes.slice(5) - 1] + ' ' + mes.slice(0, 4), `
+    <div class="space-y-3">
+      <textarea id="avTexto" rows="4" maxlength="400" placeholder="Escreva o aviso (máx. 400 caracteres)" class="w-full border border-gray-300 rounded px-3 py-2 text-xs focus:ring-2 focus:ring-kavak-blue outline-none"></textarea>
+      <div class="grid grid-cols-2 gap-2">
+        <label class="text-[11px] font-bold text-gray-700">Tipo
+          <select id="avTipo" class="mt-1 w-full border border-gray-300 rounded px-2 py-2 text-xs bg-white font-normal">
+            <option value="info">📌 Informativo</option><option value="importante">⚠️ Importante</option><option value="urgente">🚨 Urgente</option>
+          </select></label>
+        <label class="text-[11px] font-bold text-gray-700">Dia (opcional)
+          <input type="date" id="avDia" min="${mes}-01" max="${mes}-31" class="mt-1 w-full border border-gray-300 rounded px-2 py-2 text-xs font-normal"></label>
+      </div>
+    </div>`, [
+    { txt: 'Cancelar', cls: BTN_CANCELA },
+    { txt: 'Publicar', cls: 'btn-kavak text-white', fecha: false, fn: () => {
+        const texto = $('avTexto').value.trim();
+        if (!texto) return toast('Escreva o aviso');
+        let dia = $('avDia').value;
+        if (dia && dia.slice(0, 7) !== mes) dia = '';
+        snapshot('novo aviso');
+        S.quadro.push({ id: Date.now(), mes, dia, tipo: $('avTipo').value, texto: texto.slice(0, 400) });
+        fechar(); atualizarTudo(); toast('Aviso publicado!');
+      } }
+  ]);
+}
+
+function renderNuvens() {
+  const container = $('nuvensHome');
+  const subtitulo = $('subtituloNuvens');
+
+  const isHoje = dataSelecionada === hoje();
+  const [y, m, d] = dataSelecionada.split('-');
+  const dataBr = `${d}/${m}/${y}`;
+  subtitulo.innerHTML = (isHoje
+    ? `Mostrando o status de <b>Hoje (${dataBr})</b>.`
+    : `Mostrando o status do dia <b>${dataBr}</b>.`) + ' 🟢 Tudo OK · 🟡 Atenção · 🔴 Loja Vazia. Clique em uma nuvem para ver a escala da loja.';
+
+  if (!S.lojas.length) {
+    container.innerHTML = '<p class="text-gray-400 text-sm">Nenhuma loja cadastrada.</p>';
+    return;
+  }
+
+  const nuvens = S.lojas.map(l => {
+    const cad = cadastradosDaLoja(l);
+    const fs = cad.filter(f => !f.afastado);
+    const insp = S.funcs.filter(f => f.loja === l && f.isInspetor && !f.afastado);
+
+    const ativosNoDia = fs.filter(f => statusDia(f, dataSelecionada) === 'T');
+    const inspNoDia = insp.filter(f => statusDia(f, dataSelecionada) === 'T');
+
+    const semCad = cad.length === 0;
+    let statusBg = 'bg-emerald-500', statusBorder = 'border-emerald-200', statusText = 'text-emerald-700';
+    if (semCad) {
+      statusBg = 'bg-gray-300'; statusBorder = 'border-gray-200'; statusText = 'text-gray-500';
+    } else if (ativosNoDia.length === 0) {
+      statusBg = 'bg-rose-500'; statusBorder = 'border-rose-200'; statusText = 'text-rose-700';
+    } else if (ativosNoDia.length < S.cfg.min) {
+      statusBg = 'bg-amber-500'; statusBorder = 'border-amber-200'; statusText = 'text-amber-700';
+    }
+
+    const vazia = !semCad && ativosNoDia.length === 0;
+    const nAfast = cad.length - fs.length;
+    const cobN = vazia ? (coberturaEm(dataSelecionada).find(c => c.loja === l) || {}).por : null;
+    const linhaCob = vazia
+      ? `<div class="text-[10px] font-bold mt-1 ${cobN ? (cobN.tipo === 'insp' ? 'text-indigo-600' : 'text-emerald-600') : 'text-rose-700'}">${cobN ? (cobN.tipo === 'insp' ? '🛡️ Insp. ' : '🧭 Volante ') + esc(cobN.nome) : '⛔ Sem cobertura'}</div>`
+      : '';
+
+    return `
+    <div data-act="irLoja" data-loja="${esc(l)}" role="button" tabindex="0" aria-label="Abrir escala de ${esc(l)}" class="nuvem-home bg-white rounded-2xl p-4 border ${statusBorder} shadow-sm flex flex-col items-center justify-center min-w-[140px] text-center">
+      <div class="w-3 h-3 rounded-full ${statusBg} mb-2"></div>
+      <h3 class="font-bold text-xs text-gray-800">${esc(l)}</h3>
+      <div class="text-[11px] font-bold ${statusText} mt-1">${semCad ? 'Sem funcionários cadastrados' : `${ativosNoDia.length} Trab / ${fs.length} Tot`}</div>
+      ${nAfast > 0 ? `<div class="text-[10px] text-gray-500 mt-0.5">${lojaEquipeTodaAfastada(l) ? 'equipe toda afastada' : nAfast + ' afastado(s)'}</div>` : ''}
+      ${inspNoDia.length > 0 ? `<div class="text-[10px] text-indigo-600 font-semibold mt-0.5">+${inspNoDia.length} Insp</div>` : ''}
+      ${linhaCob}
+    </div>`;
+  }).join('');
+
+  const vol = S.funcs.filter(f => f.loja === '' && !f.isInspetor && !f.afastado && statusDia(f, dataSelecionada) === 'T');
+  const volTotal = S.funcs.filter(f => f.loja === '' && !f.isInspetor && !f.afastado).length;
+  const volHTML = volTotal
+    ? `<div class="basis-full text-center text-[11px] text-gray-500">🧭 Volantes disponíveis no dia: <b class="text-gray-700">${vol.length}/${volTotal}</b>${vol.length ? ' · ' + vol.map(v => esc(v.nome)).join(', ') : ''}</div>`
+    : '';
+
+  container.innerHTML = nuvens + volHTML;
+}
+
+function renderTimeline() {
+  const container = $('timelineHome');
+  const d = new Date();
+
+  let html = '';
+  for (let i = 0; i < 14; i++) {
+    const cur = new Date(d);
+    cur.setDate(d.getDate() + i);
+    const iso = isoDe(cur);
+    const dateStr = String(cur.getDate()).padStart(2, '0') + '/' + String(cur.getMonth() + 1).padStart(2, '0');
+    const diaNome = DIAS[(cur.getDay() + 6) % 7];
+    const sel = iso === dataSelecionada;
+    const cobDia = coberturaEm(iso), nVaz = cobDia.length, nSem = cobDia.filter(c => !c.por).length;
+
+    html += `
+    <button data-act="selData" data-iso="${iso}" aria-pressed="${sel}" aria-label="${diaNome} ${dateStr}${nVaz ? ', ' + nVaz + ' loja(s) vazia(s)' + (nSem ? ', ' + nSem + ' sem cobertura' : '') : ''}" class="flex-1 py-2 px-3 rounded-lg border text-center transition min-w-[70px] ${sel ? 'bg-kavak-blue text-white border-kavak-blue shadow-md' : 'bg-white text-gray-700 border-gray-200 hover:border-gray-300'}">
+      <div class="text-[10px] font-bold uppercase ${sel ? 'text-blue-100' : 'text-gray-400'}">${diaNome}</div>
+      <div class="text-xs font-bold mt-0.5">${dateStr}</div>
+      ${nVaz ? `<div class="text-[10px] font-bold mt-0.5 ${sel ? 'text-white' : (nSem ? 'text-rose-600' : 'text-amber-600')}">${nSem ? '⛔' : '🔴'} ${nVaz}</div>` : '<div class="text-[10px] mt-0.5">&nbsp;</div>'}
+    </button>`;
+  }
+  container.innerHTML = html;
+}
+
+function renderAfastadosModal() {
+  const afastados = S.funcs.filter(f => f.afastado);
+  let html = `<div class="space-y-3 max-h-60 overflow-y-auto pr-1">`;
+  if (!afastados.length) {
+    html += `<p class="text-xs text-gray-500">Nenhum funcionário afastado atualmente.</p>`;
+  } else {
+    html += afastados.map(f => `
+      <div class="flex items-center justify-between p-2 bg-gray-50 border border-gray-200 rounded text-xs">
+        <div>
+          <div class="font-bold text-gray-800">${esc(f.nome)}</div>
+          <div class="text-[10px] text-gray-500">${esc(f.loja || 'Volante')}</div>
+        </div>
+        <button data-act="reativarF" data-id="${f.id}" class="btn-outline-kavak px-2 py-1 text-[11px]">Reativar</button>
+      </div>
+    `).join('');
+  }
+  html += `</div>`;
+  modal('Funcionários Afastados', html, [{ txt: 'Fechar', cls: BTN_CANCELA }]);
+}
+
+function atualizarTudo() {
+  salvar();
+  atualizarSelects();
+  renderEscala();
+  renderEquipe();
+  renderLojas();
+  renderTimeline();
+  renderNuvens();
+  renderAlertasVazia();
+  renderQuadro();
+  renderAvisos();
+  atualizarBtnDesfazer();
+}
+
+// ---------- Visualização da loja em modal ----------
+let semanaVisualizacao = 1;
+let lojaVisualizacaoAtual = '';
+
+function renderEscalaVisualizacao(lojaNome) {
+  const seg = getDataDaSemana(semanaVisualizacao);
+  const datas = DIAS.map((_, i) => somaDias(seg, i));
+  const fs = S.funcs.filter(f => f.loja === lojaNome && !f.afastado);
+
+  document.querySelectorAll('.btn-semana-view').forEach(btn => {
+    const isAtivo = +btn.dataset.sem === semanaVisualizacao;
+    btn.className = `btn-semana-view px-3 py-1 text-xs font-bold rounded transition ${isAtivo ? 'bg-white text-kavak-blue shadow-sm' : 'text-gray-500 hover:text-gray-800'}`;
+  });
+
+  datas.forEach((iso, i) => {
+    const th = document.getElementById(`th-vd${i}`);
+    if (th) th.innerHTML = `${DIAS[i]} <div class="text-[9px] font-normal text-gray-400 mt-0.5">${fmtCurto(iso)}</div>`;
+  });
+
+  const tbody = document.getElementById('tabelaEscalaViewCorpo');
+  if (!tbody) return;
+
+  if (fs.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8" class="py-6 text-center text-gray-500">Nenhum funcionário ativo nesta loja.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = fs.map(f => {
+    const cols = datas.map(iso => {
+      const st = statusDia(f, iso);
+      const cor = st === 'FÉ' ? 'bg-violet-100 text-violet-700 border-violet-300' : st === 'T' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-amber-50 text-amber-700 border-amber-200';
+      return `<td class="py-2.5 px-2 text-center"><div class="w-8 h-8 mx-auto rounded font-bold text-xs border flex items-center justify-center ${cor}">${st}</div></td>`;
+    }).join('');
+
+    return `<tr class="hover:bg-gray-50 transition">
+      <td class="py-2.5 px-5 font-semibold text-gray-900">${f.isInspetor ? '⭐ Inspetor Parceiro' : esc(f.nome)}</td>
+      ${cols}
+    </tr>`;
+  }).join('');
+}
+
+function abrirVisualizacaoLoja(lojaNome) {
+  lojaVisualizacaoAtual = lojaNome;
+  semanaVisualizacao = semanaAtiva;
+
+  const fs = S.funcs.filter(f => f.loja === lojaNome && !f.afastado);
+
+  const html = `
+    <div class="flex flex-col h-full">
+      <div class="p-5 border-b border-gray-200 bg-white flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 flex-shrink-0">
+        <div>
+          <h3 class="font-bold text-lg text-gray-900">Escala da Loja</h3>
+          <p class="text-xs text-gray-500 mt-1">Visualização para <b class="text-kavak-blue">${esc(lojaNome)}</b>.</p>
+        </div>
+        <div class="flex bg-gray-100 p-1 rounded-md overflow-x-auto">
+          <button data-act="setSemanaView" data-sem="1" class="btn-semana-view px-3 py-1 text-xs font-bold rounded transition">Semana 1</button>
+          <button data-act="setSemanaView" data-sem="2" class="btn-semana-view px-3 py-1 text-xs font-bold rounded transition">Semana 2</button>
+          <button data-act="setSemanaView" data-sem="3" class="btn-semana-view px-3 py-1 text-xs font-bold rounded transition">Semana 3</button>
+          <button data-act="setSemanaView" data-sem="4" class="btn-semana-view px-3 py-1 text-xs font-bold rounded transition">Semana 4</button>
+          <button data-act="setSemanaView" data-sem="5" class="btn-semana-view px-3 py-1 text-xs font-bold rounded transition">Semana 5</button>
+        </div>
+      </div>
+
+      <div class="flex-1 overflow-auto bg-gray-50/30">
+        <table class="w-full text-left border-collapse text-xs">
+          <thead class="sticky top-0 bg-gray-50 text-gray-600 font-bold uppercase tracking-wider text-[10px] border-b border-gray-200 z-10 shadow-sm">
+            <tr>
+              <th class="py-3 px-5 w-1/3">Funcionário</th>
+              <th id="th-vd0" class="py-3 px-2 text-center">Seg</th>
+              <th id="th-vd1" class="py-3 px-2 text-center">Ter</th>
+              <th id="th-vd2" class="py-3 px-2 text-center">Qua</th>
+              <th id="th-vd3" class="py-3 px-2 text-center">Qui</th>
+              <th id="th-vd4" class="py-3 px-2 text-center">Sex</th>
+              <th id="th-vd5" class="py-3 px-2 text-center">Sáb</th>
+              <th id="th-vd6" class="py-3 px-2 text-center">Dom</th>
+            </tr>
+          </thead>
+          <tbody id="tabelaEscalaViewCorpo" class="divide-y divide-gray-100 bg-white"></tbody>
+        </table>
+      </div>
+
+      <div class="p-4 border-t border-gray-200 bg-white flex items-center justify-between flex-shrink-0">
+        <div class="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg font-bold text-xs flex items-center gap-2">
+          <i data-ic="users"></i>
+          ${fs.length} Funcionários na Loja
+        </div>
+        ${podeEditar() ? `<button data-act="editarLojaDoModal" data-loja="${esc(lojaNome)}" class="btn-kavak px-4 py-2 text-xs flex items-center gap-2 shadow-sm">
+          <i data-ic="calendar"></i> Editar Escala
+        </button>` : ''}
+      </div>
+    </div>`;
+
+  modal(``, html, [], true);   // modal() já converte os ícones data-ic
+  renderEscalaVisualizacao(lojaNome);
+}
+
+// ---------- Eventos ----------
+// Teclado: Enter/Espaço ativam cards clicáveis (nuvens das lojas, avisos)
+document.addEventListener('keydown', e => {
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('div[role="button"][data-act]')) {
+    e.preventDefault(); e.target.click();
+  }
+});
+
+document.addEventListener('click', e => {
+  const btn = e.target.closest('[data-act]');
+  if (!btn) return;
+  const act = btn.dataset.act;
+  // Funcionário só navega e visualiza; qualquer outra ação é bloqueada (e o servidor também bloqueia).
+  const SO_LEITURA = ['tab', 'setSemana', 'setSemanaView', 'selData', 'irLoja', 'quadroMes'];
+  if (!podeEditar() && !SO_LEITURA.includes(act)) return;
+
+  if (act === 'tab') {
+    mudarAba(btn.dataset.tab);
+  } else if (act === 'toggle') {
+    const f = S.funcs.find(x => x.id === +btn.dataset.id);
+    if (!f) return;
+    const iso = btn.dataset.iso;
+    f.dias[iso] = statusDia(f, iso) === 'T' ? 'F' : 'T';
+    atualizarTudo();
+  } else if (act === 'setSemana') {
+    semanaAtiva = +btn.dataset.sem;
+    renderEscala();
+  } else if (act === 'setSemanaView') {
+    semanaVisualizacao = +btn.dataset.sem;
+    renderEscalaVisualizacao(lojaVisualizacaoAtual);
+  } else if (act === 'editarLojaDoModal') {
+    fechar();
+    atualizarSelects();
+    $('filtroLoja').value = btn.dataset.loja;
+    semanaAtiva = semanaVisualizacao;
+    mudarAba('escala');
+    toast(`Agora você pode editar a escala de ${btn.dataset.loja}`);
+  } else if (act === 'delF') {
+    const id = +btn.dataset.id;
+    confirmar('Excluir Funcionário', 'Tem certeza que deseja excluir este funcionário?', 'Excluir', () => {
+      snapshot('exclusão de funcionário');
+      S.funcs = S.funcs.filter(f => f.id !== id);
+      atualizarTudo();
+      toast('Funcionário removido! (dá para desfazer)');
+    });
+  } else if (act === 'delL') {
+    const loja = btn.dataset.loja;
+    confirmar('Remover Loja', `Deseja remover a loja ${esc(loja)}? Os funcionários ficarão sem loja atribuída (volantes).`, 'Remover', () => {
+      snapshot('remoção de loja');
+      S.lojas = S.lojas.filter(l => l !== loja);
+      S.funcs.forEach(f => { if (f.loja === loja) f.loja = ''; });
+      atualizarTudo();
+      toast('Loja removida! (dá para desfazer)');
+    });
+  } else if (act === 'delInspetor') {
+    const id = +btn.dataset.id;
+    S.funcs = S.funcs.filter(f => f.id !== id);
+    atualizarTudo();
+    toast('Inspetor removido!');
+  } else if (act === 'fAddPeriodo') {
+    const f = S.funcs.find(x => x.id === +btn.dataset.id);
+    if (f) {
+      f.ferias = f.ferias || [];
+      if (f.ferias.length < 2) {
+        f.ferias.push({ ini: '', fim: '' });
+        atualizarTudo();
+      }
+    }
+  } else if (act === 'fRemoverPeriodo') {
+    const f = S.funcs.find(x => x.id === +btn.dataset.id);
+    const i = +btn.dataset.i;
+    if (f && f.ferias && f.ferias[i]) {
+      f.ferias.splice(i, 1);
+      atualizarTudo();
+    }
+  } else if (act === 'quadroMes') {
+    const [a, m] = quadroMesVis.split('-').map(Number);
+    const nd = new Date(a, m - 1 + (+btn.dataset.d), 1);
+    quadroMesVis = nd.getFullYear() + '-' + String(nd.getMonth() + 1).padStart(2, '0');
+    renderQuadro();
+  } else if (act === 'quadroAdd') {
+    novoAviso();
+  } else if (act === 'quadroDel') {
+    const id = +btn.dataset.id;
+    confirmar('Excluir aviso', 'Excluir este aviso do quadro?', 'Excluir', () => {
+      snapshot('exclusão de aviso');
+      S.quadro = S.quadro.filter(a => a.id !== id);
+      atualizarTudo();
+      toast('Aviso excluído! (dá para desfazer)');
+    });
+  } else if (act === 'selData') {
+    dataSelecionada = btn.dataset.iso;
+    renderTimeline();
+    renderNuvens();
+    renderAlertasVazia();
+  } else if (act === 'irLoja') {
+    abrirVisualizacaoLoja(btn.dataset.loja);
+  } else if (act === 'modalAfastar') {
+    renderAfastadosModal();
+  } else if (act === 'afastarF') {
+    const f = S.funcs.find(x => x.id === +btn.dataset.id);
+    if (f) {
+      f.afastado = true;
+      atualizarTudo();
+      toast(`${f.nome} foi afastado(a).`);
+    }
+  } else if (act === 'reativarF') {
+    const f = S.funcs.find(x => x.id === +btn.dataset.id);
+    if (f) {
+      f.afastado = false;
+      atualizarTudo();
+      renderAfastadosModal();
+      toast(`${f.nome} reativado(a)!`);
+    }
+  } else if (act === 'uSenha') {
+    const u = btn.dataset.u;
+    modal('Nova senha para ' + esc(u),
+      '<input id="novaSenhaU" type="text" autocomplete="off" placeholder="Nova senha (mín. 6 caracteres)" class="w-full border border-gray-300 rounded px-3 py-2 text-xs focus:ring-2 focus:ring-kavak-blue outline-none">',
+      [{ txt: 'Cancelar', cls: BTN_CANCELA },
+       { txt: 'Salvar', cls: 'btn-kavak text-white', fn: () => salvarUsuarioRemoto({ usuario: u, senha: $('novaSenhaU').value }, 'Senha atualizada!') }]);
+  } else if (act === 'uAtivo') {
+    const u = usuariosCache.find(x => x.usuario === btn.dataset.u);
+    if (u) salvarUsuarioRemoto({ usuario: u.usuario, ativo: !u.ativo }, u.ativo ? 'Acesso desativado.' : 'Acesso reativado!');
+  } else if (act === 'uExcluir') {
+    const login = btn.dataset.u;
+    confirmar('Excluir acesso', `Excluir o acesso de <b>${esc(login)}</b>? Essa pessoa não conseguirá mais entrar.`, 'Excluir', async () => {
+      try {
+        const r = await api('excluirUsuario', { usuario: login });
+        if (r.ok) { toast('Acesso excluído.'); carregarUsuarios(); }
+        else toast(MSG_ERRO[r.erro] || 'Erro ao excluir');
+      } catch (e) { if (!e.sessaoExpirada) toast('Sem conexão com o servidor'); }
+    });
+  } else if (act === 'exportar') {
+    exportar();
+  } else if (act === 'moverChip') {
+    // Alternativa ao arrastar (celular): toque na pessoa e escolha a loja
+    const f = S.funcs.find(x => x.id === +btn.dataset.id);
+    if (!f) return;
+    const opts = '<option value="">Sem Loja (Volante)</option>' + S.lojas.map(l => `<option value="${esc(l)}" ${f.loja === l ? 'selected' : ''}>${esc(l)}</option>`).join('');
+    modal('Mover ' + esc(f.nome),
+      `<label class="block text-xs font-bold text-gray-700 mb-1">Nova loja</label>
+       <select id="moverDest" class="w-full border border-gray-300 rounded px-3 py-2 text-xs bg-white focus:ring-2 focus:ring-kavak-blue outline-none">${opts}</select>`,
+      [{ txt: 'Cancelar', cls: BTN_CANCELA },
+       { txt: 'Mover', cls: 'btn-kavak text-white', fn: () => {
+          f.loja = $('moverDest').value;
+          atualizarTudo();
+          toast(`${f.nome} movido(a) para ${f.loja || 'Volantes'}`);
+       } }]);
+  }
+});
+
+document.addEventListener('change', e => {
+  const el = e.target;
+  const act = el.dataset.act;
+  if (!act) return;
+  if (!podeEditar()) return;
+
+  if (act === 'uPapel') {
+    salvarUsuarioRemoto({ usuario: el.dataset.u, papel: el.value }, 'Papel atualizado!');
+  } else if (act === 'nome') {
+    const f = S.funcs.find(x => x.id === +el.dataset.id);
+    if (f) { f.nome = el.value.trim() || f.nome; salvar(); }
+  } else if (act === 'lojaF') {
+    const f = S.funcs.find(x => x.id === +el.dataset.id);
+    if (f) { f.loja = el.value; atualizarTudo(); }
+  } else if (act === 'fIni' || act === 'fFim') {
+    const f = S.funcs.find(x => x.id === +el.dataset.id);
+    const i = +el.dataset.i;
+    if (f) {
+      f.ferias = f.ferias || [];
+      if (!f.ferias[i]) f.ferias[i] = { ini: '', fim: '' };
+      const antes = { ...f.ferias[i] };
+      if (act === 'fIni') f.ferias[i].ini = el.value;
+      if (act === 'fFim') f.ferias[i].fim = el.value;
+      const erro = (f.ferias[i].ini || f.ferias[i].fim) ? erroPeriodoFerias(f.ferias, f.ferias[i], i) : '';
+      if (erro) { f.ferias[i] = antes; toast('⚠️ ' + erro); atualizarTudo(); return; }
+      atualizarTudo();
+    }
+  }
+});
+
+$('filtroLoja').onchange = () => renderEscala();
+$('cfgFolgas').onchange = e => { S.cfg.folgas = +e.target.value; atualizarTudo(); };
+$('cfgMin').onchange = e => { S.cfg.min = +e.target.value; atualizarTudo(); };
+
+$('btnAddFunc').onclick = () => {
+  const nome = $('novoNomeFunc').value.trim();
+  if (!nome) return toast('Digite o nome do funcionário');
+  const maxId = S.funcs.reduce((m, f) => Math.max(m, f.id), 0);
+  S.funcs.push({ id: maxId + 1, nome, loja: $('novaLojaFunc').value, escala: 'TTTTTTF', dias: {}, isInspetor: false, afastado: false, ferias: [] });
+  $('novoNomeFunc').value = '';
+  atualizarTudo();
+  toast('Funcionário adicionado!');
+};
+
+$('btnAddInspetor').onclick = () => {
+  const fl = $('filtroLoja').value;
+  const loja = fl === 'todas' ? (S.lojas[0] || '') : (fl === '__volante' ? '' : fl);
+  const maxId = S.funcs.reduce((m, f) => Math.max(m, f.id), 0);
+  S.funcs.push({ id: maxId + 1, nome: 'Inspetor Parceiro', loja, escala: 'TTTTTTT', dias: {}, isInspetor: true, afastado: false, ferias: [] });
+  atualizarTudo();
+  toast('Inspetor parceiro adicionado!');
+};
+
+$('btnAddLoja').onclick = () => {
+  const nome = $('novaLojaNome').value.trim();
+  if (!nome) return toast('Digite o nome da loja');
+  if (S.lojas.includes(nome)) return toast('Loja já existe');
+  S.lojas.push(nome);
+  $('novaLojaNome').value = '';
+  atualizarTudo();
+  toast('Loja adicionada!');
+};
+
+$('btnResetar').onclick = () => {
+  const aviso = MODO_LOCAL
+    ? 'Esta ação apaga tudo e restaura os dados de demonstração. Dica: exporte um backup antes. Você ainda poderá desfazer logo em seguida.'
+    : 'Esta ação apaga os dados de <b>todos os usuários</b> na planilha e restaura os dados de demonstração. Exporte um backup antes. Você ainda poderá desfazer logo em seguida.';
+  confirmar('Resetar Dados', aviso, 'Resetar', () => {
+    snapshot('reset dos dados');
+    S = exemplo(); normalizar();
+    atualizarTudo();
+    toast('Dados restaurados! (dá para desfazer)');
+  });
+};
+
+$('btnDesfazer').onclick = desfazer;
+$('btnExportar').onclick = exportar;
+$('btnImportar').onclick = () => $('arquivoImport').click();
+$('arquivoImport').onchange = e => { importarArquivo(e.target.files[0]); e.target.value = ''; };
+
+// ---------- Gerador automático (local, sem chave e sem internet) ----------
+// Distribui as folgas de cada semana por DATA real, respeitando férias, folgas por semana
+// e tentando manter o mínimo por loja. Inspetores trabalham todos os dias.
+function gerarEscalaLocal(semanas, regras) {
+  const ativos = S.funcs.filter(f => !f.afastado);
+  const Rg = regras || {};
+  const R = {
+    folgas: [1, 2, 3].includes(+Rg.folgas) ? +Rg.folgas : S.cfg.folgas,
+    consecutivas: !!Rg.consecutivas,
+    bloqueados: (Array.isArray(Rg.diasSemFolga) ? Rg.diasSemFolga : []).map(Number).filter(n => n >= 0 && n <= 6)
+  };
+  const violacoes = [];   // regras que NÃO foi possível cumprir (nunca violar em silêncio)
+
+  semanas.forEach(sem => {
+    const seg = getDataDaSemana(sem);
+    const datas = DIAS.map((_, i) => somaDias(seg, i));
+    const grupos = {};
+
+    ativos.forEach(f => {
+      if (f.isInspetor) { datas.forEach(iso => { f.dias[iso] = 'T'; }); return; }
+      (grupos[f.loja] = grupos[f.loja] || []).push(f);
+    });
+
+    const chaves = Object.keys(grupos).sort((a, b) => (a === '') - (b === ''));   // volantes por último
+    const soloUso = Array(7).fill(0);   // folgas de lojas com 1 pessoa só (para não folgarem todas juntas)
+    chaves.forEach(lojaGrupo => {
+      const grupo = grupos[lojaGrupo];
+      grupo.sort((a, b) => a.id - b.id);
+      const giro = (sem - 1) % grupo.length;                       // muda quem escolhe primeiro a cada semana
+      const ordem = grupo.slice(giro).concat(grupo.slice(0, giro));
+      let cont = datas.map(iso => grupo.filter(f => !deFeriasEm(f, iso)).length);  // gente disponível por dia
+      if (lojaGrupo !== '' && grupo.length === 1) cont = cont.map((c, i) => c - soloUso[i]);
+      if (lojaGrupo === '') {
+        // volante folga nos dias em que menos lojas ficam descobertas
+        const lacunas = datas.map(iso => {
+          let c = 0;
+          S.lojas.forEach(l => {
+            const comuns = ativos.filter(f => f.loja === l && !f.isInspetor);
+            if (!comuns.length || ativos.some(f => f.loja === l && f.isInspetor)) return;
+            if (comuns.filter(f => statusDia(f, iso) === 'T').length < S.cfg.min) c++;
+          });
+          return c;
+        });
+        cont = lacunas.map(c => 100 - c * 10);
+      }
+
+      ordem.forEach((f, k) => {
+        const livres = [];
+        datas.forEach((iso, i) => {
+          if (deFeriasEm(f, iso)) return;
+          f.dias[iso] = 'T';
+          livres.push(i);
+        });
+        let precisa = Math.max(0, R.folgas - (7 - livres.length));   // dia de férias já conta como folga
+        const precisaInicial = precisa;
+        const inicio = (k * 3 + sem) % 7;
+        if (R.consecutivas && precisa >= 2) {
+          // bloco de folgas seguidas que mantém a loja mais coberta (nunca em dia bloqueado)
+          let melhor = null;
+          for (let st = 0; st + precisa <= 7; st++) {
+            const dias = Array.from({ length: precisa }, (_, j) => st + j);
+            if (dias.some(i => !livres.includes(i) || R.bloqueados.includes(i))) continue;
+            const score = [Math.min(...dias.map(i => cont[i] - 1)), dias.reduce((a, i) => a + cont[i], 0), -((st - inicio + 7) % 7)];
+            if (!melhor || score[0] > melhor.score[0] || (score[0] === melhor.score[0] && (score[1] > melhor.score[1] || (score[1] === melhor.score[1] && score[2] > melhor.score[2])))) melhor = { dias, score };
+          }
+          if (melhor) { melhor.dias.forEach(i => { f.dias[datas[i]] = 'F'; cont[i]--; }); precisa = 0; }
+        }
+        let cand = livres.filter(i => !R.bloqueados.includes(i));
+        if (cand.length < precisa) cand = livres.slice();
+        while (precisa > 0 && cand.length) {
+          // folga no dia com mais gente disponível; empate: dia diferente para cada pessoa
+          cand.sort((a, b) => (cont[b] - cont[a]) || (((a - inicio + 7) % 7) - ((b - inicio + 7) % 7)));
+          const i = cand.shift();
+          f.dias[datas[i]] = 'F';
+          cont[i]--;
+          precisa--;
+        }
+        // Conferência das regras pedidas, pessoa a pessoa
+        if (precisa > 0) violacoes.push({ tipo: 'qtd', nome: f.nome, loja: lojaGrupo, seg, faltam: precisa, de: precisaInicial });
+        const fIdx = datas.map((iso, i) => f.dias[iso] === 'F' && !deFeriasEm(f, iso) ? i : -1).filter(i => i >= 0);
+        fIdx.filter(i => R.bloqueados.includes(i)).forEach(i => violacoes.push({ tipo: 'dia', nome: f.nome, loja: lojaGrupo, seg, iso: datas[i] }));
+        if (R.consecutivas && precisaInicial >= 2 && fIdx.length >= 2 && fIdx[fIdx.length - 1] - fIdx[0] !== fIdx.length - 1) {
+          violacoes.push({ tipo: 'seguidas', nome: f.nome, loja: lojaGrupo, seg });
+        }
+      });
+      if (lojaGrupo !== '' && grupo.length === 1) datas.forEach((iso, i) => { if (grupo[0].dias[iso] === 'F') soloUso[i]++; });
+    });
+  });
+
+  // Confere de verdade o mínimo por loja (loja com equipe toda afastada também entra)
+  return { falhas: conferirMinimo(semanas), regras: violacoes };
+}
+
+// ---------- Gerar escala com IA (pedidos em texto + prints) ----------
+// Envia o pedido, os prints e o estado atual para o Apps Script (acao 'ia_escala').
+// A chave da IA fica só no servidor (Propriedades do script), nunca neste arquivo.
+let iaImgs = [];   // [{ mime, data (base64), url }]
+
+const semNorm = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+
+function lerImagem(file) {
+  return new Promise((ok, erro) => {
+    if (!file || !/^image\//.test(file.type)) return erro(new Error('não é imagem'));
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const m = 1400, k = Math.min(1, m / Math.max(img.width, img.height));
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      const du = c.toDataURL('image/jpeg', 0.85);
+      ok({ mime: 'image/jpeg', data: du.split(',')[1], url: du });
+      URL.revokeObjectURL(url);
+    };
+    img.onerror = () => erro(new Error('falha ao ler imagem'));
+    img.src = url;
+  });
+}
+
+function renderMiniaturasIA() {
+  const box = $('iaThumbs'); if (!box) return;
+  box.innerHTML = iaImgs.map((im, i) => `
+    <div class="relative">
+      <img src="${im.url}" class="h-16 w-16 object-cover rounded border border-gray-300">
+      <button type="button" data-ia-rm="${i}" class="absolute -top-1.5 -right-1.5 bg-red-600 text-white rounded-full w-4 h-4 text-[10px] leading-4 text-center">×</button>
+    </div>`).join('');
+  box.querySelectorAll('[data-ia-rm]').forEach(b => b.onclick = () => { iaImgs.splice(+b.dataset.iaRm, 1); renderMiniaturasIA(); });
+}
+
+async function addImagensIA(files) {
+  for (const f of files) {
+    if (iaImgs.length >= 5) { toast('Máximo de 5 prints.'); break; }
+    try { iaImgs.push(await lerImagem(f)); } catch (e) { toast('Não consegui ler um dos arquivos.'); }
+  }
+  renderMiniaturasIA();
+}
+
+function conferirMinimo(semanas) {
+  const ativos = S.funcs.filter(f => !f.afastado);
+  const falhas = [];
+  semanas.forEach(sem => {
+    const seg = getDataDaSemana(sem);
+    S.lojas.forEach(l => {
+      if (!lojaTemCadastro(l)) return;
+      const comuns = ativos.filter(f => f.loja === l && !f.isInspetor);
+      DIAS.forEach((_, i) => {
+        const iso = somaDias(seg, i);
+        const n = comuns.filter(f => statusDia(f, iso) === 'T').length;
+        if (n < S.cfg.min) falhas.push({ loja: l, iso, n });
+      });
+    });
+  });
+  return falhas;
+}
+
+
+const VERSAO_APP = '26/10-c';
+const NOMES_DIAS = { segunda: 0, terca: 1, quarta: 2, quinta: 3, sexta: 4, sabado: 5, domingo: 6 };
+
+// Leitura local do pedido (não depende da IA): "2 folgas seguidas, menos aos sábados"
+function regrasDoTexto(t) {
+  const x = semNorm(t), R = {};
+  const m = x.match(/(\d|um|uma|dois|duas|tres)\s*(?:dias?\s*de\s*)?folgas?/);
+  if (m) R.folgas = +m[1] || ({ um: 1, uma: 1, dois: 2, duas: 2, tres: 3 })[m[1]];
+  if (/consecutiv|seguid|juntas?/.test(x)) R.consecutivas = true;
+  const bl = new Set();
+  const re = /(menos|exceto|sem folga|nunca|ninguem folga)/g;
+  let g;
+  while ((g = re.exec(x))) {
+    const trecho = x.slice(g.index + g[0].length).split(/[.;\n]/)[0].slice(0, 60);
+    Object.keys(NOMES_DIAS).forEach(d => { if (trecho.includes(d)) bl.add(NOMES_DIAS[d]); });
+  }
+  if (bl.size) R.diasSemFolga = [...bl];
+  return R;
+}
+
+function contextoIA(semanas) {
+  return {
+    lojas: S.lojas,
+    cfg: S.cfg,
+    semanas: semanas.map(s => ({ n: s, segunda: getDataDaSemana(s) })),
+    funcs: S.funcs.map(f => ({
+      nome: f.nome, loja: f.loja, inspetor: f.isInspetor, afastado: f.afastado,
+      padraoSemanal: f.escala, ferias: periodos(f),
+      grade: Object.fromEntries(semanas.map(s => {
+        const seg = getDataDaSemana(s);
+        return [seg, DIAS.map((_, i) => statusDia(f, somaDias(seg, i))).join(',')];
+      }))
+    }))
+  };
+}
+
+// Aplica as operações devolvidas pela IA. Retorna { aplicadas, ignoradas[] }
+function aplicarOpsIA(ops, semanas) {
+  const ini = getDataDaSemana(Math.min(...semanas));
+  const fim = somaDias(getDataDaSemana(Math.max(...semanas)), 6);
+  const reData = /^\d{4}-\d{2}-\d{2}$/;
+  const achar = nome => {
+    const n = semNorm(nome);
+    let r = S.funcs.filter(f => semNorm(f.nome) === n);
+    if (!r.length) r = S.funcs.filter(f => semNorm(f.nome).startsWith(n) || n.startsWith(semNorm(f.nome)));
+    return r.length === 1 ? r[0] : null;
+  };
+  let aplicadas = 0; const ignoradas = [], detalhes = [];
+  (Array.isArray(ops) ? ops : []).forEach(op => {
+    const f = op && achar(op.func);
+    if (!f) return ignoradas.push(`Pessoa não encontrada ou ambígua: "${esc(op && op.func)}"`);
+    if (op.tipo === 'dia') {
+      if (!dataValida(op.data) || op.data < ini || op.data > fim) return ignoradas.push(`${esc(f.nome)}: data fora do período (${esc(op.data)})`);
+      if (op.status !== 'T' && op.status !== 'F') return ignoradas.push(`${esc(f.nome)}: status inválido`);
+      if (f.isInspetor) return ignoradas.push(`${esc(f.nome)}: inspetor trabalha todo dia`);
+      f.dias[op.data] = op.status; aplicadas++;
+      detalhes.push(`<b>${esc(f.nome)}</b>: ${op.status === 'F' ? 'folga' : 'trabalha'} em ${fmtDiaSemana(op.data)}`);
+    } else if (op.tipo === 'ferias') {
+      if (!op.ini) return ignoradas.push(`${esc(f.nome)}: férias sem data inicial`);
+      const novo = { ini: op.ini, fim: op.fim || '' };
+      const erroF = erroPeriodoFerias(f.ferias, novo);
+      if (erroF) return ignoradas.push(`${esc(f.nome)}: férias não aplicadas. ${erroF}`);
+      if (f.ferias.length >= 2) return ignoradas.push(`${esc(f.nome)}: já tem 2 períodos de férias`);
+      f.ferias.push(novo); aplicadas++;
+      detalhes.push(`<b>${esc(f.nome)}</b>: férias de ${fmtCurto(novo.ini)} a ${novo.fim ? fmtCurto(novo.fim) : 'sem data final'}`);
+    } else if (op.tipo === 'afastar') {
+      f.afastado = !!op.afastado; aplicadas++;
+      detalhes.push(`<b>${esc(f.nome)}</b>: ${f.afastado ? 'afastado(a)' : 'reativado(a)'}`);
+    } else if (op.tipo === 'mover') {
+      if (!S.lojas.includes(op.loja)) return ignoradas.push(`${esc(f.nome)}: loja "${esc(op.loja)}" não existe`);
+      detalhes.push(`<b>${esc(f.nome)}</b>: ${esc(f.loja || 'Volante')} → ${esc(op.loja)}`);
+      f.loja = op.loja; aplicadas++;
+    } else ignoradas.push(`Operação desconhecida: ${esc(op && op.tipo)}`);
+  });
+  return { aplicadas, ignoradas, detalhes };
+}
+
+
+const SAB_POUCOS = 2;   // sábado com 2 ou menos pessoas na loja pede reforço
+
+// Indica volante / inspetor parceiro para lojas descobertas e sábados fracos (só sugere, não altera a escala)
+function sugestoesCobertura(semanas) {
+  const ativos = S.funcs.filter(f => !f.afastado);
+  const volantes = ativos.filter(f => !f.isInspetor && f.loja === '');
+  const inspetores = ativos.filter(f => f.isInspetor);
+  const out = [];
+  semanas.forEach(sem => {
+    const seg = getDataDaSemana(sem);
+    DIAS.forEach((_, i) => {
+      const iso = somaDias(seg, i);
+      const precisa = [];
+      S.lojas.forEach(l => {
+        if (!lojaTemCadastro(l)) return;   // sem funcionários cadastrados: nada a cobrir
+        const comuns = ativos.filter(f => f.loja === l && !f.isInspetor);
+        const n = comuns.filter(f => statusDia(f, iso) === 'T').length;
+        // Regra do inspetor: ele evita loja sem ninguém, mas NÃO conta para o mínimo.
+        if (n === 0 && inspetores.some(f => f.loja === l && statusDia(f, iso) === 'T')) return;
+        if (n < S.cfg.min) precisa.push({ loja: l, n, tipo: 'vazia' });
+        else if (i === 5 && n <= SAB_POUCOS) precisa.push({ loja: l, n, tipo: 'sabado' });
+      });
+      if (!precisa.length) return;
+      precisa.sort((a, b) => a.n - b.n);
+      const rs = escolherReforcos(iso, precisa.map(p => p.loja), { semProprio: true });
+      precisa.forEach((p, k) => {
+        const por = rs[k].por;
+        out.push({ iso, loja: p.loja, n: p.n, tipo: p.tipo, reforco: por ? { nome: por.nome, tipo: por.tipo === 'vol' ? 'volante' : 'inspetor', origem: por.origem } : null });
+      });
+    });
+  });
+  return out;
+}
+
+function sugestoesHtml(semanas) {
+  const sg = sugestoesCobertura(semanas);
+  if (!sg.length) return '';
+  const porData = {};
+  sg.forEach(x => (porData[x.iso] = porData[x.iso] || []).push(x));
+  const linhas = Object.keys(porData).sort().map(iso => `
+    <div class="mt-2"><b>${DIAS[diaIdx(iso)]} ${fmtCurto(iso)}</b>
+      <ul class="list-disc pl-5 space-y-0.5">${porData[iso].map(x => {
+        const motivo = x.tipo === 'vazia' ? (x.n === 0 && lojaEquipeTodaAfastada(x.loja) ? 'equipe toda afastada' : `abaixo do mínimo (${x.n} de ${S.cfg.min})`) : `sábado com só ${x.n} pessoa(s)`;
+        const ref = x.reforco
+          ? (x.reforco.tipo === 'volante' ? `enviar <b>${esc(x.reforco.nome)}</b> (volante)` : `enviar <b>Inspetor Parceiro</b> (hoje em ${esc(x.reforco.origem || 'sem loja')})`)
+          : '<span class="text-rose-700 font-bold">sem volante nem inspetor livre</span>';
+        return `<li>${x.tipo === 'vazia' ? '🔴' : '🟡'} <b>${esc(x.loja)}</b>: ${motivo} → ${ref}</li>`;
+      }).join('')}</ul></div>`).join('');
+  return `<div class="mt-4 border-t border-gray-100 pt-3"><p class="font-bold text-gray-800">Sugestões de reforço</p>
+    <p class="text-[11px] text-gray-500">Só indicação: a escala não é alterada. Cada pessoa cobre uma loja por dia. O inspetor parceiro evita loja sem ninguém, mas não conta para o mínimo.</p>${linhas}</div>`;
+}
+
+function htmlRegras(regras) {
+  if (!regras || !regras.length) return '';
+  const lj = l => esc(l || 'Volante');
+  const sem = x => 'semana de ' + fmtCurto(x.seg);
+  const itens = regras.slice(0, 15).map(x => {
+    if (x.tipo === 'dia') return `<li><b>${esc(x.nome)}</b> (${lj(x.loja)}) ficou de folga em ${fmtDiaSemana(x.iso)}, dia que deveria ser sem folga: não havia outro dia livre.</li>`;
+    if (x.tipo === 'qtd') return `<li><b>${esc(x.nome)}</b> (${lj(x.loja)}): só ${x.de - x.faltam} de ${x.de} folga(s) na ${sem(x)}: dias livres insuficientes.</li>`;
+    return `<li><b>${esc(x.nome)}</b> (${lj(x.loja)}): folgas não ficaram seguidas na ${sem(x)}: não havia bloco de dias seguidos livre.</li>`;
+  }).join('');
+  return `<div class="rounded border border-amber-300 bg-amber-50 p-3 mt-3 text-amber-900">
+    <p class="font-bold mb-1">⚠️ ${regras.length} regra(s) pedida(s) não puderam ser cumpridas</p>
+    <ul class="list-disc pl-5 space-y-1">${itens}</ul>${regras.length > 15 ? `<p class="mt-1">…e mais ${regras.length - 15}.</p>` : ''}
+    <p class="mt-1 text-[11px]">Ajuste manualmente na aba Escalas ou mude o pedido (menos restrições).</p></div>`;
+}
+
+function mostrarResultadoGeracao(falhas, extraHtml, semanas, regras) {
+  const sug = semanas ? sugestoesHtml(semanas) : '';
+  const regrasHtml = htmlRegras(regras);
+  if (!falhas.length && !extraHtml && !sug && !regrasHtml) return toast('✅ Escala gerada! Todas as lojas cumprem o mínimo e as regras.');
+  const linhas = falhas.slice(0, 12).map(x => `<li><b>${esc(x.loja)}</b> · ${fmtCurto(x.iso)} (${DIAS[diaIdx(x.iso)]}): ${x.n} de ${S.cfg.min}</li>`).join('');
+  modal(falhas.length || regrasHtml ? 'Escala gerada, com pendências' : 'Escala gerada',
+    `${extraHtml || ''}${regrasHtml}
+     ${falhas.length ? `<p class="mb-2 mt-3">${falhas.length} dia(s) abaixo do mínimo:</p><ul class="list-disc pl-5 space-y-1">${linhas}</ul>${falhas.length > 12 ? `<p class="mt-2 text-gray-500">…e mais ${falhas.length - 12}.</p>` : ''}` : '<p class="mt-3 text-green-700 font-bold">✅ Todas as lojas cumprem o mínimo.</p>'}
+     ${sug}`,
+    [{ txt: 'Entendi', cls: 'btn-kavak text-white' }]);
+}
+
+$('btnGerar').onclick = () => {
+  iaImgs = [];
+  const iaOk = !MODO_LOCAL;
+  modal('Gerar Escala', `
+    <div class="space-y-4 text-gray-700">
+      <div class="flex gap-1 bg-gray-100 p-1 rounded">
+        <button type="button" id="gTabAuto" class="flex-1 py-1.5 rounded text-xs font-bold bg-white shadow-sm">Automático</button>
+        <button type="button" id="gTabIA" class="flex-1 py-1.5 rounded text-xs font-bold text-gray-500 ${iaOk ? '' : 'opacity-50 cursor-not-allowed'}">✨ Com IA</button>
+      </div>
+      <div>
+        <label class="block text-xs font-bold mb-1">Período</label>
+        <select id="gerarEscopo" class="w-full border border-gray-300 rounded px-3 py-2 text-xs bg-white focus:ring-2 focus:ring-kavak-blue outline-none">
+          <option value="atual">Somente a Semana ${semanaAtiva} (a que está aberta)</option>
+          <option value="todas">As 5 semanas</option>
+        </select>
+      </div>
+      <div id="gAuto">
+        <p class="text-xs">Distribui <b>${S.cfg.folgas} folga(s) por semana</b> por pessoa, tentando manter <b>${S.cfg.min} pessoa(s) por dia</b> em cada loja. Férias são respeitadas e inspetores trabalham todos os dias.</p>
+      </div>
+      <div id="gIA" class="hidden space-y-3">
+        <p class="text-xs">Descreva os pedidos (ex.: <i>"Bruno folga sábado, Klever de férias de 03/11 a 10/11"</i>) e/ou cole prints de conversas e planilhas. A IA converte em ajustes na escala.</p>
+        <textarea id="iaPedido" rows="4" class="w-full border border-gray-300 rounded px-3 py-2 text-xs focus:ring-2 focus:ring-kavak-blue outline-none" placeholder="Pedidos de folga, trocas, férias, afastamentos…  (dica: Ctrl+V cola print aqui)"></textarea>
+        <div class="flex items-center gap-2">
+          <label class="cursor-pointer border border-gray-300 rounded px-3 py-1.5 text-xs font-bold hover:bg-gray-50">📎 Anexar prints
+            <input type="file" id="iaArquivos" accept="image/*" multiple class="hidden">
+          </label>
+          <span class="text-[10px] text-gray-500">até 5 imagens</span>
+        </div>
+        <div id="iaThumbs" class="flex flex-wrap gap-2"></div>
+        <label class="flex items-center gap-2 text-xs"><input type="checkbox" id="iaBase" checked> Gerar base automática antes e aplicar os pedidos por cima</label>
+        <p id="iaStatus" class="text-xs text-kavak-blue font-bold hidden">⏳ Analisando…</p>
+      </div>
+      <p class="text-xs text-amber-700 font-medium">⚠️ Sobrescreve os T/F do período escolhido. Se não gostar, use <b>Desfazer</b> no topo da página.</p>
+    </div>
+  `, [
+    { txt: 'Cancelar', cls: BTN_CANCELA },
+    { txt: 'Gerar', cls: 'btn-kavak text-white', fecha: false, fn: async () => {
+        const todas = $('gerarEscopo').value === 'todas';
+        const semanas = todas ? [1, 2, 3, 4, 5] : [semanaAtiva];
+        const modoIA = !$('gIA').classList.contains('hidden');
+
+        if (!modoIA) {
+          fechar();
+          snapshot('geração automática de escala');
+          const g = gerarEscalaLocal(semanas);
+          atualizarTudo();
+          return mostrarResultadoGeracao(g.falhas, '', semanas, g.regras);
+        }
+
+        const pedido = $('iaPedido').value.trim();
+        if (!pedido && !iaImgs.length) return toast('Escreva um pedido ou anexe um print.');
+        const base = $('iaBase').checked;
+        $('iaStatus').classList.remove('hidden');
+        const btn = $('mBtns').lastChild; btn.disabled = true; btn.classList.add('opacity-50');
+        try {
+          // Contexto é montado ANTES da base automática para a IA ver o estado atual;
+          // se a base for gerada, ela é aplicada primeiro e os pedidos vêm por cima.
+          const r = await api('ia_escala', {
+            pedido, semanas: semanas.map(s => ({ n: s, segunda: getDataDaSemana(s) })),
+            imagens: iaImgs.map(i => ({ mime: i.mime, data: i.data })),
+            contexto: contextoIA(semanas)
+          });
+          if (!r || !r.ok) throw new Error((r && (MSG_ERRO[r.erro] || r.erro)) || 'erro');
+          const rt = regrasDoTexto(pedido), ri = r.regras || {};
+          const RG = {
+            folgas: +ri.folgas || rt.folgas || null,
+            consecutivas: !!(ri.consecutivas || rt.consecutivas),
+            diasSemFolga: [...new Set([...(ri.diasSemFolga || []), ...(rt.diasSemFolga || [])].map(Number))]
+          };
+          const temRegra = !!(RG.folgas || RG.consecutivas || RG.diasSemFolga.length);
+          const aplicarTudo = () => {
+            let regras = [];
+            if (base || temRegra) regras = gerarEscalaLocal(semanas, RG).regras;
+            return { regras, ...aplicarOpsIA(r.ops, semanas) };
+          };
+
+          // 1) Simula, 2) guarda o resultado, 3) devolve a escala ao estado original. Nada é alterado até confirmar.
+          const antes = JSON.stringify(S);
+          const sim = aplicarTudo();
+          const falhasSim = conferirMinimo(semanas);
+          const sugSim = sugestoesHtml(semanas);
+          S = JSON.parse(antes); normalizar();
+
+          const regraTxt = temRegra
+            ? `<p><b>Regra geral:</b> ${RG.folgas ? esc(RG.folgas) + ' folga(s)/semana' : 'folgas padrão'}${RG.consecutivas ? ', seguidas' : ''}${RG.diasSemFolga.length ? ', sem folga em ' + RG.diasSemFolga.map(i => DIAS[+i] || '').join('/') : ''}.</p>` : '';
+          const baseTxt = (base || temRegra) ? '<p class="text-amber-700">🔄 As folgas do período serão <b>redistribuídas automaticamente</b> antes dos ajustes abaixo.</p>' : '';
+          const lista = (tit, itens, cor) => itens.length ? `<p class="font-bold mt-3 ${cor || ''}">${tit}</p><ul class="list-disc pl-5 space-y-0.5 ${cor || ''}">${itens.map(x => `<li>${x}</li>`).join('')}</ul>` : '';
+          const impacto = falhasSim.length
+            ? `<p class="font-bold mt-3 text-rose-700">⛔ ${falhasSim.length} dia(s) abaixo do mínimo após aplicar:</p><ul class="list-disc pl-5 text-rose-700">${falhasSim.slice(0, 8).map(x => `<li><b>${esc(x.loja)}</b> · ${fmtDiaSemana(x.iso)}: ${x.n} de ${S.cfg.min}</li>`).join('')}</ul>${falhasSim.length > 8 ? `<p class="text-gray-500">…e mais ${falhasSim.length - 8}.</p>` : ''}`
+            : '<p class="mt-3 text-green-700 font-bold">✅ Nenhuma loja fica abaixo do mínimo.</p>';
+          const corpo = `<div class="space-y-1">
+            ${r.resumo ? `<p class="text-gray-700">${esc(r.resumo)}</p>` : ''}
+            ${regraTxt}${baseTxt}
+            ${lista(`${sim.aplicadas} ajuste(s) a aplicar:`, sim.detalhes)}
+            ${lista('Ignorados (não serão aplicados):', sim.ignoradas, 'text-red-700')}
+            ${lista('Avisos da IA:', (r.avisos || []).map(esc), 'text-amber-700')}
+            ${htmlRegras(sim.regras)}
+            ${impacto}
+            ${sugSim}
+            <p class="text-[10px] text-gray-400 pt-2">versão ${VERSAO_APP}</p>
+          </div>`;
+          fechar();
+          modal('Prévia das alterações · confira antes de aplicar', corpo, [
+            { txt: 'Cancelar (nada muda)', cls: BTN_CANCELA },
+            { txt: 'Confirmar e aplicar', cls: 'btn-kavak text-white', fn: () => {
+                snapshot('geração de escala com IA');
+                aplicarTudo();
+                atualizarTudo();
+                toast('✅ Alterações aplicadas! (dá para desfazer)');
+              } }
+          ], true);
+          $('mCorpo').classList.remove('p-0'); $('mCorpo').classList.add('p-5');
+          $('modalContainer').classList.replace('max-w-6xl', 'max-w-2xl');
+        } catch (e) {
+          if (e.sessaoExpirada) return;
+          $('iaStatus').classList.add('hidden'); btn.disabled = false; btn.classList.remove('opacity-50');
+          toast('❌ Falha na IA: ' + (e.message || 'erro'));
+        }
+    } }
+  ]);
+
+  $('gTabAuto').onclick = () => {
+    $('gAuto').classList.remove('hidden'); $('gIA').classList.add('hidden');
+    $('gTabAuto').className = 'flex-1 py-1.5 rounded text-xs font-bold bg-white shadow-sm';
+    $('gTabIA').className = 'flex-1 py-1.5 rounded text-xs font-bold text-gray-500';
+  };
+  $('gTabIA').onclick = () => {
+    if (!iaOk) return toast('IA exige o modo servidor (API_URL configurada).');
+    $('gIA').classList.remove('hidden'); $('gAuto').classList.add('hidden');
+    $('gTabIA').className = 'flex-1 py-1.5 rounded text-xs font-bold bg-white shadow-sm';
+    $('gTabAuto').className = 'flex-1 py-1.5 rounded text-xs font-bold text-gray-500';
+  };
+  $('iaArquivos').onchange = e => { addImagensIA([...e.target.files]); e.target.value = ''; };
+  $('mCorpo').addEventListener('paste', e => {
+    const fs = [...(e.clipboardData && e.clipboardData.files || [])].filter(f => /^image\//.test(f.type));
+    if (fs.length) { e.preventDefault(); addImagensIA(fs); }
+  });
+};
+
+$('btnSugestoes').onclick = () => {
+  modal('Reforços · Semana ' + semanaAtiva, sugestoesHtml([semanaAtiva]) || '<p>Nenhuma loja precisa de reforço nesta semana. ✅</p>', [{ txt: 'Fechar', cls: BTN_CANCELA }]);
+};
+
+$('btnImprimir').onclick = () => window.print();
+$('btnTexto').onclick = () => {
+  const seg = getDataDaSemana(semanaAtiva);
+  let txt = `*ESCALA DE TRABALHO - SEMANA ${semanaAtiva}* (${fmtCurto(seg)} a ${fmtCurto(somaDias(seg, 6))})\n\n`;
+
+  const fs = funcsVisiveis();
+  if (!fs.length) return toast('Nenhum funcionário para gerar o texto.');
+
+  fs.forEach(x => {
+    txt += `👤 *${x.isInspetor ? 'Inspetor Parceiro' : x.nome}* (${x.loja || 'Volante'})\n`;
+    DIAS.forEach((dia, i) => {
+      const iso = somaDias(seg, i);
+      const s = statusDia(x, iso);
+      txt += `  • ${dia} ${fmtCurto(iso)}: ${s === 'FÉ' ? 'Férias' : s === 'T' ? 'Trabalha' : 'Folga'}\n`;
+    });
+    txt += '\n';
+  });
+
+  navigator.clipboard.writeText(txt).then(() => toast('Texto copiado para a área de transferência!'), () => toast('Não consegui copiar. Verifique a permissão do navegador.'));
+};
+
+// ---------- Drag and drop entre lojas ----------
+document.addEventListener('dragstart', e => {
+  const chip = e.target.closest && e.target.closest('[data-drag]');
+  if (chip) {
+    e.dataTransfer.setData('text/plain', chip.dataset.drag);
+    e.dataTransfer.effectAllowed = 'move';
+  }
+});
+document.addEventListener('dragover', e => {
+  const drop = e.target.closest('.loja-drop');
+  if (drop) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    drop.classList.add('drop-on');
+  }
+});
+document.addEventListener('dragleave', e => {
+  const drop = e.target.closest('.loja-drop');
+  if (drop && !drop.contains(e.relatedTarget)) drop.classList.remove('drop-on');
+});
+document.addEventListener('drop', e => {
+  if (!podeEditar()) return;
+  const drop = e.target.closest('.loja-drop');
+  if (drop) {
+    e.preventDefault();
+    drop.classList.remove('drop-on');
+    const id = +e.dataTransfer.getData('text/plain');
+    const f = S.funcs.find(x => x.id === id);
+    if (f && f.loja !== drop.dataset.loja) {
+      f.loja = drop.dataset.loja;
+      atualizarTudo();
+      toast(`${f.nome} movido(a) para ${f.loja || 'Volantes'}`);
+    }
+  }
+});
+
+// ---------- Login, senha e sincronização ----------
+$('formLogin').onsubmit = async e => {
+  e.preventDefault();
+  const u = $('lgUsuario').value.trim(), s = $('lgSenha').value;
+  if (!u || !s) return;
+  const b = $('lgBtn');
+  b.disabled = true; b.textContent = 'Entrando…'; $('lgErro').textContent = 'Conectando ao servidor… a primeira vez pode levar alguns segundos.';
+  try {
+    const r = await api('login', { usuario: u, senha: s });
+    if (!r.ok) {
+      $('lgErro').textContent = r.erro === 'bloqueado' ? 'Muitas tentativas erradas. Aguarde 10 minutos.' : 'Usuário ou senha inválidos.';
+      return;
+    }
+    SESSAO = { token: r.token, usuario: r.usuario, nome: r.nome, papel: r.papel };
+    try { localStorage.setItem(SESSAO_KEY, JSON.stringify(SESSAO)); } catch (e2) {}
+    $('lgSenha').value = '';
+    $('login').style.display = 'none';
+    await entrarRemoto();
+  } catch (err) {
+    $('lgErro').textContent = err && err.message === 'timeout'
+      ? 'O servidor demorou mais de 30 segundos para responder. Tente de novo; se repetir, confira a publicação do Apps Script.'
+      : 'Não consegui falar com o servidor. Tente de novo.';
+  } finally {
+    b.disabled = false; b.textContent = 'Entrar';
+  }
+};
+
+$('btnSair').onclick = async () => { try { await api('sair'); } catch (e) {} sairLocal(''); };
+
+$('btnSenha').onclick = () => {
+  const campo = (id, ph) => `<input id="${id}" type="password" placeholder="${ph}" autocomplete="off" class="w-full border border-gray-300 rounded px-3 py-2 text-xs focus:ring-2 focus:ring-kavak-blue outline-none">`;
+  modal('Alterar minha senha',
+    `<div class="space-y-2">${campo('ps_atual', 'Senha atual')}${campo('ps_nova', 'Nova senha (mín. 6 caracteres)')}${campo('ps_conf', 'Repita a nova senha')}</div>`,
+    [{ txt: 'Cancelar', cls: BTN_CANCELA },
+     { txt: 'Alterar', cls: 'btn-kavak text-white', fecha: false, fn: async () => {
+        const atual = $('ps_atual').value, nova = $('ps_nova').value;
+        if (nova !== $('ps_conf').value) return toast('A confirmação não confere');
+        try {
+          const r = await api('trocarSenha', { atual, nova });
+          if (r.ok) { fechar(); toast('Senha alterada!'); }
+          else toast(MSG_ERRO[r.erro] || 'Não foi possível alterar a senha');
+        } catch (e) { if (!e.sessaoExpirada) toast('Sem conexão com o servidor'); }
+     } }]);
+};
+
+$('btnAddUsuario').onclick = async () => {
+  const usuario = $('acUsuario').value.trim().toLowerCase();
+  if (!usuario) return toast('Digite o usuário');
+  const corpo = { usuario, papel: $('acPapel').value };
+  const nome = $('acNome').value.trim(), senha = $('acSenha').value;
+  if (nome) corpo.nome = nome;
+  if (senha) corpo.senha = senha;
+  if (await salvarUsuarioRemoto(corpo, 'Acesso salvo!')) {
+    ['acUsuario', 'acNome', 'acSenha'].forEach(id => { $(id).value = ''; });
+  }
+};
+
+// Atualiza sozinho a cada minuto e ao voltar para a aba (sem sobrescrever o que você está editando)
+function atualizarDoServidor() {
+  if (MODO_LOCAL || !SESSAO || !remotoPronto) return;
+  const a = document.activeElement;   // não troca a tela enquanto alguém digita ou tem janela aberta
+  if (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && a.closest('main')) return;
+  if (!$('modal').classList.contains('hidden')) return;
+  carregarRemoto(true).then(r => { if (r === 'ok') atualizarTudo(); }).catch(() => {});
+}
+setInterval(() => { if (!document.hidden) atualizarDoServidor(); }, 60000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) atualizarDoServidor(); });
+
+// Aviso ao fechar/recarregar com alterações ainda não salvas no servidor
+window.addEventListener('beforeunload', e => {
+  if (temPendencia()) { e.preventDefault(); e.returnValue = ''; }
+});
+window.addEventListener('online', () => { if (temPendencia() && !enviando) { clearTimeout(envioTimer); envioTimer = null; enviar(); } });
+
+// Inicialização
+iniciar();
+</script>
+</body>
+</html>
