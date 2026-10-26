@@ -15,6 +15,25 @@ body{background:#f4f6f9;color:#111;font-family: -apple-system, BlinkMacSystemFon
 input,select,textarea{background-color:#fff;color:#111;-webkit-text-fill-color:#111;color-scheme:light; border-radius: 4px;}
 input::placeholder{color:#888;-webkit-text-fill-color:#888}
 button:disabled{cursor:not-allowed}
+.so-print{display:none}
+@media (max-width:640px){
+  .col-loja,.col-total{display:none}
+  .col-nome{position:sticky;left:0;background:#fff;z-index:1;padding-left:8px!important;padding-right:6px!important;min-width:84px;max-width:110px}
+  #aba-escala thead th[id^="th-d"]{width:auto;padding-left:2px;padding-right:2px}
+  #tabelaEscalaCorpo td{padding-left:2px;padding-right:2px}
+  #tabelaEscalaCorpo td.col-nome{padding-left:8px;padding-right:6px}
+}
+@media print{
+  header,nav,#avisos,#toast,#login,#modal,.nao-imprimir{display:none!important}
+  body{background:#fff}
+  main{padding:0!important;max-width:none!important}
+  section:not(#aba-escala){display:none!important}
+  #aba-escala{display:block!important}
+  .so-print{display:block!important}
+  .col-nome{position:static!important}
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact;box-shadow:none!important}
+  @page{size:landscape;margin:10mm}
+}
 .btn-desfazer:disabled{opacity:.4}
 
 @keyframes floatCloud { 0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-12px); } }
@@ -115,7 +134,8 @@ button:disabled{cursor:not-allowed}
   </section>
 
   <section id="aba-escala" class="space-y-4 hidden">
-    <div class="bg-white p-4 rounded-lg shadow-sm border border-gray-200 flex flex-wrap items-center gap-x-5 gap-y-3">
+    <div id="tituloImpressao" class="so-print text-sm font-bold text-gray-900"></div>
+    <div class="nao-imprimir bg-white p-4 rounded-lg shadow-sm border border-gray-200 flex flex-wrap items-center gap-x-5 gap-y-3">
       <label class="flex items-center gap-2 text-xs font-bold text-gray-700">Loja
         <select id="filtroLoja" class="border border-gray-300 rounded px-3 py-1.5 text-xs bg-white font-normal focus:ring-2 focus:ring-kavak-blue focus:border-kavak-blue outline-none"></select>
       </label>
@@ -132,6 +152,7 @@ button:disabled{cursor:not-allowed}
           <i data-ic="plus"></i> Inspetor Parceiro
         </button>
         <button id="btnTexto" class="border border-gray-300 hover:bg-gray-50 text-gray-700 px-3 py-1.5 rounded text-xs font-bold flex items-center gap-2 transition"><i data-ic="copy"></i> Texto WhatsApp</button>
+        <button id="btnImprimir" class="border border-gray-300 hover:bg-gray-50 text-gray-700 px-3 py-1.5 rounded text-xs font-bold flex items-center gap-2 transition">🖨️ Imprimir / PDF</button>
         <button id="btnSugestoes" class="border border-gray-300 hover:bg-gray-50 text-gray-700 px-3 py-1.5 rounded text-xs font-bold flex items-center gap-2 transition"><i data-ic="users"></i> Reforços</button>
       </div>
     </div>
@@ -142,7 +163,7 @@ button:disabled{cursor:not-allowed}
           <h2 class="font-bold text-sm text-gray-900">Grade Semanal de Turnos</h2>
           <p class="text-[11px] text-gray-500">Clique em um quadradinho para alternar entre Trabalho (T) e Folga (F). Cada data é independente: mudar a semana 1 não altera a semana 4.</p>
         </div>
-        <div class="flex bg-gray-200 p-1 rounded-md overflow-x-auto">
+        <div class="nao-imprimir flex bg-gray-200 p-1 rounded-md overflow-x-auto">
           <button data-act="setSemana" data-sem="1" class="btn-semana px-3 py-1 text-xs font-bold rounded transition">Semana 1</button>
           <button data-act="setSemana" data-sem="2" class="btn-semana px-3 py-1 text-xs font-bold rounded transition">Semana 2</button>
           <button data-act="setSemana" data-sem="3" class="btn-semana px-3 py-1 text-xs font-bold rounded transition">Semana 3</button>
@@ -154,7 +175,7 @@ button:disabled{cursor:not-allowed}
         <table class="w-full text-left border-collapse text-xs">
           <thead>
             <tr class="bg-gray-50 text-gray-600 font-bold uppercase tracking-wider text-[10px] border-b border-gray-200">
-              <th class="py-2.5 px-4">Funcionário</th><th class="py-2.5 px-3">Loja</th>
+              <th class="py-2.5 px-4 col-nome">Funcionário</th><th class="py-2.5 px-3 col-loja">Loja</th>
               <th id="th-d0" class="py-2.5 px-2 text-center w-14">Seg</th>
               <th id="th-d1" class="py-2.5 px-2 text-center w-14">Ter</th>
               <th id="th-d2" class="py-2.5 px-2 text-center w-14">Qua</th>
@@ -162,7 +183,7 @@ button:disabled{cursor:not-allowed}
               <th id="th-d4" class="py-2.5 px-2 text-center w-14">Sex</th>
               <th id="th-d5" class="py-2.5 px-2 text-center w-14">Sáb</th>
               <th id="th-d6" class="py-2.5 px-2 text-center w-14">Dom</th>
-              <th class="py-2.5 px-4 text-center">Dias Trab.</th>
+              <th class="py-2.5 px-4 text-center col-total">Dias Trab.</th>
             </tr>
           </thead>
           <tbody id="tabelaEscalaCorpo" class="divide-y divide-gray-100"></tbody>
@@ -436,8 +457,10 @@ const MSG_ERRO = {
   papel_invalido: 'Papel inválido.'
 };
 
+let horaSync = '';
 function setSync(estado) {
-  const t = { ok: '☁️ Salvo', enviando: '⏳ Salvando…', carregando: '⏳ Carregando…', erro: '⚠️ Sem conexão, tentando de novo', local: '💾 Modo local', leitura: '👁️ Somente leitura' };
+  if (estado === 'ok') horaSync = new Date().toTimeString().slice(0, 5);
+  const t = { ok: '☁️ Salvo' + (horaSync ? ' às ' + horaSync : ''), enviando: '⏳ Salvando…', carregando: '⏳ Carregando…', erro: '⚠️ Sem conexão: alterações NÃO salvas, tentando de novo', local: '💾 Modo local', leitura: '👁️ Somente leitura' };
   $('syncStatus').textContent = t[estado] || '';
 }
 
@@ -848,6 +871,9 @@ function renderEscala() {
     $('th-c' + i).innerHTML = `${DIAS[i]} <div class="text-[9px] font-normal text-gray-400">${fmtCurto(iso)}</div>`;
   });
 
+  const fl = $('filtroLoja').value;
+  $('tituloImpressao').textContent = `Escala · ${fl === 'todas' ? 'Todas as lojas' : fl === '__volante' ? 'Volantes' : fl} · ${fmtCurto(datas[0])} a ${fmtCurto(datas[6])}`;
+
   const lista = funcsVisiveis();
   const nf = lista.filter(emFerias).length;
   $('contadorEquipe').textContent = `${lista.length} funcionários exibidos${nf ? ` · ${nf} de férias hoje` : ''}`;
@@ -878,10 +904,10 @@ function renderEscala() {
     const totCor = fer === 7 ? 'text-violet-700' : (trab === 7 ? 'text-rose-600' : 'text-gray-700');
 
     return `<tr class="${rowBg} transition">
-      <td class="py-2.5 px-4 font-semibold ${textCor}">${nomeHTML}</td>
-      <td class="py-2.5 px-3">${nomeLoja}</td>
+      <td class="py-2.5 px-4 font-semibold col-nome ${textCor}">${nomeHTML}<span class="sm:hidden block text-[10px] font-normal text-gray-500">${esc(f.loja || 'Volante')}</span></td>
+      <td class="py-2.5 px-3 col-loja">${nomeLoja}</td>
       ${cols}
-      <td class="py-2.5 px-4 text-center font-bold whitespace-nowrap ${totCor}" title="${trab === 7 ? 'Sem folga nesta semana' : ''}">${total}</td></tr>`;
+      <td class="py-2.5 px-4 text-center font-bold whitespace-nowrap col-total ${totCor}" title="${trab === 7 ? 'Sem folga nesta semana' : ''}">${total}</td></tr>`;
   }).join('') : '<tr><td colspan="10" class="py-6 text-center text-gray-500">Nenhum funcionário ativo exibido para esta loja.</td></tr>';
 
   renderCobertura();
@@ -971,33 +997,36 @@ const lojaVaziaEm = (l, iso) => lojaTemEquipe(l) &&
   !S.funcs.some(f => f.loja === l && !f.isInspetor && !f.afastado && statusDia(f, iso) === 'T');
 const fmtDiaSemana = iso => DIAS[diaIdx(iso)] + ' ' + fmtCurto(iso);
 
-// Para cada loja vazia no dia, quem pode cobrir. Ordem: inspetor parceiro da loja > inspetor sem loja > volante.
-// Cada pessoa cobre no máximo uma loja por dia.
-function coberturaEm(iso) {
-  const vazias = S.lojas.filter(l => lojaVaziaEm(l, iso));
+// Lógica ÚNICA de reforço (tela inicial, alertas, nuvens, quadro e botão Reforços).
+// Ordem: 1) inspetor parceiro da própria loja  2) volante  3) inspetor sem loja  4) inspetor de outra loja.
+// Cada pessoa cobre no máximo uma loja por dia. O inspetor NÃO conta para o mínimo da loja.
+function escolherReforcos(iso, lojas) {
   const trab = f => !f.afastado && statusDia(f, iso) === 'T';
   const usados = new Set();
   const pegar = lista => { const x = lista.find(f => !usados.has(f.id)); if (x) usados.add(x.id); return x || null; };
-  const res = vazias.map(l => ({ loja: l, por: null }));
-  res.forEach(r => {   // 1º: inspetor da própria loja (não disputa com outras)
+  const res = lojas.map(l => ({ loja: l, por: null }));
+  res.forEach(r => {
     const i = pegar(S.funcs.filter(f => f.isInspetor && f.loja === r.loja && trab(f)));
-    if (i) r.por = { tipo: 'insp', nome: i.nome };
+    if (i) r.por = { tipo: 'insp', nome: i.nome, origem: i.loja };
   });
   res.forEach(r => {
     if (r.por) return;
-    const i = pegar(S.funcs.filter(f => f.isInspetor && f.loja === '' && trab(f)));
-    if (i) { r.por = { tipo: 'insp', nome: i.nome }; return; }
     const v = pegar(S.funcs.filter(f => !f.isInspetor && f.loja === '' && trab(f)));
-    if (v) r.por = { tipo: 'vol', nome: v.nome };
+    if (v) { r.por = { tipo: 'vol', nome: v.nome, origem: '' }; return; }
+    const i = pegar(S.funcs.filter(f => f.isInspetor && f.loja === '' && trab(f)))
+           || pegar(S.funcs.filter(f => f.isInspetor && f.loja !== r.loja && trab(f)));
+    if (i) r.por = { tipo: 'insp', nome: i.nome, origem: i.loja };
   });
   return res;
 }
 
-function textoCobertura(por) {
+const coberturaEm = iso => escolherReforcos(iso, S.lojas.filter(l => lojaVaziaEm(l, iso)));
+
+function textoCobertura(por, loja) {
   if (!por) return '<span class="font-bold text-rose-700">⛔ Sem cobertura (nenhum inspetor ou volante livre)</span>';
-  return por.tipo === 'insp'
-    ? `<span class="font-bold text-indigo-700">🛡️ Inspetor parceiro: ${esc(por.nome)}</span>`
-    : `<span class="font-bold text-emerald-700">🧭 Volante: ${esc(por.nome)}</span>`;
+  if (por.tipo === 'vol') return `<span class="font-bold text-emerald-700">🧭 Volante: ${esc(por.nome)}</span>`;
+  const de = por.origem && por.origem !== loja ? ` <span class="font-normal text-gray-500">(hoje em ${esc(por.origem)})</span>` : '';
+  return `<span class="font-bold text-indigo-700">🛡️ Inspetor parceiro: ${esc(por.nome)}${de}</span>`;
 }
 
 function renderAlertasVazia() {
@@ -1017,7 +1046,7 @@ function renderAlertasVazia() {
       <div data-act="irLoja" data-loja="${esc(c.loja)}" class="cursor-pointer flex flex-wrap items-center gap-x-3 gap-y-1 bg-white/70 hover:bg-white border ${c.por ? 'border-amber-200' : 'border-rose-300'} rounded-md px-3 py-2">
         <span class="font-bold text-gray-900">🔴 ${esc(c.loja)} ficará vazia</span>
         <span class="text-gray-400">→</span>
-        ${textoCobertura(c.por)}
+        ${textoCobertura(c.por, c.loja)}
       </div>`).join('');
     topo = `<div class="${semCob ? 'bg-rose-50 border-rose-200' : 'bg-amber-50 border-amber-200'} border rounded-lg p-4 text-xs space-y-2">
       <div class="font-bold ${semCob ? 'text-rose-800' : 'text-amber-800'}">${cob.length === 1 ? '1 loja vazia' : cob.length + ' lojas vazias'} ${rotulo}${semCob ? ` · ${semCob} sem cobertura` : ' · todas com cobertura'}</div>
@@ -1529,8 +1558,14 @@ document.addEventListener('change', e => {
     if (f) {
       f.ferias = f.ferias || [];
       if (!f.ferias[i]) f.ferias[i] = { ini: '', fim: '' };
+      const antes = { ...f.ferias[i] };
       if (act === 'fIni') f.ferias[i].ini = el.value;
       if (act === 'fFim') f.ferias[i].fim = el.value;
+      const q = f.ferias[i];
+      let erro = '';
+      if (q.ini && q.fim && q.fim < q.ini) erro = 'A data final não pode ser antes da data inicial.';
+      else if (q.ini && f.ferias.some((o, j) => j !== i && o.ini && o.ini <= (q.fim || '9999-12-31') && (o.fim || '9999-12-31') >= q.ini)) erro = 'Este período se sobrepõe a outro período de férias da mesma pessoa.';
+      if (erro) { f.ferias[i] = antes; toast('⚠️ ' + erro); atualizarTudo(); return; }
       atualizarTudo();
     }
   }
@@ -1840,15 +1875,10 @@ function sugestoesCobertura(semanas) {
       });
       if (!precisa.length) return;
       precisa.sort((a, b) => a.n - b.n);
-      const vols = volantes.filter(f => statusDia(f, iso) === 'T');
-      const insps = inspetores.filter(f => statusDia(f, iso) === 'T');
-      precisa.forEach(p => {
-        let r = vols.shift(), tipo = 'volante';
-        if (!r) {
-          const k = insps.findIndex(f => f.loja !== p.loja);
-          if (k >= 0) { r = insps.splice(k, 1)[0]; tipo = 'inspetor'; }
-        }
-        out.push({ iso, loja: p.loja, n: p.n, tipo: p.tipo, reforco: r ? { nome: r.nome, tipo, origem: r.loja } : null });
+      const rs = escolherReforcos(iso, precisa.map(p => p.loja));
+      precisa.forEach((p, k) => {
+        const por = rs[k].por;
+        out.push({ iso, loja: p.loja, n: p.n, tipo: p.tipo, reforco: por ? { nome: por.nome, tipo: por.tipo === 'vol' ? 'volante' : 'inspetor', origem: por.origem } : null });
       });
     });
   });
@@ -1998,6 +2028,7 @@ $('btnSugestoes').onclick = () => {
   modal('Reforços · Semana ' + semanaAtiva, sugestoesHtml([semanaAtiva]) || '<p>Nenhuma loja precisa de reforço nesta semana. ✅</p>', [{ txt: 'Fechar', cls: BTN_CANCELA }]);
 };
 
+$('btnImprimir').onclick = () => window.print();
 $('btnTexto').onclick = () => {
   const seg = getDataDaSemana(semanaAtiva);
   let txt = `*ESCALA DE TRABALHO - SEMANA ${semanaAtiva}* (${fmtCurto(seg)} a ${fmtCurto(somaDias(seg, 6))})\n\n`;
@@ -2112,6 +2143,9 @@ $('btnAddUsuario').onclick = async () => {
 // Atualiza sozinho a cada minuto e ao voltar para a aba (sem sobrescrever o que você está editando)
 function atualizarDoServidor() {
   if (MODO_LOCAL || !SESSAO || !remotoPronto) return;
+  const a = document.activeElement;   // não troca a tela enquanto alguém digita ou tem janela aberta
+  if (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && a.closest('main')) return;
+  if (!$('modal').classList.contains('hidden')) return;
   carregarRemoto(true).then(r => { if (r === 'ok') atualizarTudo(); }).catch(() => {});
 }
 setInterval(() => { if (!document.hidden) atualizarDoServidor(); }, 60000);
