@@ -100,6 +100,8 @@ button:disabled{cursor:not-allowed}
       </div>
     </div>
 
+    <div id="alertasVazia"></div>
+
     <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200 relative overflow-hidden">
       <div class="absolute top-0 right-0 w-64 h-64 bg-blue-50 rounded-full -translate-y-1/2 translate-x-1/4 pointer-events-none"></div>
       <div class="relative z-10">
@@ -108,6 +110,8 @@ button:disabled{cursor:not-allowed}
         <div id="nuvensHome" class="flex flex-wrap justify-center gap-12 p-4"></div>
       </div>
     </div>
+
+    <div id="quadroMes" class="bg-white p-6 rounded-lg shadow-sm border border-gray-200"></div>
   </section>
 
   <section id="aba-escala" class="space-y-4 hidden">
@@ -371,6 +375,16 @@ function normalizar() {
   S.lojas = [...new Set(S.lojas.map(String).filter(Boolean))];
   const c = S.cfg || {};
   S.cfg = { folgas: +c.folgas === 2 ? 2 : 1, min: [1, 2, 3].includes(+c.min) ? +c.min : 1 };
+  S.quadro = (Array.isArray(S.quadro) ? S.quadro : [])
+    .filter(a => a && typeof a.texto === 'string' && a.texto.trim())
+    .slice(0, 200)
+    .map((a, i) => ({
+      id: +a.id || Date.now() + i,
+      mes: /^\d{4}-\d{2}$/.test(a.mes) ? a.mes : hoje().slice(0, 7),
+      dia: /^\d{4}-\d{2}-\d{2}$/.test(a.dia) ? a.dia : '',
+      tipo: ['info', 'importante', 'urgente'].includes(a.tipo) ? a.tipo : 'info',
+      texto: a.texto.trim().slice(0, 400)
+    }));
   const limite = somaDias(hoje(), -60);
   const ids = new Set();
   S.funcs.forEach(f => {
@@ -948,6 +962,200 @@ function renderLojas() {
   $('listaLojasPainel').innerHTML = cards.join('');
 }
 
+// ---------- Loja vazia: cobertura por inspetor parceiro / volante ----------
+const NOMES_MES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+let quadroMesVis = hoje().slice(0, 7);
+
+const lojaTemEquipe = l => S.funcs.some(f => f.loja === l && !f.isInspetor && !f.afastado);
+const lojaVaziaEm = (l, iso) => lojaTemEquipe(l) &&
+  !S.funcs.some(f => f.loja === l && !f.isInspetor && !f.afastado && statusDia(f, iso) === 'T');
+const fmtDiaSemana = iso => DIAS[diaIdx(iso)] + ' ' + fmtCurto(iso);
+
+// Para cada loja vazia no dia, quem pode cobrir. Ordem: inspetor parceiro da loja > inspetor sem loja > volante.
+// Cada pessoa cobre no máximo uma loja por dia.
+function coberturaEm(iso) {
+  const vazias = S.lojas.filter(l => lojaVaziaEm(l, iso));
+  const trab = f => !f.afastado && statusDia(f, iso) === 'T';
+  const usados = new Set();
+  const pegar = lista => { const x = lista.find(f => !usados.has(f.id)); if (x) usados.add(x.id); return x || null; };
+  const res = vazias.map(l => ({ loja: l, por: null }));
+  res.forEach(r => {   // 1º: inspetor da própria loja (não disputa com outras)
+    const i = pegar(S.funcs.filter(f => f.isInspetor && f.loja === r.loja && trab(f)));
+    if (i) r.por = { tipo: 'insp', nome: i.nome };
+  });
+  res.forEach(r => {
+    if (r.por) return;
+    const i = pegar(S.funcs.filter(f => f.isInspetor && f.loja === '' && trab(f)));
+    if (i) { r.por = { tipo: 'insp', nome: i.nome }; return; }
+    const v = pegar(S.funcs.filter(f => !f.isInspetor && f.loja === '' && trab(f)));
+    if (v) r.por = { tipo: 'vol', nome: v.nome };
+  });
+  return res;
+}
+
+function textoCobertura(por) {
+  if (!por) return '<span class="font-bold text-rose-700">⛔ Sem cobertura (nenhum inspetor ou volante livre)</span>';
+  return por.tipo === 'insp'
+    ? `<span class="font-bold text-indigo-700">🛡️ Inspetor parceiro: ${esc(por.nome)}</span>`
+    : `<span class="font-bold text-emerald-700">🧭 Volante: ${esc(por.nome)}</span>`;
+}
+
+function renderAlertasVazia() {
+  const el = $('alertasVazia');
+  if (!el) return;
+  const iso = dataSelecionada;
+  const cob = coberturaEm(iso);
+  const semCob = cob.filter(c => !c.por).length;
+  const [y, m, d] = iso.split('-');
+  const rotulo = iso === hoje() ? `hoje (${d}/${m})` : `${DIAS[diaIdx(iso)]} ${d}/${m}`;
+
+  let topo;
+  if (!cob.length) {
+    topo = `<div class="bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg px-4 py-3 text-xs font-medium">✅ Nenhuma loja ficará vazia ${rotulo}.</div>`;
+  } else {
+    const linhas = cob.map(c => `
+      <div data-act="irLoja" data-loja="${esc(c.loja)}" class="cursor-pointer flex flex-wrap items-center gap-x-3 gap-y-1 bg-white/70 hover:bg-white border ${c.por ? 'border-amber-200' : 'border-rose-300'} rounded-md px-3 py-2">
+        <span class="font-bold text-gray-900">🔴 ${esc(c.loja)} ficará vazia</span>
+        <span class="text-gray-400">→</span>
+        ${textoCobertura(c.por)}
+      </div>`).join('');
+    topo = `<div class="${semCob ? 'bg-rose-50 border-rose-200' : 'bg-amber-50 border-amber-200'} border rounded-lg p-4 text-xs space-y-2">
+      <div class="font-bold ${semCob ? 'text-rose-800' : 'text-amber-800'}">${cob.length === 1 ? '1 loja vazia' : cob.length + ' lojas vazias'} ${rotulo}${semCob ? ` · ${semCob} sem cobertura` : ' · todas com cobertura'}</div>
+      <div class="space-y-1.5">${linhas}</div>
+    </div>`;
+  }
+
+  // Próximos 14 dias com loja vazia (exceto o dia já detalhado)
+  const prox = [];
+  for (let i = 0; i < 14; i++) {
+    const di = somaDias(hoje(), i);
+    if (di === iso) continue;
+    const c = coberturaEm(di);
+    if (c.length) prox.push({ di, c });
+  }
+  const chips = prox.length
+    ? `<div class="flex flex-wrap gap-2 text-[11px] mt-3">
+         <span class="text-gray-500 font-medium self-center">Outros dias com loja vazia:</span>
+         ${prox.map(({ di, c }) => {
+           const ruim = c.some(x => !x.por);
+           return `<button data-act="selData" data-iso="${di}" class="px-2 py-1 rounded border font-bold ${ruim ? 'bg-rose-50 border-rose-200 text-rose-700' : 'bg-amber-50 border-amber-200 text-amber-700'}" title="${esc(c.map(x => x.loja).join(', '))}">${fmtDiaSemana(di)} · ${c.length} ${ruim ? '⛔' : '✅'}</button>`;
+         }).join('')}
+       </div>` : '';
+  el.innerHTML = topo + chips;
+}
+
+// ---------- Quadro de avisos do mês ----------
+const TIPOS_AVISO = {
+  info:       { rot: 'Informativo', cls: 'bg-sky-50 border-sky-200 text-sky-900',       ic: '📌' },
+  importante: { rot: 'Importante',  cls: 'bg-amber-50 border-amber-200 text-amber-900', ic: '⚠️' },
+  urgente:    { rot: 'Urgente',     cls: 'bg-rose-50 border-rose-200 text-rose-900',    ic: '🚨' }
+};
+
+function renderQuadro() {
+  const el = $('quadroMes');
+  if (!el) return;
+  const mes = quadroMesVis;
+  const [ano, mm] = mes.split('-').map(Number);
+  const primeiro = mes + '-01';
+  const ultimo = somaDias(isoDe(new Date(ano, mm, 1)), -1);
+  const ini = mes === hoje().slice(0, 7) ? hoje() : primeiro;
+  const passado = mes < hoje().slice(0, 7);
+
+  // Automático: lojas vazias no mês, com cobertura
+  const porLoja = {};
+  if (!passado) {
+    for (let di = ini; di <= ultimo; di = somaDias(di, 1)) {
+      coberturaEm(di).forEach(c => { (porLoja[c.loja] = porLoja[c.loja] || []).push({ di, por: c.por }); });
+    }
+  }
+  const lojasVaz = Object.keys(porLoja);
+  const blocoVazias = lojasVaz.length
+    ? lojasVaz.map(l => {
+        const dias = porLoja[l];
+        const sem = dias.filter(x => !x.por).length;
+        return `<div data-act="irLoja" data-loja="${esc(l)}" class="cursor-pointer border ${sem ? 'border-rose-200 bg-rose-50' : 'border-amber-200 bg-amber-50'} rounded-md p-3 text-xs">
+          <div class="font-bold text-gray-900">🔴 ${esc(l)} <span class="font-normal text-gray-500">· vazia em ${dias.length} dia(s)${sem ? ` · <b class="text-rose-700">${sem} sem cobertura</b>` : ''}</span></div>
+          <div class="mt-1.5 flex flex-wrap gap-1.5">${dias.map(x => `<span class="px-1.5 py-0.5 rounded bg-white border ${x.por ? 'border-gray-200 text-gray-700' : 'border-rose-300 text-rose-700 font-bold'}" title="${x.por ? esc((x.por.tipo === 'insp' ? 'Inspetor: ' : 'Volante: ') + x.por.nome) : 'Sem cobertura'}">${fmtDiaSemana(x.di)} ${x.por ? (x.por.tipo === 'insp' ? '🛡️' : '🧭') : '⛔'}</span>`).join('')}</div>
+        </div>`;
+      }).join('')
+    : `<p class="text-xs text-gray-500">${passado ? 'Mês encerrado.' : '✅ Nenhuma loja vazia prevista neste mês.'}</p>`;
+
+  // Automático: férias que tocam o mês
+  const ferias = [];
+  S.funcs.filter(f => !f.afastado).forEach(f => periodos(f).forEach(p => {
+    const fim = p.fim || '9999-12-31';
+    if (p.ini <= ultimo && fim >= primeiro) ferias.push({ f, p });
+  }));
+  ferias.sort((a, b) => a.p.ini.localeCompare(b.p.ini));
+  const blocoFerias = ferias.length
+    ? ferias.map(({ f, p }) => `<div class="text-xs flex flex-wrap gap-x-2 border border-gray-200 rounded-md px-3 py-2 bg-gray-50"><b class="text-gray-800">🏖️ ${esc(f.nome)}</b><span class="text-gray-500">${esc(f.loja || (f.isInspetor ? 'Inspetor' : 'Volante'))}</span><span class="text-gray-700">${fmtCurto(p.ini)} a ${p.fim ? fmtCurto(p.fim) : 'sem data final'}</span></div>`).join('')
+    : '<p class="text-xs text-gray-500">Ninguém de férias neste mês.</p>';
+
+  // Avisos manuais
+  const ordem = { urgente: 0, importante: 1, info: 2 };
+  const avisos = S.quadro.filter(a => a.mes === mes)
+    .sort((a, b) => (ordem[a.tipo] - ordem[b.tipo]) || (a.dia || '9').localeCompare(b.dia || '9'));
+  const edita = podeEditar();
+  const blocoAvisos = avisos.length
+    ? avisos.map(a => {
+        const t = TIPOS_AVISO[a.tipo];
+        return `<div class="border ${t.cls} rounded-md p-3 text-xs shadow-sm relative">
+          <div class="flex items-center justify-between gap-2 mb-1">
+            <span class="font-bold">${t.ic} ${t.rot}${a.dia ? ' · ' + fmtDiaSemana(a.dia) : ''}</span>
+            ${edita ? `<button data-act="quadroDel" data-id="${a.id}" class="text-gray-400 hover:text-rose-600 font-bold" title="Excluir aviso" aria-label="Excluir aviso">✕</button>` : ''}
+          </div>
+          <div class="whitespace-pre-wrap break-words">${esc(a.texto)}</div>
+        </div>`;
+      }).join('')
+    : '<p class="text-xs text-gray-500">Nenhum aviso publicado para este mês.</p>';
+
+  el.innerHTML = `
+    <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+      <div>
+        <h2 class="text-lg font-bold text-gray-900">📋 Quadro de Avisos do Mês</h2>
+        <p class="text-xs text-gray-500">Avisos da supervisão, lojas vazias previstas e férias do mês.</p>
+      </div>
+      <div class="flex items-center gap-2">
+        <button data-act="quadroMes" data-d="-1" class="border border-gray-300 rounded px-2.5 py-1.5 text-xs font-bold hover:bg-gray-50" aria-label="Mês anterior">‹</button>
+        <span class="text-xs font-bold text-gray-800 min-w-[110px] text-center">${NOMES_MES[mm - 1]} ${ano}</span>
+        <button data-act="quadroMes" data-d="1" class="border border-gray-300 rounded px-2.5 py-1.5 text-xs font-bold hover:bg-gray-50" aria-label="Próximo mês">›</button>
+        ${edita ? '<button data-act="quadroAdd" class="btn-kavak px-3 py-1.5 text-xs">+ Novo aviso</button>' : ''}
+      </div>
+    </div>
+    <div class="grid gap-5 lg:grid-cols-3">
+      <div class="space-y-2"><h3 class="text-[11px] font-bold uppercase tracking-wider text-gray-500">Avisos</h3>${blocoAvisos}</div>
+      <div class="space-y-2"><h3 class="text-[11px] font-bold uppercase tracking-wider text-gray-500">Lojas vazias previstas</h3>${blocoVazias}</div>
+      <div class="space-y-2"><h3 class="text-[11px] font-bold uppercase tracking-wider text-gray-500">Férias no mês</h3>${blocoFerias}</div>
+    </div>`;
+}
+
+function novoAviso() {
+  const mes = quadroMesVis;
+  modal('Novo aviso · ' + NOMES_MES[+mes.slice(5) - 1] + ' ' + mes.slice(0, 4), `
+    <div class="space-y-3">
+      <textarea id="avTexto" rows="4" maxlength="400" placeholder="Escreva o aviso (máx. 400 caracteres)" class="w-full border border-gray-300 rounded px-3 py-2 text-xs focus:ring-2 focus:ring-kavak-blue outline-none"></textarea>
+      <div class="grid grid-cols-2 gap-2">
+        <label class="text-[11px] font-bold text-gray-700">Tipo
+          <select id="avTipo" class="mt-1 w-full border border-gray-300 rounded px-2 py-2 text-xs bg-white font-normal">
+            <option value="info">📌 Informativo</option><option value="importante">⚠️ Importante</option><option value="urgente">🚨 Urgente</option>
+          </select></label>
+        <label class="text-[11px] font-bold text-gray-700">Dia (opcional)
+          <input type="date" id="avDia" min="${mes}-01" max="${mes}-31" class="mt-1 w-full border border-gray-300 rounded px-2 py-2 text-xs font-normal"></label>
+      </div>
+    </div>`, [
+    { txt: 'Cancelar', cls: BTN_CANCELA },
+    { txt: 'Publicar', cls: 'btn-kavak text-white', fecha: false, fn: () => {
+        const texto = $('avTexto').value.trim();
+        if (!texto) return toast('Escreva o aviso');
+        let dia = $('avDia').value;
+        if (dia && dia.slice(0, 7) !== mes) dia = '';
+        snapshot('novo aviso');
+        S.quadro.push({ id: Date.now(), mes, dia, tipo: $('avTipo').value, texto: texto.slice(0, 400) });
+        fechar(); atualizarTudo(); toast('Aviso publicado!');
+      } }
+  ]);
+}
+
 function renderNuvens() {
   const container = $('nuvensHome');
   const subtitulo = $('subtituloNuvens');
@@ -978,12 +1186,19 @@ function renderNuvens() {
       statusBg = 'bg-amber-500'; statusBorder = 'border-amber-200'; statusText = 'text-amber-700';
     }
 
+    const vazia = fs.length > 0 && ativosNoDia.length === 0;
+    const cobN = vazia ? (coberturaEm(dataSelecionada).find(c => c.loja === l) || {}).por : null;
+    const linhaCob = vazia
+      ? `<div class="text-[10px] font-bold mt-1 ${cobN ? (cobN.tipo === 'insp' ? 'text-indigo-600' : 'text-emerald-600') : 'text-rose-700'}">${cobN ? (cobN.tipo === 'insp' ? '🛡️ Insp. ' : '🧭 Volante ') + esc(cobN.nome) : '⛔ Sem cobertura'}</div>`
+      : '';
+
     return `
     <div data-act="irLoja" data-loja="${esc(l)}" class="nuvem-home bg-white rounded-2xl p-4 border ${statusBorder} shadow-sm flex flex-col items-center justify-center min-w-[140px] text-center">
       <div class="w-3 h-3 rounded-full ${statusBg} mb-2"></div>
       <h3 class="font-bold text-xs text-gray-800">${esc(l)}</h3>
       <div class="text-[11px] font-bold ${statusText} mt-1">${ativosNoDia.length} Trab / ${fs.length} Tot</div>
       ${inspNoDia.length > 0 ? `<div class="text-[10px] text-indigo-600 font-semibold mt-0.5">+${inspNoDia.length} Insp</div>` : ''}
+      ${linhaCob}
     </div>`;
   }).join('');
 
@@ -1008,11 +1223,13 @@ function renderTimeline() {
     const dateStr = String(cur.getDate()).padStart(2, '0') + '/' + String(cur.getMonth() + 1).padStart(2, '0');
     const diaNome = DIAS[(cur.getDay() + 6) % 7];
     const sel = iso === dataSelecionada;
+    const cobDia = coberturaEm(iso), nVaz = cobDia.length, nSem = cobDia.filter(c => !c.por).length;
 
     html += `
     <button data-act="selData" data-iso="${iso}" class="flex-1 py-2 px-3 rounded-lg border text-center transition min-w-[70px] ${sel ? 'bg-kavak-blue text-white border-kavak-blue shadow-md' : 'bg-white text-gray-700 border-gray-200 hover:border-gray-300'}">
       <div class="text-[10px] font-bold uppercase ${sel ? 'text-blue-100' : 'text-gray-400'}">${diaNome}</div>
       <div class="text-xs font-bold mt-0.5">${dateStr}</div>
+      ${nVaz ? `<div class="text-[10px] font-bold mt-0.5 ${sel ? 'text-white' : (nSem ? 'text-rose-600' : 'text-amber-600')}">${nSem ? '⛔' : '🔴'} ${nVaz}</div>` : '<div class="text-[10px] mt-0.5">&nbsp;</div>'}
     </button>`;
   }
   container.innerHTML = html;
@@ -1046,6 +1263,8 @@ function atualizarTudo() {
   renderLojas();
   renderTimeline();
   renderNuvens();
+  renderAlertasVazia();
+  renderQuadro();
   renderAvisos();
   atualizarBtnDesfazer();
 }
@@ -1152,7 +1371,7 @@ document.addEventListener('click', e => {
   if (!btn) return;
   const act = btn.dataset.act;
   // Funcionário só navega e visualiza; qualquer outra ação é bloqueada (e o servidor também bloqueia).
-  const SO_LEITURA = ['tab', 'setSemana', 'setSemanaView', 'selData', 'irLoja'];
+  const SO_LEITURA = ['tab', 'setSemana', 'setSemanaView', 'selData', 'irLoja', 'quadroMes'];
   if (!podeEditar() && !SO_LEITURA.includes(act)) return;
 
   if (act === 'tab') {
@@ -1214,10 +1433,26 @@ document.addEventListener('click', e => {
       f.ferias.splice(i, 1);
       atualizarTudo();
     }
+  } else if (act === 'quadroMes') {
+    const [a, m] = quadroMesVis.split('-').map(Number);
+    const nd = new Date(a, m - 1 + (+btn.dataset.d), 1);
+    quadroMesVis = nd.getFullYear() + '-' + String(nd.getMonth() + 1).padStart(2, '0');
+    renderQuadro();
+  } else if (act === 'quadroAdd') {
+    novoAviso();
+  } else if (act === 'quadroDel') {
+    const id = +btn.dataset.id;
+    confirmar('Excluir aviso', 'Excluir este aviso do quadro?', 'Excluir', () => {
+      snapshot('exclusão de aviso');
+      S.quadro = S.quadro.filter(a => a.id !== id);
+      atualizarTudo();
+      toast('Aviso excluído! (dá para desfazer)');
+    });
   } else if (act === 'selData') {
     dataSelecionada = btn.dataset.iso;
     renderTimeline();
     renderNuvens();
+    renderAlertasVazia();
   } else if (act === 'irLoja') {
     abrirVisualizacaoLoja(btn.dataset.loja);
   } else if (act === 'modalAfastar') {
