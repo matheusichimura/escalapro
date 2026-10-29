@@ -1528,8 +1528,8 @@ function abrirVisualizacaoLoja(lojaNome) {
       <div class="p-5 border-b border-gray-200 bg-white flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 flex-shrink-0">
         <div>
           <h3 class="font-bold text-lg text-gray-900">Escala da Loja</h3>
-          <p class="text-xs text-gray-500 mt-1">Visualização para <b class="text-kavak-blue">${esc(lojaNome)}</b>.</p>
-        </div>
+          <p class="text-xs text-gray-500 mt-1">${podeEditar() ? 'Clique em T/F para alterar.' : 'Visualização.'} Loja <b class="text-kavak-blue">${esc(lojaNome)}</b>.</p>
+          </div>
         <div class="flex bg-gray-100 p-1 rounded-md overflow-x-auto">
           <button data-act="setSemanaView" data-sem="1" class="btn-semana-view px-3 py-1 text-xs font-bold rounded transition">Semana 1</button>
           <button data-act="setSemanaView" data-sem="2" class="btn-semana-view px-3 py-1 text-xs font-bold rounded transition">Semana 2</button>
@@ -1557,14 +1557,11 @@ function abrirVisualizacaoLoja(lojaNome) {
         </table>
       </div>
 
-      <div class="p-4 border-t border-gray-200 bg-white flex items-center justify-between flex-shrink-0">
+            <div class="p-4 border-t border-gray-200 bg-white flex items-center justify-between flex-shrink-0">
         <div class="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg font-bold text-xs flex items-center gap-2">
           <i data-ic="users"></i>
           ${fs.length} Funcionários na Loja
         </div>
-        ${podeEditar() ? `<button data-act="editarLojaDoModal" data-loja="${esc(lojaNome)}" class="btn-kavak px-4 py-2 text-xs flex items-center gap-2 shadow-sm">
-          <i data-ic="calendar"></i> Editar Escala
-        </button>` : ''}
       </div>
     </div>`;
 
