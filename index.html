@@ -1503,7 +1503,11 @@ function renderEscalaVisualizacao(lojaNome) {
     const cols = datas.map(iso => {
       const st = statusDia(f, iso);
       const cor = st === 'FÉ' ? 'bg-violet-100 text-violet-700 border-violet-300' : st === 'T' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-amber-50 text-amber-700 border-amber-200';
-      return `<td class="py-2.5 px-2 text-center"><div class="w-8 h-8 mx-auto rounded font-bold text-xs border flex items-center justify-center ${cor}">${afastadoEm(f, iso) ? 'AF' : st}</div></td>`;
+      const trava = st === 'FÉ' || !podeEditar();
+      const cls = `w-8 h-8 mx-auto rounded font-bold text-xs border flex items-center justify-center ${cor}`;
+      return `<td class="py-2.5 px-2 text-center">${trava
+        ? `<div class="${cls}">${afastadoEm(f, iso) ? 'AF' : st}</div>`
+        : `<button data-act="toggle" data-id="${f.id}" data-iso="${iso}" aria-label="${esc(f.nome)} ${fmtCurto(iso)}: ${st === 'T' ? 'trabalha' : 'folga'}" class="${cls} transition hover:ring-2 hover:ring-kavak-blue">${st}</button>`}</td>`;
     }).join('');
 
     return `<tr class="hover:bg-gray-50 transition">
@@ -1590,8 +1594,9 @@ document.addEventListener('click', e => {
     const f = S.funcs.find(x => x.id === +btn.dataset.id);
     if (!f) return;
     const iso = btn.dataset.iso;
-    f.dias[iso] = statusDia(f, iso) === 'T' ? 'F' : 'T';
+        f.dias[iso] = statusDia(f, iso) === 'T' ? 'F' : 'T';
     atualizarTudo();
+    if ($('tabelaEscalaViewCorpo')) renderEscalaVisualizacao(lojaVisualizacaoAtual);   // atualiza a janela da loja aberta
   } else if (act === 'setSemana') {
     semanaAtiva = +btn.dataset.sem;
     renderEscala();
