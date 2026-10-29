@@ -260,7 +260,21 @@ button:disabled{cursor:not-allowed}
         <h2 class="text-lg font-bold text-gray-900">Dashboard Executivo de Inspeções</h2>
         <p id="inspPeriodo" class="text-xs text-gray-500"></p>
       </div>
-      <div class="flex items-center gap-2">
+      <div class="flex flex-wrap items-center gap-2">
+        <select id="inspFiltro" aria-label="Período" class="border border-gray-300 rounded px-2 py-2 text-xs font-bold text-gray-700">
+          <option value="hoje">Hoje</option>
+          <option value="ontem">Ontem</option>
+          <option value="semana" selected>Esta semana</option>
+          <option value="semana_passada">Semana passada</option>
+          <option value="mes">Este mês</option>
+          <option value="mes_passado">Mês passado</option>
+          <option value="personalizado">Personalizado…</option>
+        </select>
+        <span id="inspDatas" class="hidden items-center gap-1">
+          <input type="date" id="inspDe" aria-label="De" class="border border-gray-300 rounded px-2 py-1.5 text-xs">
+          <span class="text-xs text-gray-500">até</span>
+          <input type="date" id="inspAte" aria-label="Até" class="border border-gray-300 rounded px-2 py-1.5 text-xs">
+        </span>
         <span id="inspFonte" class="text-[11px] font-bold rounded px-2 py-1 hidden"></span>
         <button id="inspAtualizar" class="bg-white border border-gray-300 text-gray-700 px-3 py-2 rounded-md text-xs font-bold shadow-sm hover:bg-gray-50">Atualizar</button>
       </div>
@@ -922,15 +936,33 @@ function carregarChartJs() {
   return INSP.promessa;
 }
 
+function intervaloInsp() {
+  const v = $('inspFiltro').value, h = hoje();
+  const dow = (new Date(h + 'T12:00:00').getDay() + 6) % 7;
+  const seg = somaDias(h, -dow);
+  if (v === 'hoje') return { inicio: h, fim: h };
+  if (v === 'ontem') { const o = somaDias(h, -1); return { inicio: o, fim: o }; }
+  if (v === 'semana_passada') return { inicio: somaDias(seg, -7), fim: somaDias(seg, -1) };
+  if (v === 'mes') return { inicio: h.slice(0, 8) + '01', fim: h };
+  if (v === 'mes_passado') { const d = new Date(h + 'T12:00:00'); return { inicio: isoDe(new Date(d.getFullYear(), d.getMonth() - 1, 1)), fim: isoDe(new Date(d.getFullYear(), d.getMonth(), 0)) }; }
+  if (v === 'personalizado') { const i = $('inspDe').value, f = $('inspAte').value; return (i && f && i <= f) ? { inicio: i, fim: f } : null; }
+  return { inicio: seg, fim: h };
+}
+
 async function carregarInspecoes() {
+  const iv = intervaloInsp();
+  if (!iv) { toast('Escolha as duas datas (a primeira não pode ser maior que a segunda).'); return; }
+  const seq = INSP.seq = (INSP.seq || 0) + 1;
   let d = INSP_EXEMPLO, fonte = 'exemplo';
   if (!MODO_LOCAL) {
     try {
-      const r = await api('inspecoes');
+      const r = await api('inspecoes', iv);
       if (r && !r.erro && Array.isArray(r.canais) && Array.isArray(r.dias) && Array.isArray(r.inspetores)) { d = r; fonte = 'servidor'; }
     } catch (e) { if (e && e.sessaoExpirada) return; }
   }
+  if (seq !== INSP.seq) return;
   try { await carregarChartJs(); } catch (e) { $('inspConteudo').innerHTML = '<p class="text-xs text-red-600">Não consegui carregar a biblioteca de gráficos. Verifique a internet e clique em Atualizar.</p>'; return; }
+  if (seq !== INSP.seq) return;
   renderInspecoes(d, fonte);
 }
 
@@ -974,17 +1006,24 @@ function renderInspecoes(d, fonte) {
   const tooltip = { backgroundColor: '#111827', padding: 10, cornerRadius: 6, displayColors: false };
   const mk = (id, horizontal, labels, valores, cores, espessura) => INSP.charts.push(new Chart($(id), {
     type: 'bar',
-    data: { labels, datasets: [{ data: valores, backgroundColor: cores, borderRadius: 5, borderSkipped: false, barThickness: espessura }] },
+    data: { labels, datasets: [{ data: valores, backgroundColor: cores, borderRadius: 5, borderSkipped: false, barThickness: espessura, maxBarThickness: 30 }] },
     options: { indexAxis: horizontal ? 'y' : 'x', responsive: true, maintainAspectRatio: false,
       plugins: { legend: { display: false }, tooltip: { ...tooltip, callbacks: { label: c => `${c.parsed[horizontal ? 'x' : 'y']} placas` } } },
       scales: { [horizontal ? 'x' : 'y']: { grid: { color: '#F1F5F9' }, beginAtZero: true }, [horizontal ? 'y' : 'x']: { grid: { display: false }, ticks: { color: '#334155' } } } }
   }));
   const maxDia = Math.max(...d.dias.map(x => x.total));
   mk('chInspCanais', true, d.canais.map(x => x.nome), d.canais.map(x => x.total), '#0047FF', 16);
-  mk('chInspDias', false, d.dias.map(x => x.rotulo), d.dias.map(x => x.total), d.dias.map(x => x.total === maxDia ? '#0036cc' : '#6b93ff'), 30);
+  mk('chInspDias', false, d.dias.map(x => x.rotulo), d.dias.map(x => x.total), d.dias.map(x => x.total === maxDia ? '#0036cc' : '#6b93ff'), d.dias.length > 14 ? undefined : 30);
   mk('chInspTop', true, top.map(x => x.nome), top.map(x => x.total), top.map((x, i) => i === 0 ? '#002a99' : '#0047FF'), 20);
 }
 $('inspAtualizar').addEventListener('click', carregarInspecoes);
+$('inspFiltro').addEventListener('change', () => {
+  const pers = $('inspFiltro').value === 'personalizado';
+  $('inspDatas').classList.toggle('hidden', !pers);
+  $('inspDatas').classList.toggle('inline-flex', pers);
+  if (!pers) carregarInspecoes();
+});
+['inspDe', 'inspAte'].forEach(id => $(id).addEventListener('change', () => { if ($('inspDe').value && $('inspAte').value) carregarInspecoes(); }));
 
 const ATIVA = 'py-3 px-4 border-b-2 text-xs font-bold flex items-center gap-2 transition whitespace-nowrap border-kavak-blue text-kavak-blue';
 const INATIVA = 'py-3 px-4 border-b-2 text-xs font-bold flex items-center gap-2 transition whitespace-nowrap border-transparent text-gray-500 hover:text-kavak-blue';
