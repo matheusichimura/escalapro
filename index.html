@@ -105,6 +105,7 @@ button:disabled{cursor:not-allowed}
     <button data-act="tab" data-tab="escala" id="btn-escala" class="py-3 px-4 border-b-2 text-xs font-bold flex items-center gap-2 transition whitespace-nowrap text-gray-500 border-transparent hover:text-kavak-blue"><i data-ic="calendar"></i> Escalas</button>
     <button data-act="tab" data-tab="equipe" id="btn-equipe" class="py-3 px-4 border-b-2 text-xs font-bold flex items-center gap-2 transition whitespace-nowrap text-gray-500 border-transparent hover:text-kavak-blue"><i data-ic="users"></i> Equipe</button>
     <button data-act="tab" data-tab="lojas" id="btn-lojas" class="py-3 px-4 border-b-2 text-xs font-bold flex items-center gap-2 transition whitespace-nowrap text-gray-500 border-transparent hover:text-kavak-blue"><i data-ic="store"></i> Lojas</button>
+    <button data-act="tab" data-tab="inspecoes" id="btn-inspecoes" class="py-3 px-4 border-b-2 text-xs font-bold flex items-center gap-2 transition whitespace-nowrap text-gray-500 border-transparent hover:text-kavak-blue"><i data-ic="chart"></i> Inspeções</button>
     <button data-act="tab" data-tab="acessos" id="btn-acessos" style="display:none" class="py-3 px-4 border-b-2 text-xs font-bold flex items-center gap-2 transition whitespace-nowrap text-gray-500 border-transparent hover:text-kavak-blue"><i data-ic="users"></i> Acessos</button>
   </div>
 </nav>
@@ -253,6 +254,19 @@ button:disabled{cursor:not-allowed}
     </div>
     <div id="listaLojasPainel" class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"></div>
   </section>
+  <section id="aba-inspecoes" class="space-y-5 hidden">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <h2 class="text-lg font-bold text-gray-900">Dashboard Executivo de Inspeções</h2>
+        <p id="inspPeriodo" class="text-xs text-gray-500"></p>
+      </div>
+      <div class="flex items-center gap-2">
+        <span id="inspFonte" class="text-[11px] font-bold rounded px-2 py-1 hidden"></span>
+        <button id="inspAtualizar" class="bg-white border border-gray-300 text-gray-700 px-3 py-2 rounded-md text-xs font-bold shadow-sm hover:bg-gray-50">Atualizar</button>
+      </div>
+    </div>
+    <div id="inspConteudo"><p class="text-xs text-gray-500">Carregando…</p></div>
+  </section>
   <section id="aba-acessos" class="space-y-4 hidden">
     <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200 max-w-xl space-y-3">
       <h2 class="font-bold text-sm text-gray-900">Criar / atualizar acesso</h2>
@@ -326,7 +340,8 @@ const IC = {
   alert:'<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>',
   download:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>',
   upload:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>',
-  undo:'<path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/>'
+  undo:'<path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/>',
+  chart:'<line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>'
 };
 
 // Troca <i data-ic> por SVG. Roda na carga e toda vez que o modal recebe conteúdo novo.
@@ -877,18 +892,113 @@ function confirmar(titulo, msg, rotulo, fn) {
   modal(titulo, msg, [{ txt: 'Cancelar', cls: BTN_CANCELA }, { txt: rotulo, cls: 'btn-kavak text-white', fn }]);
 }
 
+// ---------- Dashboard de Inspeções (aba própria) ----------
+// Fonte automática: api('inspecoes') no Apps Script. Se não existir/falhar, mostra o EXEMPLO abaixo (com aviso na tela).
+// Formato esperado: { periodo:{inicio:'AAAA-MM-DD',fim:'AAAA-MM-DD'}, geradoEm:'AAAA-MM-DDTHH:MM',
+//   canais:[{nome,total,grupo:'loja'|'online'|'b2b'}], dias:[{rotulo,total}], inspetores:[{nome,total}], totalEquipe?:número }
+const INSP_EXEMPLO = {
+  periodo: { inicio: '2026-10-19', fim: '2026-10-25' }, geradoEm: '2026-10-29T14:17', totalEquipe: 502,
+  canais: [
+    { nome: 'Online', total: 210, grupo: 'online' }, { nome: 'Kavak City Barueri', total: 97, grupo: 'loja' },
+    { nome: 'SP Market', total: 74, grupo: 'loja' }, { nome: 'Tatuapé', total: 55, grupo: 'loja' },
+    { nome: 'Arena Santo André', total: 42, grupo: 'loja' }, { nome: 'B2B', total: 27, grupo: 'b2b' },
+    { nome: 'Tucuruvi', total: 26, grupo: 'loja' }, { nome: 'Morumbi', total: 16, grupo: 'loja' },
+    { nome: 'Frei Caneca', total: 11, grupo: 'loja' }, { nome: 'KUNA', total: 2, grupo: 'b2b' }
+  ],
+  dias: [['19/10 (Seg)',104],['20/10 (Ter)',27],['21/10 (Qua)',90],['22/10 (Qui)',74],['23/10 (Sex)',92],['24/10 (Sáb)',173]].map(([rotulo,total]) => ({ rotulo, total })),
+  inspetores: [['Edson',104],['Bruno S',45],['Matheus',42],['João',42],['Gerson',42],['Bruno Domingues',34],['Danilo',30],['Bruno Thome',30],['Vagner',26],['José Roberto',24]].map(([nome,total]) => ({ nome, total }))
+};
+const INSP = { charts: [], promessa: null };
+const fmtData = iso => iso ? iso.slice(0, 10).split('-').reverse().join('/') : '';
+
+function carregarChartJs() {
+  if (window.Chart) return Promise.resolve();
+  if (!INSP.promessa) INSP.promessa = new Promise((ok, falha) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js';
+    s.onload = ok; s.onerror = () => { INSP.promessa = null; falha(new Error('chartjs')); };
+    document.head.appendChild(s);
+  });
+  return INSP.promessa;
+}
+
+async function carregarInspecoes() {
+  let d = INSP_EXEMPLO, fonte = 'exemplo';
+  if (!MODO_LOCAL) {
+    try {
+      const r = await api('inspecoes');
+      if (r && !r.erro && Array.isArray(r.canais) && Array.isArray(r.dias) && Array.isArray(r.inspetores)) { d = r; fonte = 'servidor'; }
+    } catch (e) { if (e && e.sessaoExpirada) return; }
+  }
+  try { await carregarChartJs(); } catch (e) { $('inspConteudo').innerHTML = '<p class="text-xs text-red-600">Não consegui carregar a biblioteca de gráficos. Verifique a internet e clique em Atualizar.</p>'; return; }
+  renderInspecoes(d, fonte);
+}
+
+function renderInspecoes(d, fonte) {
+  INSP.charts.forEach(c => c.destroy()); INSP.charts = [];
+  const soma = (a, f) => a.reduce((s, x) => s + (f ? f(x) : x.total), 0);
+  const total = soma(d.canais);
+  const grupo = g => soma(d.canais.filter(c => c.grupo === g));
+  const pct = n => total ? (n / total * 100).toFixed(1).replace('.', ',') + '%' : '0%';
+  const top = d.inspetores.slice(0, 10), totTop = soma(top);
+  const base = d.totalEquipe || soma(d.inspetores) || total;
+
+  $('inspPeriodo').textContent = d.periodo ? `Período: ${fmtData(d.periodo.inicio)} a ${fmtData(d.periodo.fim)}` + (d.geradoEm ? ` · gerado em ${fmtData(d.geradoEm)} ${d.geradoEm.slice(11, 16)}` : '') : '';
+  const f = $('inspFonte');
+  f.classList.remove('hidden', 'bg-amber-100', 'text-amber-800', 'bg-green-100', 'text-green-800');
+  f.classList.add(...(fonte === 'servidor' ? ['bg-green-100', 'text-green-800'] : ['bg-amber-100', 'text-amber-800']));
+  f.textContent = fonte === 'servidor' ? 'Dados da planilha' : 'Dados de exemplo';
+
+  const kpi = (t, n, p) => `<div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
+    <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">${esc(t)}</p>
+    <div class="flex items-baseline justify-between mt-2"><span class="text-3xl font-extrabold text-gray-900">${n}</span><span class="text-xs font-bold text-kavak-blue bg-blue-50 rounded px-2 py-1">${p}</span></div>
+    <div class="w-full bg-gray-100 h-1.5 rounded-full mt-3 overflow-hidden"><div class="bg-kavak-blue h-1.5 rounded-full" style="width:${total ? n / total * 100 : 0}%"></div></div></div>`;
+  const card = (t, sub, id, h) => `<div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
+    <h3 class="text-sm font-bold text-gray-900">${t}</h3><p class="text-[11px] text-gray-500 mb-4">${sub}</p>
+    <div class="relative w-full" style="height:${h}px"><canvas id="${id}"></canvas></div></div>`;
+
+  $('inspConteudo').innerHTML = `<div class="space-y-5">
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      ${kpi('Total de inspeções', total, '100%')}${kpi('Lojas físicas', grupo('loja'), pct(grupo('loja')))}
+      ${kpi('Canal online', grupo('online'), pct(grupo('online')))}${kpi('B2B + KUNA', grupo('b2b'), pct(grupo('b2b')))}
+    </div>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+      ${card('Placas por loja / canal', 'Veículos inspecionados por canal de atendimento', 'chInspCanais', 340)}
+      ${card('Placas por dia', 'Inspeções ao longo do período', 'chInspDias', 340)}
+    </div>
+    ${card('Top 10 inspetores', `Total do Top 10: <b>${totTop}</b> inspeções (${base ? (totTop / base * 100).toFixed(1).replace('.', ',') : 0}% do total da equipe)`, 'chInspTop', 400)}
+  </div>`;
+
+  Chart.defaults.font.family = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  Chart.defaults.color = '#64748B';
+  const tooltip = { backgroundColor: '#111827', padding: 10, cornerRadius: 6, displayColors: false };
+  const mk = (id, horizontal, labels, valores, cores, espessura) => INSP.charts.push(new Chart($(id), {
+    type: 'bar',
+    data: { labels, datasets: [{ data: valores, backgroundColor: cores, borderRadius: 5, borderSkipped: false, barThickness: espessura }] },
+    options: { indexAxis: horizontal ? 'y' : 'x', responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { ...tooltip, callbacks: { label: c => `${c.parsed[horizontal ? 'x' : 'y']} placas` } } },
+      scales: { [horizontal ? 'x' : 'y']: { grid: { color: '#F1F5F9' }, beginAtZero: true }, [horizontal ? 'y' : 'x']: { grid: { display: false }, ticks: { color: '#334155' } } } }
+  }));
+  const maxDia = Math.max(...d.dias.map(x => x.total));
+  mk('chInspCanais', true, d.canais.map(x => x.nome), d.canais.map(x => x.total), '#0047FF', 16);
+  mk('chInspDias', false, d.dias.map(x => x.rotulo), d.dias.map(x => x.total), d.dias.map(x => x.total === maxDia ? '#0036cc' : '#6b93ff'), 30);
+  mk('chInspTop', true, top.map(x => x.nome), top.map(x => x.total), top.map((x, i) => i === 0 ? '#002a99' : '#0047FF'), 20);
+}
+$('inspAtualizar').addEventListener('click', carregarInspecoes);
+
 const ATIVA = 'py-3 px-4 border-b-2 text-xs font-bold flex items-center gap-2 transition whitespace-nowrap border-kavak-blue text-kavak-blue';
 const INATIVA = 'py-3 px-4 border-b-2 text-xs font-bold flex items-center gap-2 transition whitespace-nowrap border-transparent text-gray-500 hover:text-kavak-blue';
 
 function mudarAba(aba) {
   if (!podeEditar() && (aba === 'equipe' || aba === 'lojas')) aba = 'home';
   if (aba === 'acessos' && (!ehSupervisor() || MODO_LOCAL)) aba = 'home';
-  ['home','escala','equipe','lojas','acessos'].forEach(a => {
+  ['home','escala','equipe','lojas','inspecoes','acessos'].forEach(a => {
     $('aba-' + a).classList.toggle('hidden', a !== aba);
     $('btn-' + a).className = a === aba ? ATIVA : INATIVA;
   });
   atualizarTudo();
   if (aba === 'acessos') carregarUsuarios();
+  if (aba === 'inspecoes') carregarInspecoes();
 }
 
 function atualizarSelects() {
