@@ -268,6 +268,9 @@ button:disabled{cursor:not-allowed}
           <option value="semana_passada">Semana passada</option>
           <option value="mes">Este mês</option>
           <option value="mes_passado">Mês passado</option>
+          <option value="dois_meses">Mês passado + este mês</option>
+          <option value="tres_meses">Últimos 90 dias</option>
+          <option value="ano">Este ano</option>
           <option value="personalizado">Personalizado…</option>
         </select>
         <span id="inspDatas" class="hidden items-center gap-1">
@@ -280,6 +283,7 @@ button:disabled{cursor:not-allowed}
       </div>
     </div>
     <div id="inspConteudo"><p class="text-xs text-gray-500">Carregando…</p></div>
+    <div id="achConteudo"></div>
   </section>
   <section id="aba-acessos" class="space-y-4 hidden">
     <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200 max-w-xl space-y-3">
@@ -945,6 +949,9 @@ function intervaloInsp() {
   if (v === 'semana_passada') return { inicio: somaDias(seg, -7), fim: somaDias(seg, -1) };
   if (v === 'mes') return { inicio: h.slice(0, 8) + '01', fim: h };
   if (v === 'mes_passado') { const d = new Date(h + 'T12:00:00'); return { inicio: isoDe(new Date(d.getFullYear(), d.getMonth() - 1, 1)), fim: isoDe(new Date(d.getFullYear(), d.getMonth(), 0)) }; }
+  if (v === 'dois_meses') { const d = new Date(h + 'T12:00:00'); return { inicio: isoDe(new Date(d.getFullYear(), d.getMonth() - 1, 1)), fim: h }; }
+  if (v === 'tres_meses') return { inicio: somaDias(h, -89), fim: h };
+  if (v === 'ano') return { inicio: h.slice(0, 4) + '-01-01', fim: h };
   if (v === 'personalizado') { const i = $('inspDe').value, f = $('inspAte').value; return (i && f && i <= f) ? { inicio: i, fim: f } : null; }
   return { inicio: seg, fim: h };
 }
@@ -964,6 +971,7 @@ async function carregarInspecoes() {
   try { await carregarChartJs(); } catch (e) { $('inspConteudo').innerHTML = '<p class="text-xs text-red-600">Não consegui carregar a biblioteca de gráficos. Verifique a internet e clique em Atualizar.</p>'; return; }
   if (seq !== INSP.seq) return;
   renderInspecoes(d, fonte);
+  carregarAchados(iv);
 }
 
 function renderInspecoes(d, fonte) {
@@ -1024,6 +1032,128 @@ $('inspFiltro').addEventListener('change', () => {
   if (!pers) carregarInspecoes();
 });
 ['inspDe', 'inspAte'].forEach(id => $(id).addEventListener('change', () => { if ($('inspDe').value && $('inspAte').value) carregarInspecoes(); }));
+
+// ---------- Novos Achados: erros reais (ALINHAR Inspetor) cruzados com as inspeções ----------
+// Fonte: api('achados') no Apps Script (arquivo Achados.gs). Só supervisor vê.
+const ACH = { charts: [], seq: 0, dados: null };
+const ACH_DOW = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];
+const pctFmt = n => n.toFixed(1).replace('.', ',') + '%';
+const achRotulo = iso => { const d = new Date(iso + 'T12:00:00'); return fmtData(iso).slice(0, 5) + ' (' + ACH_DOW[(d.getDay() + 6) % 7].slice(0, 3) + ')'; };
+const achTaxa = (e, i) => i ? e / i * 100 : 0;
+
+async function carregarAchados(iv) {
+  const box = $('achConteudo');
+  ACH.charts.forEach(c => c.destroy()); ACH.charts = [];
+  if (MODO_LOCAL || !ehSupervisor()) { box.innerHTML = ''; return; }
+  const seq = ++ACH.seq;
+  box.innerHTML = '<p class="text-xs text-gray-500">Carregando novos achados…</p>';
+  let r;
+  try { r = await api('achados', iv); } catch (e) { if (e && e.sessaoExpirada) return; r = { erro: 'rede' }; }
+  if (seq !== ACH.seq) return;
+  if (!r || r.erro || !Array.isArray(r.semana)) {
+    const m = { acao_desconhecida: 'O Apps Script ainda não tem a ação <b>achados</b>. Cole o Achados.gs, adicione o case no rotear_ e publique uma nova versão.',
+      achados_planilha: 'O script não conseguiu abrir a planilha de achados (' + esc((r && r.msg) || '') + '). Confira se a conta que publica o app tem acesso a ela.',
+      achados_aba: 'Falta a aba <b>Achados_Import</b> (com o IMPORTRANGE) na planilha do EscalaPro.',
+      permissao: 'Somente supervisores veem os novos achados.' };
+    box.innerHTML = `<div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-4 text-xs">Não foi possível carregar os novos achados. ${m[r && r.erro] || 'Tente atualizar em instantes.'}</div>`;
+    return;
+  }
+  ACH.dados = r;
+  renderAchados(r);
+}
+
+function renderAchados(d) {
+  ACH.charts.forEach(c => c.destroy()); ACH.charts = [];
+  const taxaGeral = achTaxa(d.totalErros, d.totalInsp);
+  const com = d.semana.filter(x => x.inspecoes > 0);
+  const pior = com.length ? com.reduce((a, b) => achTaxa(b.erros, b.inspecoes) > achTaxa(a.erros, a.inspecoes) ? b : a) : null;
+  const temPior = pior && pior.erros > 0;
+
+  const kpi = (t, v, sub) => `<div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
+    <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">${esc(t)}</p>
+    <div class="mt-2 text-3xl font-extrabold text-gray-900">${v}</div><p class="text-[11px] text-gray-500 mt-1">${sub}</p></div>`;
+  const card = (t, sub, id, h) => `<div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
+    <h3 class="text-sm font-bold text-gray-900">${t}</h3><p class="text-[11px] text-gray-500 mb-4">${sub}</p>
+    <div class="relative w-full" style="height:${h}px"><canvas id="${id}"></canvas></div></div>`;
+
+  const av = [];
+  if (d.semData) av.push(`${d.semData} achado(s) ALINHAR Inspetor sem data legível na coluna C ficaram de fora dos gráficos.`);
+  if (d.semInspecoes && d.semInspecoes.length) av.push(`Sem inspeções no período para: <b>${d.semInspecoes.map(esc).join(', ')}</b>. Se o inspetor trabalhou, o nome da coluna A precisa casar com o da fila (dá para mapear apelidos no Achados.gs, em ACH_ALIAS).`);
+  if (d.truncado) av.push(`A lista abaixo mostra só os ${d.achados.length} achados mais recentes (os totais e gráficos consideram todos).`);
+
+  const nomes = [...new Set(d.achados.map(a => a.insp))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  const linhasInsp = d.inspetores.map(x => {
+    const t = achTaxa(x.erros, x.inspecoes), alta = x.inspecoes >= 20 && t > taxaGeral;
+    return `<tr class="border-t border-gray-100"><td class="py-2 px-3 font-semibold text-gray-800">${esc(x.nome)}</td>
+      <td class="py-2 px-3 text-right text-gray-600">${x.inspecoes}</td><td class="py-2 px-3 text-right font-bold text-gray-900">${x.erros}</td>
+      <td class="py-2 px-3 text-right font-bold ${alta ? 'text-rose-600' : 'text-gray-700'}">${x.inspecoes ? pctFmt(t) : '–'}</td></tr>`;
+  }).join('');
+
+  $('achConteudo').innerHTML = `<div class="space-y-5 mt-5">
+    <div>
+      <h2 class="text-lg font-bold text-gray-900">Novos Achados</h2>
+      <p class="text-xs text-gray-500">Erros reais dos inspetores (“Alinhar Inspetor” e “Alinhado com inspetor”) cruzados com as inspeções do mesmo período. Para comparar dias da semana, use períodos longos (mês, 90 dias).</p>
+    </div>
+    ${av.length ? `<div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-3 text-xs space-y-1">${av.map(x => `<p>⚠️ ${x}</p>`).join('')}</div>` : ''}
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      ${kpi('Erros reais', d.totalErros, 'ALINHAR Inspetor no período')}
+      ${kpi('Inspeções no período', d.totalInsp, 'placas vistas (1 por placa/dia)')}
+      ${kpi('Taxa de erro', d.totalInsp ? pctFmt(taxaGeral) : '–', 'erros ÷ inspeções')}
+      ${kpi('Dia com maior taxa', temPior ? ACH_DOW[pior.dow] : '–', temPior ? `${pctFmt(achTaxa(pior.erros, pior.inspecoes))} · ${pior.erros} erros em ${pior.inspecoes} inspeções` : 'sem erros no período')}
+    </div>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+      ${card('Taxa de erro por dia da semana', 'Erros ÷ inspeções: o sábado não pesa só por ter mais movimento', 'chAchSemana', 300)}
+      ${card('Erros x inspeções por dia', 'Barras = erros · linha = placas inspecionadas', 'chAchDias', 300)}
+    </div>
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+      <div class="p-5 pb-3"><h3 class="text-sm font-bold text-gray-900">Erros por inspetor</h3>
+        <p class="text-[11px] text-gray-500">Taxa = erros do inspetor ÷ inspeções dele no período. Vermelho = acima da média da equipe (com 20+ inspeções).</p></div>
+      <div class="overflow-auto max-h-96"><table class="w-full text-xs"><thead class="bg-gray-50 text-gray-500 sticky top-0"><tr>
+        <th class="text-left py-2 px-3">Inspetor</th><th class="text-right py-2 px-3">Inspeções</th><th class="text-right py-2 px-3">Erros</th><th class="text-right py-2 px-3">Taxa</th></tr></thead>
+        <tbody>${linhasInsp || '<tr><td colspan="4" class="py-4 px-3 text-gray-500">Sem dados no período.</td></tr>'}</tbody></table></div>
+    </div>
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+      <div class="p-5 pb-3 flex flex-wrap items-center justify-between gap-2"><h3 class="text-sm font-bold text-gray-900">Achados do período</h3>
+        <select id="achFiltroInsp" aria-label="Filtrar por inspetor" class="border border-gray-300 rounded px-2 py-1.5 text-xs font-bold text-gray-700">
+          <option value="">Todos os inspetores</option>${nomes.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('')}</select></div>
+      <div class="overflow-auto max-h-96"><table class="w-full text-xs"><thead class="bg-gray-50 text-gray-500 sticky top-0"><tr>
+        <th class="text-left py-2 px-3 whitespace-nowrap">Data</th><th class="text-left py-2 px-3">Inspetor</th><th class="text-left py-2 px-3">Placa</th><th class="text-left py-2 px-3">Peça / item</th><th class="text-left py-2 px-3">Situação</th></tr></thead>
+        <tbody id="achLista"></tbody></table></div>
+    </div>
+  </div>`;
+
+  const tt = { backgroundColor: '#111827', padding: 10, cornerRadius: 6 };
+  const maxT = Math.max(...d.semana.map(x => achTaxa(x.erros, x.inspecoes)));
+  ACH.charts.push(new Chart($('chAchSemana'), {
+    type: 'bar',
+    data: { labels: ACH_DOW.map(x => x.slice(0, 3)), datasets: [{ data: d.semana.map(x => +achTaxa(x.erros, x.inspecoes).toFixed(2)),
+      backgroundColor: d.semana.map(x => maxT > 0 && achTaxa(x.erros, x.inspecoes) === maxT ? '#002a99' : '#6b93ff'), borderRadius: 5, borderSkipped: false, maxBarThickness: 40 }] },
+    options: { responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { ...tt, displayColors: false, callbacks: { label: c => { const s = d.semana[c.dataIndex];
+        return [`Taxa: ${pctFmt(achTaxa(s.erros, s.inspecoes))}`, `${s.erros} erros em ${s.inspecoes} inspeções`, `${s.dias} dia(s) no período`]; } } } },
+      scales: { y: { beginAtZero: true, grid: { color: '#F1F5F9' }, ticks: { callback: v => v + '%' } }, x: { grid: { display: false }, ticks: { color: '#334155' } } } }
+  }));
+  ACH.charts.push(new Chart($('chAchDias'), {
+    type: 'bar',
+    data: { labels: d.dias.map(x => achRotulo(x.iso)), datasets: [
+      { type: 'bar', label: 'Erros', data: d.dias.map(x => x.erros), backgroundColor: '#E11D48', borderRadius: 4, maxBarThickness: 22, yAxisID: 'y', order: 2 },
+      { type: 'line', label: 'Inspeções', data: d.dias.map(x => x.inspecoes), borderColor: '#0047FF', backgroundColor: '#0047FF', tension: .25, pointRadius: 2, borderWidth: 2, yAxisID: 'y1', order: 1 }] },
+    options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { display: true, position: 'bottom' }, tooltip: tt },
+      scales: { y: { beginAtZero: true, grid: { color: '#F1F5F9' }, ticks: { precision: 0 }, title: { display: true, text: 'Erros' } },
+        y1: { position: 'right', beginAtZero: true, grid: { drawOnChartArea: false }, title: { display: true, text: 'Inspeções' } },
+        x: { grid: { display: false } } } }
+  }));
+
+  const lista = () => {
+    const f = $('achFiltroInsp').value, it = d.achados.filter(a => !f || a.insp === f);
+    $('achLista').innerHTML = it.slice(0, 300).map(a => `<tr class="border-t border-gray-100"><td class="py-2 px-3 whitespace-nowrap text-gray-700">${achRotulo(a.iso)}</td>
+      <td class="py-2 px-3 font-semibold text-gray-800">${esc(a.insp)}</td><td class="py-2 px-3 text-gray-600 whitespace-nowrap">${esc(a.placa || '–')}</td><td class="py-2 px-3 text-gray-600">${esc(a.item || '–')}</td><td class="py-2 px-3 whitespace-nowrap ${a.st === 'D' ? 'text-emerald-700' : 'text-rose-600'} font-bold">${a.st === 'D' ? 'Alinhado' : 'Alinhar'}</td></tr>`).join('')
+      || '<tr><td colspan="5" class="py-4 px-3 text-gray-500">Nenhum achado.</td></tr>';
+  };
+  $('achFiltroInsp').addEventListener('change', lista);
+  lista();
+}
 
 const ATIVA = 'py-3 px-4 border-b-2 text-xs font-bold flex items-center gap-2 transition whitespace-nowrap border-kavak-blue text-kavak-blue';
 const INATIVA = 'py-3 px-4 border-b-2 text-xs font-bold flex items-center gap-2 transition whitespace-nowrap border-transparent text-gray-500 hover:text-kavak-blue';
