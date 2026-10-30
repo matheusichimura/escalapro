@@ -1692,9 +1692,12 @@ function renderNuvens() {
       <h3 class="font-bold text-xs text-gray-800">${esc(l)}</h3>
       <div class="text-[11px] font-bold ${statusText} mt-1">${semCad ? 'Sem funcionários cadastrados' : fechada ? 'Fechada' : `${trabalhando.length} Trab / ${fs.length} Tot`}</div>
       ${nAfast > 0 ? `<div class="text-[10px] text-gray-500 mt-0.5">${lojaEquipeTodaAfastada(l, dia) ? 'equipe toda afastada' : nAfast + ' afastado(s)'}</div>` : ''}
-      ${inspNoDia.length > 0 ? `<div class="text-[10px] text-indigo-600 font-semibold mt-0.5">+${inspNoDia.length} Insp</div>` : ''}
       ${linhaCob}
       ${trabalhando.length ? `<div class="flex flex-wrap justify-center gap-1 mt-2">${trabalhando.map(f => chip(f, l)).join('')}</div>` : ''}
+      ${(edita || insp.length) ? `<div class="w-full mt-3 flex flex-wrap items-center justify-start gap-1">
+        ${edita ? `<button type="button" data-act="addInspLoja" data-loja="${esc(l)}" title="Adicionar inspetor parceiro em ${esc(l)}" aria-label="Adicionar inspetor parceiro em ${esc(l)}" class="px-2 py-0.5 rounded border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-[11px] font-bold transition">+ Insp. parceiro</button>` : ''}
+        ${insp.map(f => `<span title="${esc(f.nome)} · ${statusDia(f, dia) === 'T' ? 'trabalha' : statusDia(f, dia) === 'F' ? 'folga' : 'indisponível'} neste dia" class="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded border border-indigo-300 bg-indigo-50 text-indigo-700 text-[11px] font-medium shadow-sm ${statusDia(f, dia) === 'T' ? '' : 'opacity-60'}">⭐ ${esc(f.nome)}${edita ? `<button type="button" data-act="delInspetor" data-id="${f.id}" title="Remover inspetor" aria-label="Remover inspetor" class="text-indigo-400 hover:text-rose-600 font-bold leading-none px-0.5">✕</button>` : ''}</span>`).join('')}
+      </div>` : ''}
     </div>`;
   }).join('');
 
@@ -1937,11 +1940,17 @@ document.addEventListener('click', e => {
       atualizarTudo();
       toast('Loja removida! (dá para desfazer)');
     });
+  } else if (act === 'addInspLoja') {
+    const maxId = S.funcs.reduce((m, f) => Math.max(m, f.id), 0);
+    S.funcs.push({ id: maxId + 1, nome: 'Inspetor Parceiro', loja: btn.dataset.loja, escala: 'TTTTTTT', dias: {}, isInspetor: true, afastado: false, ferias: [] });
+    atualizarTudo();
+    toast('Inspetor parceiro adicionado em ' + btn.dataset.loja + '!');
   } else if (act === 'delInspetor') {
     const id = +btn.dataset.id;
+    snapshot('remoção de inspetor');
     S.funcs = S.funcs.filter(f => f.id !== id);
     atualizarTudo();
-    toast('Inspetor removido!');
+    toast('Inspetor removido! (dá para desfazer)');
   } else if (act === 'fAddPeriodo') {
     const f = S.funcs.find(x => x.id === +btn.dataset.id);
     if (f) {
