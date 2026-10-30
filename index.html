@@ -1064,10 +1064,10 @@ async function carregarAchados(iv) {
 
 function renderAchados(d) {
   ACH.charts.forEach(c => c.destroy()); ACH.charts = [];
-  const taxaGeral = achTaxa(d.totalErros, d.totalInsp);
+  const taxaGeral = achTaxa(d.totalPlacas, d.totalInsp);
   const com = d.semana.filter(x => x.inspecoes > 0);
-  const pior = com.length ? com.reduce((a, b) => achTaxa(b.erros, b.inspecoes) > achTaxa(a.erros, a.inspecoes) ? b : a) : null;
-  const temPior = pior && pior.erros > 0;
+  const pior = com.length ? com.reduce((a, b) => achTaxa(b.placas, b.inspecoes) > achTaxa(a.placas, a.inspecoes) ? b : a) : null;
+  const temPior = pior && pior.placas > 0;
 
   const kpi = (t, v, sub) => `<div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
     <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">${esc(t)}</p>
@@ -1083,9 +1083,9 @@ function renderAchados(d) {
 
   const nomes = [...new Set(d.achados.map(a => a.insp))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
   const linhasInsp = d.inspetores.map(x => {
-    const t = achTaxa(x.erros, x.inspecoes), alta = x.inspecoes >= 20 && t > taxaGeral;
+    const t = achTaxa(x.placas, x.inspecoes), alta = x.inspecoes >= 20 && t > taxaGeral;
     return `<tr class="border-t border-gray-100"><td class="py-2 px-3 font-semibold text-gray-800">${esc(x.nome)}</td>
-      <td class="py-2 px-3 text-right text-gray-600">${x.inspecoes}</td><td class="py-2 px-3 text-right font-bold text-gray-900">${x.erros}</td>
+      <td class="py-2 px-3 text-right text-gray-600">${x.inspecoes}</td><td class="py-2 px-3 text-right text-gray-600">${x.erros}</td><td class="py-2 px-3 text-right font-bold text-gray-900">${x.placas}</td>
       <td class="py-2 px-3 text-right font-bold ${alta ? 'text-rose-600' : 'text-gray-700'}">${x.inspecoes ? pctFmt(t) : '–'}</td></tr>`;
   }).join('');
 
@@ -1096,21 +1096,21 @@ function renderAchados(d) {
     </div>
     ${av.length ? `<div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-3 text-xs space-y-1">${av.map(x => `<p>⚠️ ${x}</p>`).join('')}</div>` : ''}
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
-      ${kpi('Erros reais', d.totalErros, 'ALINHAR Inspetor no período')}
+      ${kpi('Erros reais', d.totalPlacas, `placas com erro · ${d.totalErros} peças apontadas`)}
       ${kpi('Inspeções no período', d.totalInsp, 'placas vistas (1 por placa/dia)')}
-      ${kpi('Taxa de erro', d.totalInsp ? pctFmt(taxaGeral) : '–', 'erros ÷ inspeções')}
-      ${kpi('Dia com maior taxa', temPior ? ACH_DOW[pior.dow] : '–', temPior ? `${pctFmt(achTaxa(pior.erros, pior.inspecoes))} · ${pior.erros} erros em ${pior.inspecoes} inspeções` : 'sem erros no período')}
+      ${kpi('Taxa de erro', d.totalInsp ? pctFmt(taxaGeral) : '–', 'placas com erro ÷ inspeções')}
+      ${kpi('Dia com maior taxa', temPior ? ACH_DOW[pior.dow] : '–', temPior ? `${pctFmt(achTaxa(pior.placas, pior.inspecoes))} · ${pior.placas} placas com erro em ${pior.inspecoes} inspeções` : 'sem erros no período')}
     </div>
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
-      ${card('Taxa de erro por dia da semana', 'Erros ÷ inspeções: o sábado não pesa só por ter mais movimento', 'chAchSemana', 300)}
-      ${card('Erros x inspeções por dia', 'Barras = erros · linha = placas inspecionadas', 'chAchDias', 300)}
+      ${card('Taxa de erro por dia da semana', 'Placas com erro ÷ inspeções: o sábado não pesa só por ter mais movimento', 'chAchSemana', 300)}
+      ${card('Erros x inspeções por dia', 'Barras = placas com erro · linha = placas inspecionadas', 'chAchDias', 300)}
     </div>
     <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
       <div class="p-5 pb-3"><h3 class="text-sm font-bold text-gray-900">Erros por inspetor</h3>
-        <p class="text-[11px] text-gray-500">Taxa = erros do inspetor ÷ inspeções dele no período. Vermelho = acima da média da equipe (com 20+ inspeções).</p></div>
+        <p class="text-[11px] text-gray-500">Taxa = placas com erro ÷ inspeções dele no período (peças = linhas apontadas, placas = carros). Vermelho = acima da média da equipe (com 20+ inspeções).</p></div>
       <div class="overflow-auto max-h-96"><table class="w-full text-xs"><thead class="bg-gray-50 text-gray-500 sticky top-0"><tr>
-        <th class="text-left py-2 px-3">Inspetor</th><th class="text-right py-2 px-3">Inspeções</th><th class="text-right py-2 px-3">Erros</th><th class="text-right py-2 px-3">Taxa</th></tr></thead>
-        <tbody>${linhasInsp || '<tr><td colspan="4" class="py-4 px-3 text-gray-500">Sem dados no período.</td></tr>'}</tbody></table></div>
+        <th class="text-left py-2 px-3">Inspetor</th><th class="text-right py-2 px-3">Inspeções</th><th class="text-right py-2 px-3">Peças</th><th class="text-right py-2 px-3">Placas c/ erro</th><th class="text-right py-2 px-3">Taxa</th></tr></thead>
+        <tbody>${linhasInsp || '<tr><td colspan="5" class="py-4 px-3 text-gray-500">Sem dados no período.</td></tr>'}</tbody></table></div>
     </div>
     <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
       <div class="p-5 pb-3 flex flex-wrap items-center justify-between gap-2"><h3 class="text-sm font-bold text-gray-900">Achados do período</h3>
@@ -1123,24 +1123,24 @@ function renderAchados(d) {
   </div>`;
 
   const tt = { backgroundColor: '#111827', padding: 10, cornerRadius: 6 };
-  const maxT = Math.max(...d.semana.map(x => achTaxa(x.erros, x.inspecoes)));
+  const maxT = Math.max(...d.semana.map(x => achTaxa(x.placas, x.inspecoes)));
   ACH.charts.push(new Chart($('chAchSemana'), {
     type: 'bar',
-    data: { labels: ACH_DOW.map(x => x.slice(0, 3)), datasets: [{ data: d.semana.map(x => +achTaxa(x.erros, x.inspecoes).toFixed(2)),
-      backgroundColor: d.semana.map(x => maxT > 0 && achTaxa(x.erros, x.inspecoes) === maxT ? '#002a99' : '#6b93ff'), borderRadius: 5, borderSkipped: false, maxBarThickness: 40 }] },
+    data: { labels: ACH_DOW.map(x => x.slice(0, 3)), datasets: [{ data: d.semana.map(x => +achTaxa(x.placas, x.inspecoes).toFixed(2)),
+      backgroundColor: d.semana.map(x => maxT > 0 && achTaxa(x.placas, x.inspecoes) === maxT ? '#002a99' : '#6b93ff'), borderRadius: 5, borderSkipped: false, maxBarThickness: 40 }] },
     options: { responsive: true, maintainAspectRatio: false,
       plugins: { legend: { display: false }, tooltip: { ...tt, displayColors: false, callbacks: { label: c => { const s = d.semana[c.dataIndex];
-        return [`Taxa: ${pctFmt(achTaxa(s.erros, s.inspecoes))}`, `${s.erros} erros em ${s.inspecoes} inspeções`, `${s.dias} dia(s) no período`]; } } } },
+        return [`Taxa: ${pctFmt(achTaxa(s.placas, s.inspecoes))}`, `${s.placas} placas com erro (${s.erros} peças) em ${s.inspecoes} inspeções`, `${s.dias} dia(s) no período`]; } } } },
       scales: { y: { beginAtZero: true, grid: { color: '#F1F5F9' }, ticks: { callback: v => v + '%' } }, x: { grid: { display: false }, ticks: { color: '#334155' } } } }
   }));
   ACH.charts.push(new Chart($('chAchDias'), {
     type: 'bar',
     data: { labels: d.dias.map(x => achRotulo(x.iso)), datasets: [
-      { type: 'bar', label: 'Erros', data: d.dias.map(x => x.erros), backgroundColor: '#E11D48', borderRadius: 4, maxBarThickness: 22, yAxisID: 'y', order: 2 },
+      { type: 'bar', label: 'Placas com erro', data: d.dias.map(x => x.placas), backgroundColor: '#E11D48', borderRadius: 4, maxBarThickness: 22, yAxisID: 'y', order: 2 },
       { type: 'line', label: 'Inspeções', data: d.dias.map(x => x.inspecoes), borderColor: '#0047FF', backgroundColor: '#0047FF', tension: .25, pointRadius: 2, borderWidth: 2, yAxisID: 'y1', order: 1 }] },
     options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
       plugins: { legend: { display: true, position: 'bottom' }, tooltip: tt },
-      scales: { y: { beginAtZero: true, grid: { color: '#F1F5F9' }, ticks: { precision: 0 }, title: { display: true, text: 'Erros' } },
+      scales: { y: { beginAtZero: true, grid: { color: '#F1F5F9' }, ticks: { precision: 0 }, title: { display: true, text: 'Placas com erro' } },
         y1: { position: 'right', beginAtZero: true, grid: { drawOnChartArea: false }, title: { display: true, text: 'Inspeções' } },
         x: { grid: { display: false } } } }
   }));
