@@ -1064,10 +1064,10 @@ async function carregarAchados(iv) {
 
 function renderAchados(d) {
   ACH.charts.forEach(c => c.destroy()); ACH.charts = [];
-  const taxaGeral = achTaxa(d.totalPlacas, d.totalInsp);
+  const taxaGeral = achTaxa(d.totalPlacasBase, d.totalInsp);
   const com = d.semana.filter(x => x.inspecoes > 0);
-  const pior = com.length ? com.reduce((a, b) => achTaxa(b.placas, b.inspecoes) > achTaxa(a.placas, a.inspecoes) ? b : a) : null;
-  const temPior = pior && pior.placas > 0;
+  const pior = com.length ? com.reduce((a, b) => achTaxa(b.placasBase, b.inspecoes) > achTaxa(a.placasBase, a.inspecoes) ? b : a) : null;
+  const temPior = pior && pior.placasBase > 0;
 
   const kpi = (t, v, sub) => `<div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
     <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">${esc(t)}</p>
@@ -1078,12 +1078,13 @@ function renderAchados(d) {
 
   const av = [];
   if (d.semData) av.push(`${d.semData} achado(s) ALINHAR Inspetor sem data legível na coluna C ficaram de fora dos gráficos.`);
-  if (d.semInspecoes && d.semInspecoes.length) av.push(`Sem inspeções no período para: <b>${d.semInspecoes.map(esc).join(', ')}</b>. Se o inspetor trabalhou, o nome da coluna A precisa casar com o da fila (dá para mapear apelidos no Achados.gs, em ACH_ALIAS).`);
+  if (d.foraBase > 0) av.push(`${d.foraBase} placa(s) com erro caíram em dias <b>sem inspeções na fila</b> (a fila não tem dados desse período) e ficaram fora da taxa. Os erros continuam na lista e nos totais.`);
+  if (d.totalInsp > 0 && d.semInspecoes && d.semInspecoes.length) av.push(`Sem inspeções no período para: <b>${d.semInspecoes.map(esc).join(', ')}</b>. Se o inspetor trabalhou, o nome da coluna A precisa casar com o da fila (dá para mapear apelidos no Achados.gs, em ACH_ALIAS).`);
   if (d.truncado) av.push(`A lista abaixo mostra só os ${d.achados.length} achados mais recentes (os totais e gráficos consideram todos).`);
 
   const nomes = [...new Set(d.achados.map(a => a.insp))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
   const linhasInsp = d.inspetores.map(x => {
-    const t = achTaxa(x.placas, x.inspecoes), alta = x.inspecoes >= 20 && t > taxaGeral;
+    const t = achTaxa(x.placasBase, x.inspecoes), alta = x.inspecoes >= 20 && t > taxaGeral;
     return `<tr class="border-t border-gray-100"><td class="py-2 px-3 font-semibold text-gray-800">${esc(x.nome)}</td>
       <td class="py-2 px-3 text-right text-gray-600">${x.inspecoes}</td><td class="py-2 px-3 text-right text-gray-600">${x.erros}</td><td class="py-2 px-3 text-right font-bold text-gray-900">${x.placas}</td>
       <td class="py-2 px-3 text-right font-bold ${alta ? 'text-rose-600' : 'text-gray-700'}">${x.inspecoes ? pctFmt(t) : '–'}</td></tr>`;
@@ -1099,7 +1100,7 @@ function renderAchados(d) {
       ${kpi('Erros reais', d.totalPlacas, `placas com erro · ${d.totalErros} peças apontadas`)}
       ${kpi('Inspeções no período', d.totalInsp, 'placas vistas (1 por placa/dia)')}
       ${kpi('Taxa de erro', d.totalInsp ? pctFmt(taxaGeral) : '–', 'placas com erro ÷ inspeções')}
-      ${kpi('Dia com maior taxa', temPior ? ACH_DOW[pior.dow] : '–', temPior ? `${pctFmt(achTaxa(pior.placas, pior.inspecoes))} · ${pior.placas} placas com erro em ${pior.inspecoes} inspeções` : 'sem erros no período')}
+      ${kpi('Dia com maior taxa', temPior ? ACH_DOW[pior.dow] : '–', temPior ? `${pctFmt(achTaxa(pior.placasBase, pior.inspecoes))} · ${pior.placasBase} placas com erro em ${pior.inspecoes} inspeções` : 'sem erros no período')}
     </div>
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
       ${card('Taxa de erro por dia da semana', 'Placas com erro ÷ inspeções: o sábado não pesa só por ter mais movimento', 'chAchSemana', 300)}
@@ -1123,14 +1124,14 @@ function renderAchados(d) {
   </div>`;
 
   const tt = { backgroundColor: '#111827', padding: 10, cornerRadius: 6 };
-  const maxT = Math.max(...d.semana.map(x => achTaxa(x.placas, x.inspecoes)));
+  const maxT = Math.max(...d.semana.map(x => achTaxa(x.placasBase, x.inspecoes)));
   ACH.charts.push(new Chart($('chAchSemana'), {
     type: 'bar',
-    data: { labels: ACH_DOW.map(x => x.slice(0, 3)), datasets: [{ data: d.semana.map(x => +achTaxa(x.placas, x.inspecoes).toFixed(2)),
-      backgroundColor: d.semana.map(x => maxT > 0 && achTaxa(x.placas, x.inspecoes) === maxT ? '#002a99' : '#6b93ff'), borderRadius: 5, borderSkipped: false, maxBarThickness: 40 }] },
+    data: { labels: ACH_DOW.map(x => x.slice(0, 3)), datasets: [{ data: d.semana.map(x => +achTaxa(x.placasBase, x.inspecoes).toFixed(2)),
+      backgroundColor: d.semana.map(x => maxT > 0 && achTaxa(x.placasBase, x.inspecoes) === maxT ? '#002a99' : '#6b93ff'), borderRadius: 5, borderSkipped: false, maxBarThickness: 40 }] },
     options: { responsive: true, maintainAspectRatio: false,
       plugins: { legend: { display: false }, tooltip: { ...tt, displayColors: false, callbacks: { label: c => { const s = d.semana[c.dataIndex];
-        return [`Taxa: ${pctFmt(achTaxa(s.placas, s.inspecoes))}`, `${s.placas} placas com erro (${s.erros} peças) em ${s.inspecoes} inspeções`, `${s.dias} dia(s) no período`]; } } } },
+        return [`Taxa: ${pctFmt(achTaxa(s.placasBase, s.inspecoes))}`, `${s.placasBase} placas com erro em ${s.inspecoes} inspeções`, `${s.dias} dia(s) no período`]; } } } },
       scales: { y: { beginAtZero: true, grid: { color: '#F1F5F9' }, ticks: { callback: v => v + '%' } }, x: { grid: { display: false }, ticks: { color: '#334155' } } } }
   }));
   ACH.charts.push(new Chart($('chAchDias'), {
