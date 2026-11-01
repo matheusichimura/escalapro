@@ -1627,6 +1627,32 @@ function renderQuadro() {
       }).join('')
     : `<p class="text-xs text-gray-500">${passado ? 'Mês encerrado.' : '✅ Nenhuma loja vazia prevista neste mês.'}</p>`;
 
+  // Automático: pessoas escaladas por mais de 6 dias seguidos (sem folga)
+  const MAX_SEGUIDOS = 6;
+  const seguidos = [];
+  if (!passado) {
+    const iniJan = somaDias(ini, -14), fimJan = somaDias(ultimo, 7);
+    S.funcs.filter(f => !afastadoHoje(f)).forEach(f => {
+      let run = 0, runIni = '';
+      const fecha = fimIso => {
+        if (run > MAX_SEGUIDOS && fimIso >= ini && runIni <= ultimo) seguidos.push({ f, ini: runIni, fim: fimIso, dias: run, antes: runIni === iniJan, depois: fimIso === fimJan });
+        run = 0;
+      };
+      for (let di = iniJan; di <= fimJan; di = somaDias(di, 1)) {
+        if (statusDia(f, di) === 'T') { if (!run) runIni = di; run++; }
+        else if (run) fecha(somaDias(di, -1));
+      }
+      if (run) fecha(fimJan);
+    });
+    seguidos.sort((a, b) => (b.dias - a.dias) || a.ini.localeCompare(b.ini));
+  }
+  const blocoSeguidos = seguidos.length
+    ? seguidos.map(s => `<div class="text-xs border border-rose-200 rounded-md px-3 py-2 bg-rose-50">
+        <div class="font-bold text-gray-900">⏰ ${esc(s.f.nome)} <span class="font-normal text-gray-500">${esc(s.f.loja || (s.f.isInspetor ? 'Inspetor' : 'Volante'))}</span> · <b class="text-rose-700">${s.dias}${(s.antes || s.depois) ? '+' : ''} dias seguidos</b></div>
+        <div class="text-gray-700 mt-0.5">${s.antes ? 'desde antes de ' + fmtCurto(s.ini) : fmtCurto(s.ini)}${s.depois ? ' · sem folga prevista até ' + fmtCurto(ultimo) : ' a ' + fmtCurto(s.fim)}${s.antes ? '' : ' · passa de 6 dias em ' + fmtCurto(somaDias(s.ini, MAX_SEGUIDOS))}</div>
+      </div>`).join('')
+    : `<p class="text-xs text-gray-500">${passado ? 'Mês encerrado.' : '✅ Ninguém passa de 6 dias seguidos neste mês.'}</p>`;
+
   // Automático: férias que tocam o mês
   const ferias = [];
   S.funcs.filter(f => !afastadoHoje(f)).forEach(f => periodos(f).forEach(p => {
@@ -1688,6 +1714,7 @@ function renderQuadro() {
     <div class="flex flex-wrap gap-5 items-start">
       ${card('esq', '📌 Avisos', edita ? '<button data-act="quadroAdd" class="btn-kavak px-3 py-1.5 text-xs">+ Novo aviso</button>' : '', `<div class="space-y-2">${blocoAvisos}</div>`)}
       ${card('dir', '🏪 Lojas e Equipe', '', `<div class="space-y-2"><h3 class="text-[11px] font-bold uppercase tracking-wider text-gray-500">Lojas vazias previstas</h3>${blocoVazias}</div>
+        <div class="space-y-2 pt-3"><h3 class="text-[11px] font-bold uppercase tracking-wider text-gray-500">Sem folga (mais de 6 dias seguidos)</h3>${blocoSeguidos}</div>
         <div class="space-y-2 pt-3"><h3 class="text-[11px] font-bold uppercase tracking-wider text-gray-500">Férias no mês</h3>${blocoFerias}</div>
         <div class="space-y-2 pt-3"><h3 class="text-[11px] font-bold uppercase tracking-wider text-gray-500">Afastados no mês</h3>${blocoAfast}</div>`)}
     </div>`;
