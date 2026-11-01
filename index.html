@@ -1621,7 +1621,7 @@ function renderQuadro() {
         const dias = porLoja[l];
         const sem = dias.filter(x => !x.por).length;
         return `<div data-act="irLoja" data-loja="${esc(l)}" class="cursor-pointer border ${sem ? 'border-rose-200 bg-rose-50' : 'border-amber-200 bg-amber-50'} rounded-md p-3 text-xs">
-          <div class="font-bold text-gray-900">🔴 ${esc(l)} <span class="font-normal text-gray-500">· vazia em ${dias.length} dia(s)${sem ? ` · <b class="text-rose-700">${sem} sem cobertura</b>` : ''}</span></div>
+          <div class="font-bold text-gray-900">🔴 ${esc(l)} <span class="font-normal text-gray-500">· ${dias.length === 1 ? '1 dia vazio' : dias.length + ' dias vazios'} no mês${sem ? ` · <b class="text-rose-700">${sem} sem cobertura</b>` : ''}</span></div>
           <div class="mt-1.5 flex flex-wrap gap-1.5">${dias.map(x => `<span class="px-1.5 py-0.5 rounded bg-white border ${x.por ? 'border-gray-200 text-gray-700' : 'border-rose-300 text-rose-700 font-bold'}" title="${x.por ? esc((x.por.tipo === 'insp' ? 'Inspetor: ' : 'Volante: ') + x.por.nome) : 'Sem cobertura'}">${fmtDiaSemana(x.di)} ${x.por ? (x.por.tipo === 'insp' ? '🛡️' : '🧭') : '⛔'}</span>`).join('')}</div>
         </div>`;
       }).join('')
