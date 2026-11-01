@@ -1073,7 +1073,7 @@ function renderCompras(d) {
   const insp = soma(lojas, 'inspecoes'), agend = soma(lojas, 'agendados'), comp = soma(lojas, 'compras');
 
   let aviso = '';
-  if (!d.histInicio) aviso = 'Ainda não há compras no histórico. Rode <b>ativarHistoricoCompras</b> no projeto do Canais Lojas.';
+  if (!d.histInicio) aviso = 'Ainda não há compras salvas no histórico. Cole o relatório do Salesforce na aba <b>Compras</b> (ou rode <b>salvarComprasNoHistorico</b> no Apps Script). Se acabou de salvar, espere 2 minutos e recarregue.';
   else if (d.periodo && d.histInicio > d.periodo.inicio) aviso = `O histórico de compras começa em <b>${fmtData(d.histInicio)}</b>. Os dias antes disso não têm compras salvas, então a conversão do período pode aparecer mais baixa do que é.`;
 
   const kpi = (t, n, sub) => `<div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
