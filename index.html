@@ -283,6 +283,7 @@ button:disabled{cursor:not-allowed}
       </div>
     </div>
     <div id="inspConteudo"><p class="text-xs text-gray-500">Carregando…</p></div>
+    <div id="cmpConteudo"></div>
     <div id="achConteudo"></div>
   </section>
   <section id="aba-acessos" class="space-y-4 hidden">
@@ -971,6 +972,7 @@ async function carregarInspecoes() {
   try { await carregarChartJs(); } catch (e) { $('inspConteudo').innerHTML = '<p class="text-xs text-red-600">Não consegui carregar a biblioteca de gráficos. Verifique a internet e clique em Atualizar.</p>'; return; }
   if (seq !== INSP.seq) return;
   renderInspecoes(d, fonte);
+  carregarCompras(iv);
   carregarAchados(iv);
 }
 
@@ -1032,6 +1034,104 @@ $('inspFiltro').addEventListener('change', () => {
   if (!pers) carregarInspecoes();
 });
 ['inspDe', 'inspAte'].forEach(id => $(id).addEventListener('change', () => { if ($('inspDe').value && $('inspAte').value) carregarInspecoes(); }));
+
+// ---------- Inspeções x Compras (Salesforce) ----------
+// Fonte: api('comprasInsp') no Apps Script (arquivo ComprasInsp.gs). As compras vêm da aba "Histórico Compras".
+const CMP = { charts: [], seq: 0 };
+const cmpPct = (n, t) => t ? (n / t * 100).toFixed(1).replace('.', ',') + '%' : '—';
+
+async function carregarCompras(iv) {
+  const box = $('cmpConteudo');
+  CMP.charts.forEach(c => c.destroy()); CMP.charts = [];
+  if (MODO_LOCAL) { box.innerHTML = ''; return; }
+  const seq = ++CMP.seq;
+  box.innerHTML = '<p class="text-xs text-gray-500">Carregando compras…</p>';
+  let r;
+  try { r = await api('comprasInsp', iv); } catch (e) { if (e && e.sessaoExpirada) return; r = { erro: 'rede' }; }
+  if (seq !== CMP.seq) return;
+  if (!r || r.erro || !Array.isArray(r.canais)) {
+    const m = { acao_desconhecida: 'O Apps Script ainda não tem a ação <b>comprasInsp</b>. Cole o ComprasInsp.gs, troque a rotear_ e publique uma nova versão.',
+      compras_aba: 'Falta a aba <b>Histórico Compras</b> na planilha da fila. No projeto do Canais Lojas, rode <b>ativarHistoricoCompras</b>.' };
+    box.innerHTML = `<div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-4 text-xs">Não foi possível carregar as compras. ${m[r && r.erro] || 'Tente atualizar em instantes.'}</div>`;
+    return;
+  }
+  try { await carregarChartJs(); } catch (e) { box.innerHTML = ''; return; }
+  if (seq !== CMP.seq) return;
+  renderCompras(r);
+}
+
+function renderCompras(d) {
+  CMP.charts.forEach(c => c.destroy()); CMP.charts = [];
+  const lojas = d.canais.filter(c => c.grupo === 'loja');
+  const soma = (a, k) => a.reduce((s, x) => s + (x[k] || 0), 0);
+  const insp = soma(lojas, 'inspecoes'), agend = soma(lojas, 'agendados'), comp = soma(lojas, 'compras');
+
+  let aviso = '';
+  if (!d.histInicio) aviso = 'Ainda não há compras no histórico. Rode <b>ativarHistoricoCompras</b> no projeto do Canais Lojas.';
+  else if (d.periodo && d.histInicio > d.periodo.inicio) aviso = `O histórico de compras começa em <b>${fmtData(d.histInicio)}</b>. Os dias antes disso não têm compras salvas, então a conversão do período pode aparecer mais baixa do que é.`;
+
+  const kpi = (t, n, sub) => `<div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
+    <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">${esc(t)}</p>
+    <div class="mt-2"><span class="text-3xl font-extrabold text-gray-900">${n}</span></div>
+    <p class="text-[11px] text-gray-500 mt-2">${sub}</p></div>`;
+
+  const linhas = d.canais.map(c => `<tr class="border-t border-gray-100">
+      <td class="py-2 pr-3 font-semibold text-gray-800">${esc(c.nome)}</td>
+      <td class="py-2 px-3 text-right">${c.inspecoes}</td>
+      <td class="py-2 px-3 text-right">${c.agendados}</td>
+      <td class="py-2 px-3 text-right font-bold text-green-700">${c.compras}</td>
+      <td class="py-2 pl-3 text-right font-bold text-kavak-blue">${c.grupo === 'b2b' ? '—' : cmpPct(c.compras, c.inspecoes)}</td></tr>`).join('');
+
+  $('cmpConteudo').innerHTML = `<div class="space-y-5">
+    <div>
+      <h2 class="text-lg font-bold text-gray-900">Inspeções x Compras</h2>
+      <p class="text-xs text-gray-500">Inspeções (Slack) contra carros com fase Comprado no Salesforce, por loja.</p>
+    </div>
+    ${aviso ? `<div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-3 text-xs">${aviso}</div>` : ''}
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      ${kpi('Inspeções (lojas físicas)', insp, 'carros que chegaram nas lojas')}
+      ${kpi('Agendados no Salesforce', agend, 'inspeções com agendamento')}
+      ${kpi('Comprados', comp, 'fase Comprado no Salesforce')}
+      ${kpi('Conversão', cmpPct(comp, insp), 'comprados ÷ inspeções')}
+    </div>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+      <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
+        <h3 class="text-sm font-bold text-gray-900">Inspeções x comprados por loja</h3>
+        <p class="text-[11px] text-gray-500 mb-4">Azul = inspeções · Verde = comprados</p>
+        <div class="relative w-full" style="height:${Math.max(220, 70 + lojas.length * 56)}px"><canvas id="chCmpLojas"></canvas></div>
+      </div>
+      <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200 overflow-x-auto">
+        <h3 class="text-sm font-bold text-gray-900">Conversão por loja</h3>
+        <p class="text-[11px] text-gray-500 mb-3">Comprados ÷ inspeções do período</p>
+        <table class="w-full text-xs">
+          <thead><tr class="text-[11px] text-gray-400 uppercase tracking-wider">
+            <th class="text-left font-bold pb-2">Loja</th><th class="text-right font-bold pb-2 px-3">Insp.</th>
+            <th class="text-right font-bold pb-2 px-3">Agend.</th><th class="text-right font-bold pb-2 px-3">Comp.</th>
+            <th class="text-right font-bold pb-2 pl-3">Conv.</th></tr></thead>
+          <tbody>${linhas}</tbody>
+          <tfoot><tr class="border-t-2 border-gray-200 font-extrabold text-gray-900">
+            <td class="pt-2">Total</td><td class="pt-2 px-3 text-right">${d.totais.inspecoes}</td>
+            <td class="pt-2 px-3 text-right">${d.totais.agendados}</td><td class="pt-2 px-3 text-right text-green-700">${d.totais.compras}</td>
+            <td class="pt-2 pl-3 text-right text-kavak-blue">${cmpPct(d.totais.compras, d.totais.inspecoes)}</td></tr></tfoot>
+        </table>
+        <p class="text-[11px] text-gray-400 mt-3">Carros que chegam sem agendamento (encaixes) podem não aparecer no Salesforce. Por isso a conversão real pode ser maior que a mostrada.</p>
+      </div>
+    </div>
+  </div>`;
+
+  if (!lojas.length) return;
+  const tooltip = { backgroundColor: '#111827', padding: 10, cornerRadius: 6 };
+  CMP.charts.push(new Chart($('chCmpLojas'), {
+    type: 'bar',
+    data: { labels: lojas.map(x => x.nome), datasets: [
+      { label: 'Inspeções', data: lojas.map(x => x.inspecoes), backgroundColor: '#0047FF', borderRadius: 4, maxBarThickness: 18 },
+      { label: 'Comprados', data: lojas.map(x => x.compras), backgroundColor: '#16A34A', borderRadius: 4, maxBarThickness: 18 }
+    ] },
+    options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, usePointStyle: true } }, tooltip },
+      scales: { x: { grid: { color: '#F1F5F9' }, beginAtZero: true }, y: { grid: { display: false }, ticks: { color: '#334155' } } } }
+  }));
+}
 
 // ---------- Novos Achados: erros reais (ALINHAR Inspetor) cruzados com as inspeções ----------
 // Fonte: api('achados') no Apps Script (arquivo Achados.gs). Só supervisor vê.
