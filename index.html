@@ -1528,7 +1528,7 @@ function escolherReforcos(iso, lojas, opts = {}) {
   res.forEach(r => {
     if (r.por) return;
     const v = pegar(S.funcs.filter(f => !f.isInspetor && lojaDoDia(f, iso) === '' && trab(f)));
-    if (v) { r.por = { tipo: 'vol', nome: v.nome, origem: '' }; return; }
+    if (v) { r.por = { tipo: 'vol', nome: v.nome, origem: '', id: v.id }; return; }
     const i = pegar(S.funcs.filter(f => f.isInspetor && f.loja === '' && trab(f)))
            || pegar(S.funcs.filter(f => f.isInspetor && f.loja !== r.loja && trab(f)));
     if (i) r.por = { tipo: 'insp', nome: i.nome, origem: i.loja };
@@ -1627,12 +1627,43 @@ function renderQuadro() {
       }).join('')
     : `<p class="text-xs text-gray-500">${passado ? 'Mês encerrado.' : '✅ Nenhuma loja vazia prevista neste mês.'}</p>`;
 
-  // Automático: pessoas escaladas por mais de 6 dias seguidos (sem folga)
+  // Automático: agenda dos volantes (pra onde cada um vai cobrir e quem ele cobre)
+  const motivoAus = (f, di) => deFeriasEm(f, di) ? 'férias' : afastadoEm(f, di) ? 'afastado' : statusDia(f, di) !== 'T' ? 'folga' : 'em ' + (lojaDoDia(f, di) || 'Volantes');
+  const agVol = {};
+  if (!passado) {
+    for (let di = ini; di <= ultimo; di = somaDias(di, 1)) {
+      coberturaEm(di).forEach(c => {
+        if (!c.por || c.por.tipo !== 'vol') return;
+        const aus = cadastradosDaLoja(c.loja).map(f => ({ nome: f.nome, mot: motivoAus(f, di) }));
+        const chave = c.loja + '|' + aus.map(a => a.nome + ':' + a.mot).join(',');
+        const v = agVol[c.por.id] = agVol[c.por.id] || { nome: c.por.nome, rs: [] };
+        const ult = v.rs[v.rs.length - 1];
+        if (ult && ult.chave === chave && ult.fim === somaDias(di, -1)) { ult.fim = di; ult.dias++; }
+        else v.rs.push({ chave, loja: c.loja, ini: di, fim: di, dias: 1, aus });
+      });
+    }
+  }
+  const volIds = Object.keys(agVol);
+  const blocoVolantes = volIds.length
+    ? volIds.map(id => {
+        const v = agVol[id];
+        const total = v.rs.reduce((n, r) => n + r.dias, 0);
+        return `<div class="border border-emerald-200 bg-emerald-50 rounded-md p-3 text-xs">
+          <div class="font-bold text-gray-900">🧭 ${esc(v.nome)} <span class="font-normal text-gray-500">· ${total === 1 ? '1 dia' : total + ' dias'} cobrindo no mês</span></div>
+          <div class="mt-1.5 space-y-1.5">${v.rs.map(r => `<div data-act="irLoja" data-loja="${esc(r.loja)}" class="cursor-pointer bg-white border border-emerald-100 rounded px-2.5 py-1.5">
+            <div class="font-bold text-gray-800">📍 ${esc(r.loja)} <span class="font-normal text-gray-700">· ${r.dias === 1 ? fmtDiaSemana(r.ini) : fmtDiaSemana(r.ini) + ' a ' + fmtDiaSemana(r.fim) + ' (' + r.dias + ' dias)'}</span></div>
+            <div class="text-gray-500 mt-0.5">cobre ${r.aus.map(a => `${esc(a.nome)} (${esc(a.mot)})`).join(', ')}</div>
+          </div>`).join('')}</div>
+        </div>`;
+      }).join('')
+    : `<p class="text-xs text-gray-500">${passado ? 'Mês encerrado.' : '✅ Nenhum volante precisa cobrir loja neste mês.'}</p>`;
+
+  // Automático: pessoas escaladas por mais de 6 dias seguidos (sem folga). Inspetor parceiro (PJ) não entra.
   const MAX_SEGUIDOS = 6;
   const seguidos = [];
   if (!passado) {
     const iniJan = somaDias(ini, -14), fimJan = somaDias(ultimo, 7);
-    S.funcs.filter(f => !afastadoHoje(f)).forEach(f => {
+    S.funcs.filter(f => !afastadoHoje(f) && !f.isInspetor).forEach(f => {
       let run = 0, runIni = '';
       const fecha = fimIso => {
         if (run > MAX_SEGUIDOS && fimIso >= ini && runIni <= ultimo) seguidos.push({ f, ini: runIni, fim: fimIso, dias: run, antes: runIni === iniJan, depois: fimIso === fimJan });
@@ -1714,6 +1745,7 @@ function renderQuadro() {
     <div class="flex flex-wrap gap-5 items-start">
       ${card('esq', '📌 Avisos', edita ? '<button data-act="quadroAdd" class="btn-kavak px-3 py-1.5 text-xs">+ Novo aviso</button>' : '', `<div class="space-y-2">${blocoAvisos}</div>`)}
       ${card('dir', '🏪 Lojas e Equipe', '', `<div class="space-y-2"><h3 class="text-[11px] font-bold uppercase tracking-wider text-gray-500">Lojas vazias previstas</h3>${blocoVazias}</div>
+        <div class="space-y-2 pt-3"><h3 class="text-[11px] font-bold uppercase tracking-wider text-gray-500">Pra onde o volante vai</h3>${blocoVolantes}</div>
         <div class="space-y-2 pt-3"><h3 class="text-[11px] font-bold uppercase tracking-wider text-gray-500">Sem folga (mais de 6 dias seguidos)</h3>${blocoSeguidos}</div>
         <div class="space-y-2 pt-3"><h3 class="text-[11px] font-bold uppercase tracking-wider text-gray-500">Férias no mês</h3>${blocoFerias}</div>
         <div class="space-y-2 pt-3"><h3 class="text-[11px] font-bold uppercase tracking-wider text-gray-500">Afastados no mês</h3>${blocoAfast}</div>`)}
