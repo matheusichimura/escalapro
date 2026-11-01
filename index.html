@@ -1629,41 +1629,58 @@ function renderQuadro() {
 
   // Automático: agenda dos volantes (pra onde cada um vai cobrir e quem ele cobre)
   const motivoAus = (f, di) => deFeriasEm(f, di) ? 'férias' : afastadoEm(f, di) ? 'afastado' : statusDia(f, di) !== 'T' ? 'folga' : 'em ' + (lojaDoDia(f, di) || 'Volantes');
+  // Junta por NOME (se o mesmo volante estiver cadastrado 2x, vira um card só).
+  // Entram: loja vazia, abaixo do mínimo, sábado fraco (mesma regra do botão Reforços) e dias em que o volante foi movido à mão.
   const agVol = {};
+  const itensVol = nome => (agVol[nome.trim().toLowerCase()] = agVol[nome.trim().toLowerCase()] || { nome, itens: [] }).itens;
   if (!passado) {
     for (let di = ini; di <= ultimo; di = somaDias(di, 1)) {
-      coberturaEm(di).forEach(c => {
-        if (!c.por || c.por.tipo !== 'vol') return;
-        const aus = cadastradosDaLoja(c.loja).map(f => ({ nome: f.nome, mot: motivoAus(f, di) }));
-        const chave = c.loja + '|' + aus.map(a => a.nome + ':' + a.mot).join(',');
-        const v = agVol[c.por.id] = agVol[c.por.id] || { nome: c.por.nome, rs: [] };
-        const ult = v.rs[v.rs.length - 1];
-        if (ult && ult.chave === chave && ult.fim === somaDias(di, -1)) { ult.fim = di; ult.dias++; }
-        else v.rs.push({ chave, loja: c.loja, ini: di, fim: di, dias: 1, aus });
+      sugestoesDoDia(di).forEach(x => {
+        if (!x.reforco || x.reforco.tipo !== 'volante') return;
+        const aus = cadastradosDaLoja(x.loja)
+          .filter(f => !(statusDia(f, di) === 'T' && lojaDoDia(f, di) === x.loja))
+          .map(f => ({ nome: f.nome, mot: motivoAus(f, di) }));
+        itensVol(x.reforco.nome).push({ di, loja: x.loja, tipo: x.tipo, n: x.n, aus });
       });
+      S.funcs.filter(f => !f.isInspetor && f.loja === '' && statusDia(f, di) === 'T' && S.lojas.includes(lojaDoDia(f, di)))
+        .forEach(f => itensVol(f.nome).push({ di, loja: lojaDoDia(f, di), tipo: 'manual', n: 0, aus: [] }));
     }
   }
-  const volIds = Object.keys(agVol);
-  const blocoVolantes = volIds.length
-    ? volIds.map(id => {
-        const v = agVol[id];
-        const total = v.rs.reduce((n, r) => n + r.dias, 0);
-        return `<div class="border border-emerald-200 bg-emerald-50 rounded-md p-3 text-xs">
-          <div class="font-bold text-gray-900">🧭 ${esc(v.nome)} <span class="font-normal text-gray-500">· ${total === 1 ? '1 dia' : total + ' dias'} cobrindo no mês</span></div>
+  const agLista = Object.keys(agVol).sort().map(k => {
+    const v = agVol[k], rs = [];
+    v.itens.sort((a, b) => a.di.localeCompare(b.di)).forEach(it => {
+      const chave = it.loja + '|' + it.tipo + '|' + it.n + '|' + it.aus.map(a => a.nome + ':' + a.mot).join(',');
+      const r = rs.find(x => x.chave === chave && x.fim === somaDias(it.di, -1));
+      if (r) { r.fim = it.di; r.dias++; } else rs.push({ ...it, chave, ini: it.di, fim: it.di, dias: 1 });
+    });
+    return { nome: v.nome, rs, total: v.itens.length };
+  });
+  const textoVol = r => {
+    if (r.tipo === 'manual') return 'escalado(a) nesta loja por você (movido no dia)';
+    const p = [];
+    if (r.aus.length) p.push('cobre ' + r.aus.map(a => `${esc(a.nome)} (${esc(a.mot)})`).join(', '));
+    if (r.tipo === 'sabado') p.push(`sábado com só ${r.n} pessoa(s)`);
+    else if (r.n > 0) p.push(`loja abaixo do mínimo (${r.n} de ${S.cfg.min})`);
+    return p.join(' · ');
+  };
+  const blocoVolantes = agLista.length
+    ? agLista.map(v => `<div class="border border-emerald-200 bg-emerald-50 rounded-md p-3 text-xs">
+          <div class="font-bold text-gray-900">🧭 ${esc(v.nome)} <span class="font-normal text-gray-500">· ${v.total === 1 ? '1 dia' : v.total + ' dias'} no mês · ${new Set(v.rs.map(r => r.loja)).size} ${new Set(v.rs.map(r => r.loja)).size === 1 ? 'loja' : 'lojas'}</span></div>
           <div class="mt-1.5 space-y-1.5">${v.rs.map(r => `<div data-act="irLoja" data-loja="${esc(r.loja)}" class="cursor-pointer bg-white border border-emerald-100 rounded px-2.5 py-1.5">
             <div class="font-bold text-gray-800">📍 ${esc(r.loja)} <span class="font-normal text-gray-700">· ${r.dias === 1 ? fmtDiaSemana(r.ini) : fmtDiaSemana(r.ini) + ' a ' + fmtDiaSemana(r.fim) + ' (' + r.dias + ' dias)'}</span></div>
-            <div class="text-gray-500 mt-0.5">cobre ${r.aus.map(a => `${esc(a.nome)} (${esc(a.mot)})`).join(', ')}</div>
+            <div class="text-gray-500 mt-0.5">${textoVol(r)}</div>
           </div>`).join('')}</div>
-        </div>`;
-      }).join('')
+        </div>`).join('')
     : `<p class="text-xs text-gray-500">${passado ? 'Mês encerrado.' : '✅ Nenhum volante precisa cobrir loja neste mês.'}</p>`;
 
-  // Automático: pessoas escaladas por mais de 6 dias seguidos (sem folga). Inspetor parceiro (PJ) não entra.
+  // Automático: pessoas escaladas por mais de 6 dias seguidos (sem folga). Inspetor parceiro (PJ) não entra,
+  // seja marcado como inspetor ou só cadastrado com "Inspetor" no nome.
+  const ehPJ = f => f.isInspetor || /inspetor/i.test(f.nome || '');
   const MAX_SEGUIDOS = 6;
   const seguidos = [];
   if (!passado) {
     const iniJan = somaDias(ini, -14), fimJan = somaDias(ultimo, 7);
-    S.funcs.filter(f => !afastadoHoje(f) && !f.isInspetor).forEach(f => {
+    S.funcs.filter(f => !afastadoHoje(f) && !ehPJ(f)).forEach(f => {
       let run = 0, runIni = '';
       const fecha = fimIso => {
         if (run > MAX_SEGUIDOS && fimIso >= ini && runIni <= ultimo) seguidos.push({ f, ini: runIni, fim: fimIso, dias: run, antes: runIni === iniJan, depois: fimIso === fimJan });
@@ -2667,34 +2684,36 @@ function aplicarOpsIA(ops, semanas) {
 const SAB_POUCOS = 2;   // sábado com 2 ou menos pessoas na loja pede reforço
 
 // Indica volante / inspetor parceiro para lojas descobertas e sábados fracos (só sugere, não altera a escala)
-function sugestoesCobertura(semanas) {
+function sugestoesDoDia(iso) {
   const ativos = S.funcs;
-  const volantes = ativos.filter(f => !f.isInspetor && f.loja === '');
   const inspetores = ativos.filter(f => f.isInspetor);
+  const out = [];
+  const i = diaIdx(iso);
+  const precisa = [];
+  S.lojas.forEach(l => {
+    if (!lojaTemCadastro(l)) return;   // sem funcionários cadastrados: nada a cobrir
+    if (!lojaAbre(l, iso)) return;
+    const n = trabalhandoEm(l, iso).length;
+    // Regra do inspetor: ele evita loja sem ninguém, mas NÃO conta para o mínimo.
+    if (n === 0 && inspetores.some(f => f.loja === l && statusDia(f, iso) === 'T')) return;
+    if (n < S.cfg.min) precisa.push({ loja: l, n, tipo: 'vazia' });
+    else if (i === 5 && n <= SAB_POUCOS) precisa.push({ loja: l, n, tipo: 'sabado' });
+  });
+  if (!precisa.length) return out;
+  precisa.sort((a, b) => a.n - b.n);
+  const rs = escolherReforcos(iso, precisa.map(p => p.loja), { semProprio: true });
+  precisa.forEach((p, k) => {
+    const por = rs[k].por;
+    out.push({ iso, loja: p.loja, n: p.n, tipo: p.tipo, reforco: por ? { nome: por.nome, tipo: por.tipo === 'vol' ? 'volante' : 'inspetor', origem: por.origem } : null });
+  });
+  return out;
+}
+
+function sugestoesCobertura(semanas) {
   const out = [];
   semanas.forEach(sem => {
     const seg = getDataDaSemana(sem);
-    DIAS.forEach((_, i) => {
-      const iso = somaDias(seg, i);
-      const precisa = [];
-      S.lojas.forEach(l => {
-        if (!lojaTemCadastro(l)) return;   // sem funcionários cadastrados: nada a cobrir
-        if (!lojaAbre(l, iso)) return;
-        const comuns = ativos.filter(f => f.loja === l && !f.isInspetor);
-        const n = trabalhandoEm(l, iso).length;
-        // Regra do inspetor: ele evita loja sem ninguém, mas NÃO conta para o mínimo.
-        if (n === 0 && inspetores.some(f => f.loja === l && statusDia(f, iso) === 'T')) return;
-        if (n < S.cfg.min) precisa.push({ loja: l, n, tipo: 'vazia' });
-        else if (i === 5 && n <= SAB_POUCOS) precisa.push({ loja: l, n, tipo: 'sabado' });
-      });
-      if (!precisa.length) return;
-      precisa.sort((a, b) => a.n - b.n);
-      const rs = escolherReforcos(iso, precisa.map(p => p.loja), { semProprio: true });
-      precisa.forEach((p, k) => {
-        const por = rs[k].por;
-        out.push({ iso, loja: p.loja, n: p.n, tipo: p.tipo, reforco: por ? { nome: por.nome, tipo: por.tipo === 'vol' ? 'volante' : 'inspetor', origem: por.origem } : null });
-      });
-    });
+    DIAS.forEach((_, i) => out.push(...sugestoesDoDia(somaDias(seg, i))));
   });
   return out;
 }
