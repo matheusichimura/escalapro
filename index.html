@@ -1302,12 +1302,13 @@ function funcsVisiveis() {
   });
 }
 
-function badgeCob(n, total, ruim, extraInsp) {
+function badgeCob(n, total, ruim, extraInsp, fer) {
   const cor = ruim === null ? 'bg-gray-50 text-gray-600 border border-gray-200'
     : ruim ? 'bg-rose-50 text-rose-700 border border-rose-200'
     : 'bg-emerald-50 text-emerald-700 border border-emerald-200';
   const badge = extraInsp > 0 ? `<div class="text-[10px] text-indigo-600 font-bold mt-1">+${extraInsp} insp</div>` : '';
-  return `<td class="py-2 px-1"><span class="inline-block min-w-[3rem] px-2 py-1 rounded font-bold ${cor}">${n}/${total}</span>${badge}</td>`;
+  const feriado = fer && fer.length ? `<div class="text-[10px] text-violet-600 font-bold mt-1" title="${esc(fer.map(x => x.nome).join(', '))}">🎌 feriado</div>` : '';
+  return `<td class="py-2 px-1"><span class="inline-block min-w-[3rem] px-2 py-1 rounded font-bold ${cor}">${n}/${total}</span>${badge}${feriado}</td>`;
 }
 
 function renderCobertura() {
@@ -1326,7 +1327,7 @@ function renderCobertura() {
       const ativos = S.funcs.filter(x => !x.isInspetor && lojaDoDia(x, iso) === l && statusDia(x, iso) !== 'FÉ');
       const n = ativos.filter(x => statusDia(x, iso) === 'T').length;
       const nInsp = insp.filter(x => statusDia(x, iso) === 'T').length;
-      return badgeCob(n, ativos.length, n < S.cfg.min, nInsp);
+      return badgeCob(n, ativos.length, n < S.cfg.min, nInsp, feriadosDaLoja(l, iso));
     }).join('');
     linhas.push(`<tr><td class="py-2 px-4 text-left font-bold text-gray-700">${esc(l)}</td>${cel}</tr>`);
   });
@@ -1355,8 +1356,10 @@ function renderEscala() {
   const datas = DIAS.map((_, i) => somaDias(seg, i));
 
   datas.forEach((iso, i) => {
-    $('th-d' + i).innerHTML = `${DIAS[i]} <div class="text-[9px] font-normal text-gray-400 mt-0.5">${fmtCurto(iso)}</div>`;
-    $('th-c' + i).innerHTML = `${DIAS[i]} <div class="text-[9px] font-normal text-gray-400">${fmtCurto(iso)}</div>`;
+    const fer = resumoFeriado(iso);
+    const marca = fer ? `<div class="text-[9px] font-bold text-violet-600" title="${esc(nomesFeriado(fer))}">🎌 ${esc(rotuloFeriadoCurto(fer))}</div>` : '';
+    $('th-d' + i).innerHTML = `${DIAS[i]} <div class="text-[9px] font-normal text-gray-400 mt-0.5">${fmtCurto(iso)}</div>${marca}`;
+    $('th-c' + i).innerHTML = `${DIAS[i]} <div class="text-[9px] font-normal text-gray-400">${fmtCurto(iso)}</div>${marca}`;
   });
 
   const fl = $('filtroLoja').value;
@@ -1513,6 +1516,92 @@ const trabalhandoEm = (l, iso) => S.funcs.filter(f => !f.isInspetor && lojaDoDia
 const lojaVaziaEm = (l, iso) => lojaTemCadastro(l) && lojaAbre(l, iso) && trabalhandoEm(l, iso).length === 0;
 const fmtDiaSemana = iso => DIAS[diaIdx(iso)] + ' ' + fmtCurto(iso);
 
+// ---------- Feriados: nacionais, estadual (SP) e municipais de São Paulo, Santo André e Barueri ----------
+// A cidade de cada loja é descoberta pelo NOME. Se alguma loja cair na cidade errada, escreva aqui o nome EXATO dela:
+//   const CIDADE_LOJA_EXTRA = { 'Nome da loja': 'Barueri' };       (cidades: 'São Paulo', 'Santo André', 'Barueri')
+const CIDADE_LOJA_EXTRA = {};
+const FER_COD = { 'São Paulo': 'SP', 'Santo André': 'SA', 'Barueri': 'BA' };
+function cidadeDaLoja(l) {
+  if (CIDADE_LOJA_EXTRA[l]) return CIDADE_LOJA_EXTRA[l];
+  const n = String(l || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  if (/arena|santo andre/.test(n)) return 'Santo André';
+  if (/\bkc\b|kavak city|barueri/.test(n)) return 'Barueri';
+  if (/on ?line|virtual/.test(n)) return '';        // sem cidade: só vale feriado nacional/estadual
+  return 'São Paulo';
+}
+function pascoa(ano) {                              // algoritmo de Meeus/Jones/Butcher
+  const a = ano % 19, b = Math.floor(ano / 100), c = ano % 100, d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25),
+        g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d - g + 15) % 30, i = Math.floor(c / 4), k = c % 4,
+        l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451),
+        mes = Math.floor((h + l - 7 * m + 114) / 31), dia = ((h + l - 7 * m + 114) % 31) + 1;
+  return isoDe(new Date(ano, mes - 1, dia));
+}
+const FER_CACHE = {};
+function feriadosDoAno(y) {
+  if (FER_CACHE[y]) return FER_CACHE[y];
+  const m = {}, d = (mm, dd) => `${y}-${mm}-${dd}`;
+  const add = (iso, nome, nivel, cidades) => { (m[iso] = m[iso] || []).push({ nome, nivel, cidades: cidades || null }); };
+  const pc = pascoa(y), corpus = somaDias(pc, 60);
+  // nacionais e estadual: valem para todas as lojas
+  add(d('01', '01'), 'Confraternização Universal', 'nacional');
+  add(somaDias(pc, -2), 'Sexta-feira Santa', 'nacional');
+  add(d('04', '21'), 'Tiradentes', 'nacional');
+  add(d('05', '01'), 'Dia do Trabalho', 'nacional');
+  add(d('07', '09'), 'Revolução Constitucionalista (SP)', 'estadual');
+  add(d('09', '07'), 'Independência do Brasil', 'nacional');
+  add(d('10', '12'), 'Nossa Senhora Aparecida', 'nacional');
+  add(d('11', '02'), 'Finados', 'nacional');
+  add(d('11', '15'), 'Proclamação da República', 'nacional');
+  add(d('11', '20'), 'Consciência Negra', 'nacional');
+  add(d('12', '25'), 'Natal', 'nacional');
+  // municipais
+  add(d('01', '25'), 'Aniversário de São Paulo', 'municipal', ['São Paulo']);
+  add(corpus, 'Corpus Christi', 'municipal', ['São Paulo', 'Santo André']);
+  add(d('04', '08'), 'Aniversário de Santo André', 'municipal', ['Santo André']);
+  add(d('03', '26'), 'Aniversário de Barueri', 'municipal', ['Barueri']);
+  add(d('06', '24'), 'Feriado municipal de Barueri (24/06)', 'municipal', ['Barueri']);
+  return (FER_CACHE[y] = m);
+}
+const feriadosEm = iso => feriadosDoAno(+iso.slice(0, 4))[iso] || [];
+const feriadosDaLoja = (l, iso) => { const c = cidadeDaLoja(l); return feriadosEm(iso).filter(f => !f.cidades || (c && f.cidades.includes(c))); };
+// Resumo do dia considerando só as cidades onde existe loja cadastrada no app
+function resumoFeriado(iso) {
+  const brutos = feriadosEm(iso);
+  if (!brutos.length) return null;
+  const ativas = new Set(S.lojas.map(cidadeDaLoja).filter(Boolean));
+  const lista = brutos.filter(f => !f.cidades || f.cidades.some(c => ativas.has(c)));
+  if (!lista.length) return null;
+  const nacional = lista.some(f => !f.cidades);
+  const cidades = [...new Set(lista.filter(f => f.cidades).flatMap(f => f.cidades.filter(c => ativas.has(c))))];
+  return { lista, nacional, cidades };
+}
+const rotuloFeriadoCurto = r => r.nacional ? 'Feriado' : r.cidades.map(c => FER_COD[c] || c).join('·');
+const escopoFeriado = f => !f.cidades ? (f.nivel === 'estadual' ? 'Estadual · todas as lojas' : 'Nacional · todas as lojas') : 'Municipal · ' + f.cidades.join(', ');
+const nomesFeriado = r => r.lista.map(f => f.nome).join(', ');
+// Lojas afetadas no dia, com quantas pessoas estão escaladas para trabalhar
+function chipsLojasFeriado(iso) {
+  return S.lojas.filter(l => lojaTemCadastro(l) && feriadosDaLoja(l, iso).length).map(l => {
+    const n = trabalhandoEm(l, iso).length;
+    return `<span class="px-1.5 py-0.5 rounded bg-white border border-violet-200 text-gray-700">${esc(l)} <b class="${n < S.cfg.min ? 'text-rose-700' : 'text-violet-700'}">${n}</b></span>`;
+  }).join('');
+}
+function feriadoBannerHtml(iso, rotulo) {
+  const r = resumoFeriado(iso);
+  if (!r) return '';
+  return `<div class="bg-violet-50 border border-violet-200 rounded-lg p-4 text-xs space-y-2 mb-3">
+    <div class="font-bold text-violet-800">🎌 Feriado ${esc(rotulo)}</div>
+    ${r.lista.map(f => `<div><b class="text-gray-900">${esc(f.nome)}</b> <span class="text-gray-500">· ${esc(escopoFeriado(f))}</span></div>`).join('')}
+    <div class="flex flex-wrap gap-1.5 items-center"><span class="text-gray-500">Escalados nas lojas afetadas:</span>${chipsLojasFeriado(iso)}</div>
+  </div>`;
+}
+function proxFeriadosHtml(isoSel) {
+  const out = [];
+  for (let i = 0; i < 60; i++) { const di = somaDias(hoje(), i); if (di === isoSel) continue; const r = resumoFeriado(di); if (r) out.push({ di, r }); }
+  if (!out.length) return '';
+  return `<div class="flex flex-wrap gap-2 text-[11px] mt-3"><span class="text-gray-500 font-medium self-center">Próximos feriados:</span>
+    ${out.map(({ di, r }) => `<button data-act="selData" data-iso="${di}" class="px-2 py-1 rounded border font-bold bg-violet-50 border-violet-200 text-violet-700" title="${esc(nomesFeriado(r))}">🎌 ${fmtDiaSemana(di)} · ${esc(r.lista[0].nome)}${r.nacional ? '' : ' (' + esc(rotuloFeriadoCurto(r)) + ')'}</button>`).join('')}</div>`;
+}
+
 // Lógica ÚNICA de reforço (tela inicial, alertas, nuvens, quadro e botão Reforços).
 // Ordem: 1) inspetor parceiro da própria loja  2) volante  3) inspetor sem loja  4) inspetor de outra loja.
 // Cada pessoa cobre no máximo uma loja por dia. O inspetor NÃO conta para o mínimo da loja.
@@ -1588,7 +1677,7 @@ function renderAlertasVazia() {
        </div>` : '';
   const semCad = S.lojas.filter(l => !lojaTemCadastro(l));
   const notaCad = semCad.length ? `<p class="text-[11px] text-gray-500 mt-3">ℹ️ Sem funcionários cadastrados (fora dos alertas): ${semCad.map(esc).join(', ')}</p>` : '';
-  el.innerHTML = topo + chips + notaCad;
+  el.innerHTML = feriadoBannerHtml(iso, rotulo) + topo + chips + proxFeriadosHtml(iso) + notaCad;
 }
 
 // ---------- Quadro de avisos do mês ----------
@@ -1701,6 +1790,17 @@ function renderQuadro() {
       </div>`).join('')
     : `<p class="text-xs text-gray-500">${passado ? 'Mês encerrado.' : '✅ Ninguém passa de 6 dias seguidos neste mês.'}</p>`;
 
+  // Automático: feriados do mês (com quantas pessoas estão escaladas em cada loja afetada)
+  const fers = [];
+  if (!passado) for (let di = ini; di <= ultimo; di = somaDias(di, 1)) { const r = resumoFeriado(di); if (r) fers.push({ di, r }); }
+  const blocoFeriados = fers.length
+    ? fers.map(({ di, r }) => `<div data-act="selData" data-iso="${di}" class="cursor-pointer text-xs border border-violet-200 rounded-md px-3 py-2 bg-violet-50">
+        <div class="font-bold text-gray-900">🎌 ${fmtDiaSemana(di)} · ${r.lista.map(f => esc(f.nome)).join(' · ')}</div>
+        <div class="text-gray-600 mt-0.5">${r.lista.map(f => esc(escopoFeriado(f))).join(' | ')}</div>
+        <div class="mt-1.5 flex flex-wrap gap-1.5">${chipsLojasFeriado(di)}</div>
+      </div>`).join('')
+    : `<p class="text-xs text-gray-500">${passado ? 'Mês encerrado.' : '✅ Nenhum feriado neste mês.'}</p>`;
+
   // Automático: férias que tocam o mês
   const ferias = [];
   S.funcs.filter(f => !afastadoHoje(f)).forEach(f => periodos(f).forEach(p => {
@@ -1764,6 +1864,7 @@ function renderQuadro() {
       ${card('dir', '🏪 Lojas e Equipe', '', `<div class="space-y-2"><h3 class="text-[11px] font-bold uppercase tracking-wider text-gray-500">Lojas vazias previstas</h3>${blocoVazias}</div>
         <div class="space-y-2 pt-3"><h3 class="text-[11px] font-bold uppercase tracking-wider text-gray-500">Pra onde o volante vai</h3>${blocoVolantes}</div>
         <div class="space-y-2 pt-3"><h3 class="text-[11px] font-bold uppercase tracking-wider text-gray-500">Sem folga (mais de 6 dias seguidos)</h3>${blocoSeguidos}</div>
+        <div class="space-y-2 pt-3"><h3 class="text-[11px] font-bold uppercase tracking-wider text-gray-500">Feriados no mês</h3>${blocoFeriados}</div>
         <div class="space-y-2 pt-3"><h3 class="text-[11px] font-bold uppercase tracking-wider text-gray-500">Férias no mês</h3>${blocoFerias}</div>
         <div class="space-y-2 pt-3"><h3 class="text-[11px] font-bold uppercase tracking-wider text-gray-500">Afastados no mês</h3>${blocoAfast}</div>`)}
     </div>`;
@@ -1913,6 +2014,7 @@ function renderTimeline() {
     const diaNome = DIAS[(cur.getDay() + 6) % 7];
     const sel = iso === dataSelecionada;
     const cobDia = coberturaEm(iso), nVaz = cobDia.length, nSem = cobDia.filter(c => !c.por).length;
+    const fer = resumoFeriado(iso);
 
     if (cur.getMonth() !== mesAnt) {
       mesAnt = cur.getMonth();
@@ -1920,10 +2022,11 @@ function renderTimeline() {
     }
 
     html += `
-    <button data-act="selData" data-iso="${iso}" aria-pressed="${sel}" aria-label="${diaNome} ${dateStr}${nVaz ? ', ' + nVaz + ' loja(s) vazia(s)' + (nSem ? ', ' + nSem + ' sem cobertura' : '') : ''}" class="shrink-0 flex-1 py-2 px-3 rounded-lg border text-center transition min-w-[70px] ${sel ? 'bg-kavak-blue text-white border-kavak-blue shadow-md' : 'bg-white text-gray-700 border-gray-200 hover:border-gray-300'}">
+    <button data-act="selData" data-iso="${iso}" aria-pressed="${sel}" aria-label="${diaNome} ${dateStr}${fer ? ', feriado: ' + esc(nomesFeriado(fer)) : ''}${nVaz ? ', ' + nVaz + ' loja(s) vazia(s)' + (nSem ? ', ' + nSem + ' sem cobertura' : '') : ''}" class="shrink-0 flex-1 py-2 px-3 rounded-lg border text-center transition min-w-[70px] ${sel ? 'bg-kavak-blue text-white border-kavak-blue shadow-md' : 'bg-white text-gray-700 border-gray-200 hover:border-gray-300'}">
       <div class="text-[10px] font-bold uppercase ${sel ? 'text-blue-100' : 'text-gray-400'}">${diaNome}</div>
       <div class="text-xs font-bold mt-0.5">${dateStr}</div>
       ${nVaz ? `<div class="text-[10px] font-bold mt-0.5 ${sel ? 'text-white' : (nSem ? 'text-rose-600' : 'text-amber-600')}">${nSem ? '⛔' : '🔴'} ${nVaz}</div>` : '<div class="text-[10px] mt-0.5">&nbsp;</div>'}
+      ${fer ? `<div title="${esc(nomesFeriado(fer))}" class="text-[9px] font-bold mt-0.5 ${sel ? 'text-violet-100' : 'text-violet-600'}">🎌 ${esc(rotuloFeriadoCurto(fer))}</div>` : '<div class="text-[9px] mt-0.5">&nbsp;</div>'}
     </button>`;
   }
   container.innerHTML = html;
