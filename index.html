@@ -316,6 +316,7 @@ button:disabled{cursor:not-allowed}
         <div class="vista" data-vista="exec"><div class="vista-corpo"><div id="inspConteudo"><p class="text-xs text-gray-500">Carregando…</p></div></div></div>
         <div class="vista" data-vista="cmp"><div class="vista-corpo"><div id="cmpConteudo"></div></div></div>
         <div class="vista" data-vista="aud"><div class="vista-corpo"><div id="audConteudo"></div></div></div>
+        <div class="vista" data-vista="ftq"><div class="vista-corpo"><div id="vstFtq"></div></div></div>
         <div class="vista" data-vista="dias"><div class="vista-corpo"><div id="vstDias"></div></div></div>
         <div class="vista" data-vista="tipo"><div class="vista-corpo"><div id="vstTipo"></div></div></div>
         <div class="vista" data-vista="hub"><div class="vista-corpo"><div id="vstHub"></div></div></div>
@@ -1122,6 +1123,7 @@ async function carregarInspecoes() {
 }
 
 function renderInspecoes(d, fonte) {
+  INSP.d = d;
   INSP.charts.forEach(c => c.destroy()); INSP.charts = [];
   const soma = (a, f) => a.reduce((s, x) => s + (f ? f(x) : x.total), 0);
   const total = soma(d.canais);
@@ -1468,6 +1470,7 @@ const VST = {
     { id: 'exec', titulo: 'Dashboard executivo', c: 12 },
     { id: 'cmp',  titulo: 'Inspeções × Compras', c: 12 },
     { id: 'aud',  titulo: 'Novos achados × inspeções', c: 12, sup: true },
+    { id: 'ftq',  titulo: 'Online × Alinhar FTQ', c: 12, sup: true },
     { id: 'dias', titulo: 'Gráficos por dia', c: 12, sup: true },
     { id: 'tipo', titulo: 'Express × Regular', c: 6, sup: true },
     { id: 'hub',  titulo: 'Achados por HUB', c: 6, sup: true }
@@ -1649,7 +1652,7 @@ function vistasIniciar() {
 // ----- Vistas novas (alimentadas pelos novos achados da Auditoria + inspeções da fila) -----
 function limparVistasExtras(msg) {
   VST.charts.forEach(c => c.destroy()); VST.charts = [];
-  ['vstDias', 'vstTipo', 'vstHub'].forEach(id => { const b = $(id); if (b) b.innerHTML = msg ? `<p class="text-xs text-gray-500">${esc(msg)}</p>` : ''; });
+  ['vstFtq', 'vstDias', 'vstTipo', 'vstHub'].forEach(id => { const b = $(id); if (b) b.innerHTML = msg ? `<p class="text-xs text-gray-500">${esc(msg)}</p>` : ''; });
 }
 
 function renderVistasExtras() {
@@ -1663,6 +1666,41 @@ function renderVistasExtras() {
   const cv = (id, h) => `<div class="relative w-full" style="height:${h}px"><canvas id="${id}"></canvas></div>`;
   const tt = { backgroundColor: '#111827', padding: 10, cornerRadius: 6 };
   const pct = n => n.toFixed(1).replace('.', ',') + '%';
+
+  // 0) Inspeção online × Alinhar FTQ: o que a vistoria online não consegue ver (vídeo ruim, precisa desmontar...)
+  const of = d.onlineFtq;
+  if (!of) {
+    $('vstFtq').innerHTML = card('Inspeção online × Alinhar FTQ', '', '<p class="text-xs text-amber-700">Atualize o arquivo AchadosAuditoria.gs no Apps Script e publique uma nova versão para liberar esta vista.</p>');
+  } else {
+    const onl = INSP.d && Array.isArray(INSP.d.canais) ? INSP.d.canais.filter(c => c.grupo === 'online').reduce((a, c) => a + (c.total || 0), 0) : 0;
+    const kp = (t, v, sub) => `<div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200"><p class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">${esc(t)}</p><div class="mt-2 text-3xl font-extrabold text-gray-900">${v}</div><p class="text-[11px] text-gray-500 mt-1">${sub}</p></div>`;
+    const av = [];
+    if (!of.achou) av.push('Não achei a coluna ERRO nas abas da Auditoria, então não consegui separar o que é “Inspeção On Line”.');
+    if (of.semData) av.push(`${of.semData} linha(s) sem data legível na DATA PÓS ficaram de fora.`);
+    if (of.total > of.itens.length) av.push(`A lista mostra só os ${of.itens.length} mais recentes (os totais consideram todos).`);
+    const linhasF = of.itens.map(it => `<tr class="border-t border-gray-100"><td class="py-1.5 px-3 whitespace-nowrap text-gray-700">${esc(fmtData(it.dataPos) || '–')}</td><td class="py-1.5 px-3 whitespace-nowrap text-gray-700">${esc(fmtData(it.dataInsp) || '–')}</td><td class="py-1.5 px-3 font-mono font-bold text-gray-900 whitespace-nowrap">${esc(it.placa || '–')}</td><td class="py-1.5 px-3 text-gray-700">${esc(it.peca || '–')}</td><td class="py-1.5 px-3 text-gray-700">${esc(it.motivo)}</td><td class="py-1.5 px-3 whitespace-nowrap text-gray-700">${esc(it.hub || '–')}</td><td class="py-1.5 px-3 whitespace-nowrap text-gray-700">${esc(it.inspetor || '–')}</td></tr>`).join('');
+    $('vstFtq').innerHTML = `<div class="space-y-5">
+      <div><h3 class="text-sm font-bold text-gray-900">Inspeção online × Alinhar FTQ</h3><p class="text-[11px] text-gray-500">Achados da inspeção online que a gente não consegue ver (vídeo ruim ou peça que só se vê desmontando). Linhas com ERRO = “Inspeção On Line” e ALINHAMENTO = “Alinhar FTQ”, pela data do achado.</p></div>
+      ${av.length ? `<div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-3 text-[11px] space-y-1">${av.map(x => `<p>⚠️ ${x}</p>`).join('')}</div>` : ''}
+      <div class="grid grid-cols-2 lg:grid-cols-3 gap-4">
+        ${kp('Achados online (FTQ)', of.total, 'linhas no período')}
+        ${kp('Inspeções online', onl || '–', 'canal online no período')}
+        ${kp('Taxa', onl ? pct(of.total / onl * 100) : '–', 'achados FTQ ÷ inspeções online')}
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:1.25rem">
+        ${card('Por motivo', 'Observação da linha (coluna OBS)', of.motivos.length ? cv('chVstFtq', Math.max(180, of.motivos.length * 34 + 40)) : '<p class="text-xs text-gray-500">Nenhum achado online FTQ no período.</p>')}
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden min-w-0"><div class="p-5 pb-3"><h3 class="text-sm font-bold text-gray-900">Placas</h3></div>
+          <div class="overflow-auto max-h-80"><table class="w-full text-xs"><thead class="bg-gray-50 text-gray-500 sticky top-0"><tr><th class="text-left py-2 px-3">Data pós</th><th class="text-left py-2 px-3">Data insp.</th><th class="text-left py-2 px-3">Placa</th><th class="text-left py-2 px-3">N.A</th><th class="text-left py-2 px-3">Motivo</th><th class="text-left py-2 px-3">HUB</th><th class="text-left py-2 px-3">Inspetor</th></tr></thead>
+          <tbody>${linhasF || '<tr><td colspan="7" class="py-4 px-3 text-gray-500">Nenhum achado.</td></tr>'}</tbody></table></div></div>
+      </div></div>`;
+    if (of.motivos.length) VST.charts.push(new Chart($('chVstFtq'), {
+      type: 'bar',
+      data: { labels: of.motivos.map(m => m.motivo), datasets: [{ data: of.motivos.map(m => m.total), backgroundColor: of.motivos.map((m, i) => i === 0 ? '#002a99' : '#0047FF'), borderRadius: 5, borderSkipped: false, maxBarThickness: 22 }] },
+      options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false }, tooltip: { ...tt, displayColors: false, callbacks: { label: c => `${c.parsed.x} achado(s) (${pct(c.parsed.x / of.total * 100)})` } } },
+        scales: { x: { beginAtZero: true, grid: { color: '#F1F5F9' }, ticks: { precision: 0 } }, y: { grid: { display: false } } } }
+    }));
+  }
 
   // 1) Gráficos por dia (pela DATA DA INSPEÇÃO)
   const noPeriodo = itens.filter(it => it.dataInsp && it.dataInsp >= iv.inicio && it.dataInsp <= iv.fim);
