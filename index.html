@@ -1129,7 +1129,7 @@ function renderInspecoes(d, fonte) {
   const total = soma(d.canais);
   const grupo = g => soma(d.canais.filter(c => c.grupo === g));
   const pct = n => total ? (n / total * 100).toFixed(1).replace('.', ',') + '%' : '0%';
-  const top = d.inspetores.slice(0, 10), totTop = soma(top);
+  const top = d.inspetores, totTop = soma(top);   // todos os inspetores (não só o Top 10)
   const base = d.totalEquipe || soma(d.inspetores) || total;
 
   $('inspPeriodo').textContent = d.periodo ? `Período: ${fmtData(d.periodo.inicio)} a ${fmtData(d.periodo.fim)}` + (d.geradoEm ? ` · gerado em ${fmtData(d.geradoEm)} ${d.geradoEm.slice(11, 16)}` : '') : '';
@@ -1155,7 +1155,7 @@ function renderInspecoes(d, fonte) {
       ${card('Placas por loja / canal', 'Veículos inspecionados por canal de atendimento', 'chInspCanais', 340)}
       ${card('Placas por dia', 'Inspeções ao longo do período', 'chInspDias', 340)}
     </div>
-    ${card('Top 10 inspetores', `Total do Top 10: <b>${totTop}</b> inspeções (${base ? (totTop / base * 100).toFixed(1).replace('.', ',') : 0}% do total da equipe)`, 'chInspTop', 400)}
+    ${card('Inspetores', `${top.length} inspetor${top.length === 1 ? '' : 'es'} · total de <b>${totTop}</b> inspeções no período. Clique na barra para ver as placas.`, 'chInspTop', Math.max(400, top.length * 30 + 60))}
   </div>`;
 
   Chart.defaults.font.family = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
