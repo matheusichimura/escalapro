@@ -1975,26 +1975,41 @@ function novoAviso() {
   ]);
 }
 
-// Depois de publicar: confirma se manda o mesmo aviso no Telegram
+// Depois de publicar: confirma se manda o mesmo aviso no Telegram (agora ou programado)
 function perguntarTelegramAviso(av) {
   if (MODO_LOCAL) return;                         // sem servidor não há como enviar
   const t = TIPOS_AVISO[av.tipo] || TIPOS_AVISO.info;
   const msg = `${t.ic} AVISO ${t.rot.toUpperCase()}${av.dia ? ' · ' + fmtDiaSemana(av.dia) : ''}\n\n${av.texto}`;
+  const agora = new Date(); agora.setMinutes(agora.getMinutes() - agora.getTimezoneOffset());
+  const minimo = agora.toISOString().slice(0, 16);                       // "agora" no horário local, para o campo
+  const sugerido = av.dia && av.dia + 'T08:00' > minimo ? av.dia + 'T08:00' : '';
+  const erros = { telegram_config: 'Falta configurar o Telegram no Apps Script (TELEGRAM_TOKEN e TELEGRAM_CHAT_AVISOS).',
+    acao_desconhecida: 'O Apps Script ainda não tem essa ação. Cole o AvisoTelegram.gs, troque a rotear_ e publique nova versão.',
+    permissao: 'Só o supervisor pode enviar no Telegram.', fila_cheia: 'Já existem avisos demais na fila. Espere alguns saírem.' };
+  const enviar = async quando => {
+    toast(quando ? 'Programando…' : 'Enviando no Telegram…');
+    let r;
+    try { r = await api('avisoTelegram', { texto: msg, quando: quando || '' }); } catch (e) { if (e && e.sessaoExpirada) return; r = { erro: 'rede' }; }
+    fechar();
+    if (r && r.ok) {
+      toast(r.programado ? 'Programado para ' + fmtData(quando.slice(0, 10)).slice(0, 5) + ' às ' + quando.slice(11, 16) + '!' : 'Aviso enviado no Telegram!');
+      return;
+    }
+    toast('Não consegui enviar: ' + (erros[r && r.erro] || (r && r.detalhe) || 'tente de novo em instantes.'));
+  };
   modal('Enviar também no Telegram?', `
     <p class="mb-2">O aviso já está no site. Quer mandar uma cópia no Telegram?</p>
-    <div class="border ${t.cls} rounded-md p-3 text-xs whitespace-pre-wrap break-words">${esc(msg)}</div>`, [
+    <div class="border ${t.cls} rounded-md p-3 text-xs whitespace-pre-wrap break-words mb-3">${esc(msg)}</div>
+    <label class="text-[11px] font-bold text-gray-700">Para programar, escolha o dia e a hora
+      <input type="datetime-local" id="avQuando" min="${minimo}" value="${sugerido}" class="mt-1 w-full border border-gray-300 rounded px-2 py-2 text-xs font-normal"></label>`, [
     { txt: 'Não, só no site', cls: BTN_CANCELA },
-    { txt: '📨 Enviar no Telegram', cls: 'btn-kavak text-white', fecha: false, fn: async () => {
-        toast('Enviando no Telegram…');
-        let r;
-        try { r = await api('avisoTelegram', { texto: msg }); } catch (e) { if (e && e.sessaoExpirada) return; r = { erro: 'rede' }; }
-        fechar();
-        if (r && r.ok) { toast('Aviso enviado no Telegram!'); return; }
-        const m = { telegram_config: 'Falta configurar o Telegram no Apps Script (TELEGRAM_TOKEN e TELEGRAM_CHAT_AVISOS).',
-          acao_desconhecida: 'O Apps Script ainda não tem a ação do Telegram. Cole o AvisoTelegram.gs, troque a rotear_ e publique nova versão.',
-          permissao: 'Só o supervisor pode enviar no Telegram.' };
-        toast('Não consegui enviar: ' + (m[r && r.erro] || (r && r.detalhe) || 'tente de novo em instantes.'));
-      } }
+    { txt: '🕒 Programar', cls: BTN_CANCELA, fecha: false, fn: () => {
+        const q = $('avQuando').value;
+        if (!q) return toast('Escolha o dia e a hora para programar');
+        if (q < minimo) return toast('Escolha um horário que ainda não passou');
+        enviar(q);
+      } },
+    { txt: '📨 Enviar agora', cls: 'btn-kavak text-white', fecha: false, fn: () => enviar('') }
   ]);
 }
 
