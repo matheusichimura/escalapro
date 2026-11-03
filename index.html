@@ -76,20 +76,9 @@ button:disabled{cursor:not-allowed}
     <div class="flex flex-wrap items-center gap-2">
       <span id="syncStatus" role="status" aria-live="polite" class="text-[11px] font-medium text-gray-500 px-1"></span>
       <span id="usuarioInfo" class="text-[11px] font-bold text-gray-700 bg-gray-100 rounded px-2 py-1.5" style="display:none"></span>
-      <button id="btnSenha" class="bg-white border border-gray-300 text-gray-700 px-3 py-2 rounded-md text-xs font-bold shadow-sm transition hover:bg-gray-50" style="display:none">Senha</button>
       <button id="btnSair" class="bg-white border border-gray-300 text-gray-700 px-3 py-2 rounded-md text-xs font-bold shadow-sm transition hover:bg-gray-50" style="display:none">Sair</button>
       <button id="btnDesfazer" aria-label="Desfazer a última ação" class="btn-desfazer bg-white border border-gray-300 text-gray-700 px-3 py-2 rounded-md text-xs font-bold flex items-center gap-2 shadow-sm transition hover:bg-gray-50" title="Desfazer a última ação grande (gerar escala, importar, resetar, excluir)">
         <i data-ic="undo"></i> <span class="hidden sm:inline">Desfazer</span>
-      </button>
-      <button id="btnExportar" aria-label="Exportar backup" class="bg-white border border-gray-300 text-gray-700 px-3 py-2 rounded-md text-xs font-bold flex items-center gap-2 shadow-sm transition hover:bg-gray-50" title="Baixar backup (.json)">
-        <i data-ic="download"></i> <span class="hidden sm:inline">Exportar</span>
-      </button>
-      <button id="btnImportar" aria-label="Importar backup" class="bg-white border border-gray-300 text-gray-700 px-3 py-2 rounded-md text-xs font-bold flex items-center gap-2 shadow-sm transition hover:bg-gray-50" title="Carregar backup (.json)">
-        <i data-ic="upload"></i> <span class="hidden sm:inline">Importar</span>
-      </button>
-      <input type="file" id="arquivoImport" accept="application/json,.json" class="hidden">
-      <button id="btnResetar" aria-label="Resetar dados" class="bg-white border border-gray-300 text-gray-700 px-3 py-2 rounded-md text-xs font-bold flex items-center gap-2 shadow-sm transition hover:bg-gray-50">
-        <i data-ic="refresh"></i> <span class="hidden sm:inline">Resetar</span>
       </button>
       <button id="btnGerar" class="btn-kavak px-4 py-2 text-xs flex items-center gap-2 shadow-sm">
         <i data-ic="sparkles"></i> Gerar Escala
@@ -310,6 +299,23 @@ button:disabled{cursor:not-allowed}
     <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden max-w-4xl">
       <div class="p-4 border-b border-gray-100 bg-gray-50 font-bold text-xs text-gray-700">Acessos cadastrados</div>
       <div id="listaAcessos" class="divide-y divide-gray-100"><div class="p-4 text-xs text-gray-500">Carregando…</div></div>
+    </div>
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden max-w-4xl">
+      <div class="p-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between gap-2">
+        <span class="font-bold text-xs text-gray-700">🟢 Quem está online</span>
+        <span id="onlineResumo" class="text-[11px] text-gray-500"></span>
+      </div>
+      <div id="listaOnline" class="divide-y divide-gray-100"><div class="p-4 text-xs text-gray-500">Carregando…</div></div>
+    </div>
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden max-w-4xl">
+      <div class="p-4 border-b border-gray-100 bg-gray-50 flex flex-wrap items-center justify-between gap-2">
+        <span class="font-bold text-xs text-gray-700">🕘 Histórico de edições <span class="font-normal text-gray-400">(últimos 90 dias · dá para voltar nas últimas 40)</span></span>
+        <span class="flex items-center gap-2">
+          <select id="histUsuario" class="border border-gray-300 rounded px-2 py-1 text-xs bg-white text-gray-700"><option value="">Todos</option></select>
+          <button id="histAtualizar" class="text-kavak-blue font-bold text-xs">Atualizar</button>
+        </span>
+      </div>
+      <div id="listaHistorico" class="divide-y divide-gray-100"><div class="p-4 text-xs text-gray-500">Carregando…</div></div>
     </div>
   </section>
 </main>
@@ -677,10 +683,10 @@ function perguntarMigracao() {
 function aplicarPapel() {
   const sup = podeEditar();
   const vis = (id, on) => { const el = $(id); if (el) el.style.display = on ? '' : 'none'; };
-  ['btn-equipe', 'btn-lojas', 'btnGerar', 'btnResetar', 'btnImportar', 'btnExportar', 'btnDesfazer', 'btnAddInspetor'].forEach(id => vis(id, sup));
+  ['btn-equipe', 'btn-lojas', 'btnGerar', 'btnDesfazer', 'btnAddInspetor'].forEach(id => vis(id, sup));
   vis('btn-acessos', ehSupervisor() && !MODO_LOCAL);
-  vis('btnSair', !MODO_LOCAL); vis('btnSenha', !MODO_LOCAL); vis('usuarioInfo', !MODO_LOCAL);
-  if (!MODO_LOCAL && SESSAO) $('usuarioInfo').textContent = (SESSAO.nome || SESSAO.usuario) + ' · ' + (SESSAO.papel === 'supervisor' ? 'Supervisor' : 'Funcionário');
+  vis('btnSair', !MODO_LOCAL); vis('usuarioInfo', !MODO_LOCAL);
+  if (!MODO_LOCAL && SESSAO) $('usuarioInfo').textContent = 'BEM VINDO · ' + (SESSAO.nome || SESSAO.usuario);
   $('cfgFolgas').disabled = !sup; $('cfgMin').disabled = !sup;
 }
 
@@ -693,6 +699,7 @@ function mostrarLogin(msg) {
 async function entrarRemoto() {
   undoStack = []; persistirUndo();
   aplicarPapel();
+  enviarPing();
   setSync('carregando');
   let res;
   try { res = await carregarRemoto(false); }
@@ -777,6 +784,94 @@ async function carregarUsuarios() {
     else toast(MSG_ERRO[r.erro] || 'Erro ao listar acessos');
   } catch (e) { if (!e.sessaoExpirada) toast('Sem conexão com o servidor'); }
 }
+
+// Quem está online + histórico de edições (só supervisor, dentro de Acessos)
+let timerOnline = null;
+const fmtHoraBR = ms => new Date(ms).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+function haQuanto(ms) {
+  const m = Math.max(0, Math.round((Date.now() - ms) / 60000));
+  return m < 1 ? 'agora' : m < 60 ? `há ${m} min` : m < 1440 ? `há ${Math.floor(m / 60)} h` : `há ${Math.floor(m / 1440)} d`;
+}
+
+async function carregarOnline() {
+  if (MODO_LOCAL || !ehSupervisor()) return;
+  try {
+    const r = await api('online');
+    if (!r.ok) { $('listaOnline').innerHTML = `<div class="p-4 text-xs text-amber-700">${r.erro === 'acao_desconhecida' ? 'O Apps Script ainda não tem essa ação. Cole o Acessos.gs, troque a rotear_ e publique nova versão.' : 'Não foi possível carregar.'}</div>`; return; }
+    const lista = r.usuarios || [];
+    const on = lista.filter(u => u.online);
+    $('onlineResumo').textContent = on.length + ' online agora';
+    $('listaOnline').innerHTML = lista.length ? lista.map(u => `<div class="p-3 flex items-center gap-2 text-xs ${u.online ? '' : 'text-gray-400'}">
+        <span class="w-2.5 h-2.5 rounded-full ${u.online ? 'bg-green-500' : 'bg-gray-300'}"></span>
+        <b class="w-32 truncate">${esc(u.usuario)}</b>
+        <span class="flex-1 truncate">${esc(u.nome || '')}${SESSAO && u.usuario === SESSAO.usuario ? ' <span class="text-kavak-blue font-bold">(você)</span>' : ''}</span>
+        <span>${u.online ? 'online' : (u.em ? 'visto ' + haQuanto(u.em) : 'sem acesso recente')}</span></div>`).join('')
+      : '<div class="p-4 text-xs text-gray-500">Nenhum usuário.</div>';
+  } catch (e) { if (!e.sessaoExpirada) $('listaOnline').innerHTML = '<div class="p-4 text-xs text-amber-700">Sem conexão com o servidor.</div>'; }
+}
+
+async function carregarHistorico() {
+  if (MODO_LOCAL || !ehSupervisor()) return;
+  const filtro = $('histUsuario').value;
+  try {
+    const r = await api('historico', { usuario: filtro });
+    if (!r.ok) { $('listaHistorico').innerHTML = `<div class="p-4 text-xs text-amber-700">${r.erro === 'acao_desconhecida' ? 'O Apps Script ainda não tem essa ação. Cole o Acessos.gs, troque a rotear_ e publique nova versão.' : 'Não foi possível carregar.'}</div>`; return; }
+    const sel = $('histUsuario');
+    if (!filtro) {   // monta o filtro com quem já editou
+      const nomes = [...new Set((r.itens || []).map(i => i.usuario))].sort();
+      sel.innerHTML = '<option value="">Todos</option>' + nomes.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
+    }
+    const itens = r.itens || [];
+    $('listaHistorico').innerHTML = itens.length ? itens.map(i => `<div class="p-3 text-xs">
+        <div class="flex flex-wrap items-center gap-x-2 text-gray-500"><b class="text-gray-800">${esc(i.nome || i.usuario)}</b><span>${esc(fmtHoraBR(i.em))}</span></div>
+        <div class="mt-0.5 text-gray-700 whitespace-pre-wrap break-words">${esc(i.resumo)}</div>
+        ${i.snap ? `<button data-act="histRestaurar" data-v="${+i.versao}" data-depois="${+i.depois || 0}" data-quem="${esc(i.nome || i.usuario)}" data-em="${+i.em || 0}" class="mt-1.5 text-[11px] font-bold text-kavak-blue hover:underline">↩ Voltar para antes disso</button>` : ''}</div>`).join('')
+      : '<div class="p-4 text-xs text-gray-500">Nenhuma edição registrada ainda. Elas passam a ser anotadas a partir de agora.</div>';
+  } catch (e) { if (!e.sessaoExpirada) $('listaHistorico').innerHTML = '<div class="p-4 text-xs text-amber-700">Sem conexão com o servidor.</div>'; }
+}
+
+// Volta tudo para como estava ANTES de uma edição do histórico (também desfaz as edições que vieram depois dela)
+function restaurarEdicao(versao, depois, quem, em) {
+  if (MODO_LOCAL || !ehSupervisor()) return;
+  if (envioTimer || enviando || JSON.stringify(S) !== ultimoSync) { toast('Espere o salvamento terminar (veja "Salvo às…" no topo) e tente de novo.'); return; }
+  const aviso = depois > 0 ? `<p class="mt-2 text-amber-700 font-bold">⚠️ Isso também desfaz as ${depois} edição(ões) que vieram depois dessa.</p>` : '';
+  confirmar('Voltar para antes dessa edição?',
+    `Os dados vão voltar para como estavam <b>antes</b> da edição de <b>${esc(quem)}</b> em <b>${esc(fmtHoraBR(em))}</b>.${aviso}
+     <p class="mt-2">Nada é apagado de vez: isso vira uma nova entrada no histórico e dá para voltar atrás do mesmo jeito. Quem estiver com o site aberto verá o aviso de "alguém salvou antes de você" na próxima alteração.</p>`,
+    'Voltar para antes', async () => {
+      toast('Restaurando…');
+      let r;
+      try { r = await api('restaurar', { versao }); } catch (e) { if (e && e.sessaoExpirada) return; r = { erro: 'rede' }; }
+      if (r && r.ok && r.dados && valido(r.dados)) {
+        snapshot('restauração do histórico');            // dá para usar o "Desfazer" do topo também
+        S = r.dados; normalizar();
+        versaoRemota = r.versao; ultimoSync = JSON.stringify(S); limparPendente();
+        atualizarTudo(); setSync('ok'); carregarHistorico();
+        toast('Pronto! Os dados voltaram para antes dessa edição.');
+        return;
+      }
+      const m = { sem_copia: 'Essa edição é antiga e não tem mais cópia guardada.', permissao: 'Só o supervisor pode restaurar.',
+        acao_desconhecida: 'O Apps Script ainda não tem essa ação. Cole o Acessos.gs, troque a rotear_ e publique nova versão.' };
+      toast('Não consegui restaurar: ' + (m[r && r.erro] || 'tente de novo em instantes.'));
+    });
+}
+
+function painelAcessosAbriu(abriu) {
+  clearInterval(timerOnline); timerOnline = null;
+  if (!abriu) return;
+  carregarOnline(); carregarHistorico();
+  timerOnline = setInterval(() => { if (!document.hidden) carregarOnline(); }, 30000);
+}
+$('histAtualizar').onclick = () => { carregarOnline(); carregarHistorico(); };
+$('histUsuario').onchange = carregarHistorico;
+
+// Sinal de presença: avisa o servidor a cada minuto que esta pessoa está com o site aberto
+function enviarPing() {
+  if (MODO_LOCAL || !SESSAO || !SESSAO.token || document.hidden) return;
+  api('ping').catch(() => {});
+}
+setInterval(enviarPing, 60000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) enviarPing(); });
 
 function renderAcessos() {
   $('listaAcessos').innerHTML = usuariosCache.length ? usuariosCache.map(u => {
@@ -1315,6 +1410,7 @@ function mudarAba(aba) {
     $('btn-' + a).className = a === aba ? ATIVA : INATIVA;
   });
   atualizarTudo();
+  painelAcessosAbriu(aba === 'acessos');
   if (aba === 'acessos') carregarUsuarios();
   if (aba === 'inspecoes') carregarInspecoes();
 }
@@ -2440,6 +2536,8 @@ document.addEventListener('click', e => {
     renderQuadro();
   } else if (act === 'quadroAdd') {
     novoAviso();
+  } else if (act === 'histRestaurar') {
+    restaurarEdicao(+btn.dataset.v, +btn.dataset.depois, btn.dataset.quem, +btn.dataset.em);
   } else if (act === 'quadroDel') {
     const id = +btn.dataset.id;
     confirmar('Excluir aviso', 'Excluir este aviso do quadro?', 'Excluir', () => {
@@ -2627,22 +2725,7 @@ $('btnAddLoja').onclick = () => {
   toast('Loja adicionada!');
 };
 
-$('btnResetar').onclick = () => {
-  const aviso = MODO_LOCAL
-    ? 'Esta ação apaga tudo e restaura os dados de demonstração. Dica: exporte um backup antes. Você ainda poderá desfazer logo em seguida.'
-    : 'Esta ação apaga os dados de <b>todos os usuários</b> na planilha e restaura os dados de demonstração. Exporte um backup antes. Você ainda poderá desfazer logo em seguida.';
-  confirmar('Resetar Dados', aviso, 'Resetar', () => {
-    snapshot('reset dos dados');
-    S = exemplo(); normalizar();
-    atualizarTudo();
-    toast('Dados restaurados! (dá para desfazer)');
-  });
-};
-
 $('btnDesfazer').onclick = desfazer;
-$('btnExportar').onclick = exportar;
-$('btnImportar').onclick = () => $('arquivoImport').click();
-$('arquivoImport').onchange = e => { importarArquivo(e.target.files[0]); e.target.value = ''; };
 
 // ---------- Gerador automático (local, sem chave e sem internet) ----------
 // Distribui as folgas de cada semana por DATA real, respeitando férias, folgas por semana
@@ -3227,22 +3310,6 @@ $('formLogin').onsubmit = async e => {
 };
 
 $('btnSair').onclick = async () => { try { await api('sair'); } catch (e) {} sairLocal(''); };
-
-$('btnSenha').onclick = () => {
-  const campo = (id, ph) => `<input id="${id}" type="password" placeholder="${ph}" autocomplete="off" class="w-full border border-gray-300 rounded px-3 py-2 text-xs focus:ring-2 focus:ring-kavak-blue outline-none">`;
-  modal('Alterar minha senha',
-    `<div class="space-y-2">${campo('ps_atual', 'Senha atual')}${campo('ps_nova', 'Nova senha (mín. 6 caracteres)')}${campo('ps_conf', 'Repita a nova senha')}</div>`,
-    [{ txt: 'Cancelar', cls: BTN_CANCELA },
-     { txt: 'Alterar', cls: 'btn-kavak text-white', fecha: false, fn: async () => {
-        const atual = $('ps_atual').value, nova = $('ps_nova').value;
-        if (nova !== $('ps_conf').value) return toast('A confirmação não confere');
-        try {
-          const r = await api('trocarSenha', { atual, nova });
-          if (r.ok) { fechar(); toast('Senha alterada!'); }
-          else toast(MSG_ERRO[r.erro] || 'Não foi possível alterar a senha');
-        } catch (e) { if (!e.sessaoExpirada) toast('Sem conexão com o servidor'); }
-     } }]);
-};
 
 $('btnAddUsuario').onclick = async () => {
   const usuario = $('acUsuario').value.trim().toLowerCase();
