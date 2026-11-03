@@ -1031,6 +1031,48 @@ function renderInspecoes(d, fonte) {
   mk('chInspCanais', true, d.canais.map(x => x.nome), d.canais.map(x => x.total), '#0047FF', 16);
   mk('chInspDias', false, d.dias.map(x => x.rotulo), d.dias.map(x => x.total), d.dias.map(x => x.total === maxDia ? '#0036cc' : '#6b93ff'), d.dias.length > 14 ? undefined : 30);
   mk('chInspTop', true, top.map(x => x.nome), top.map(x => x.total), top.map((x, i) => i === 0 ? '#002a99' : '#0047FF'), 20);
+
+  // Clique na linha do inspetor (barra ou nome) -> abre as placas que ele fez no período
+  const gTop = INSP.charts[INSP.charts.length - 1], cvTop = gTop.canvas;
+  const linhaDe = e => {
+    const pos = Chart.helpers.getRelativePosition(e, gTop), a = gTop.chartArea;
+    if (pos.y < a.top || pos.y > a.bottom) return -1;
+    const i = Math.floor((pos.y - a.top) / ((a.bottom - a.top) / top.length));
+    return top[i] ? i : -1;
+  };
+  cvTop.onclick = e => { const i = linhaDe(e); if (i >= 0) abrirPlacasInspetor(top[i], d.periodo); };
+  cvTop.onmousemove = e => { cvTop.style.cursor = linhaDe(e) >= 0 ? 'pointer' : 'default'; };
+}
+
+function abrirPlacasInspetor(x, periodo) {
+  const antigo = document.getElementById('modalPlacasInsp');
+  if (antigo) antigo.remove();
+  const placas = x.placas || [];
+  const varios = periodo && periodo.inicio !== periodo.fim;
+  const linhas = placas.map((p, n) => `<tr class="border-t border-gray-100">
+      <td class="py-1.5 pr-2 text-gray-400">${n + 1}</td>
+      <td class="py-1.5 pr-3 font-mono font-bold text-gray-900">${esc(p.p)}</td>
+      <td class="py-1.5 pr-3 text-gray-700">${esc(p.c)}</td>
+      <td class="py-1.5 text-right text-gray-500">${varios ? esc(fmtData(p.d).slice(0, 5)) + ' ' : ''}${esc(p.h || '')}</td></tr>`).join('');
+  const vazio = x.placas === undefined
+    ? 'Esse período veio sem a lista de placas. Atualize o arquivo de Inspeções no Apps Script (e publique nova versão).'
+    : 'Nenhuma placa nesse período.';
+  const m = document.createElement('div');
+  m.id = 'modalPlacasInsp';
+  m.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4';
+  m.innerHTML = `<div class="bg-white rounded-xl shadow-xl w-full max-w-md max-h-[80vh] flex flex-col">
+      <div class="flex items-start justify-between p-4 border-b border-gray-200">
+        <div><h3 class="text-base font-bold text-gray-900">${esc(x.nome)}</h3>
+        <p class="text-[11px] text-gray-500">${x.total} placa${x.total === 1 ? '' : 's'}${periodo ? ' · ' + fmtData(periodo.inicio) + (varios ? ' a ' + fmtData(periodo.fim) : '') : ''}</p></div>
+        <button type="button" class="text-gray-400 hover:text-gray-700 text-xl leading-none px-2" data-fechar>×</button>
+      </div>
+      <div class="p-4 overflow-y-auto">${placas.length
+        ? `<table class="w-full text-xs"><tbody>${linhas}</tbody></table>`
+        : `<p class="text-xs text-gray-500">${vazio}</p>`}</div>
+    </div>`;
+  m.addEventListener('click', e => { if (e.target === m || e.target.hasAttribute('data-fechar')) m.remove(); });
+  document.addEventListener('keydown', function fechaEsc(e) { if (e.key === 'Escape') { m.remove(); document.removeEventListener('keydown', fechaEsc); } });
+  document.body.appendChild(m);
 }
 $('inspAtualizar').addEventListener('click', carregarInspecoes);
 $('inspFiltro').addEventListener('change', () => {
@@ -3177,5 +3219,3 @@ iniciar();
 </script>
 </body>
 </html>
-
-
