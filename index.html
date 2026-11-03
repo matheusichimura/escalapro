@@ -42,6 +42,24 @@ button:disabled{cursor:not-allowed}
   @page{size:landscape;margin:10mm}
 }
 .btn-desfazer:disabled{opacity:.4}
+/* Vistas personalizáveis (aba Inspeções) */
+#vistasGrid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:1.25rem;align-items:start}
+.vista{grid-column:1/-1;position:relative;min-width:0}
+@media(min-width:1024px){.vista{grid-column:span var(--c,12)}}
+.vista .mt-5{margin-top:0!important}
+.vista-barra,.vista-resize{display:none}
+.vst-edit .vista{outline:2px dashed #93b4ff;outline-offset:4px;border-radius:10px}
+.vst-edit .vista.drop-on{outline:3px solid #0047FF}
+.vst-edit .vista-barra{display:flex;align-items:center;gap:.5rem;background:#ebf0ff;color:#0036cc;border-radius:8px;padding:.3rem .6rem;font-size:11px;margin-bottom:.5rem}
+.vista-alca{cursor:grab;font-size:16px;line-height:1;user-select:none;touch-action:none}
+.vista-acoes{margin-left:auto;display:flex;gap:.25rem;flex-wrap:wrap}
+.vista-acoes button{background:#fff;color:#0036cc;border:1px solid #c7d6ff;border-radius:4px;padding:0 .45rem;font-weight:700;min-width:1.6rem;height:1.5rem}
+.vista-acoes button:hover{background:#0047FF;color:#fff}
+.vst-edit .vista-resize{display:block;position:absolute;right:-6px;bottom:-6px;width:20px;height:20px;cursor:nwse-resize;background:linear-gradient(135deg,transparent 50%,#0047FF 50%);border-radius:0 0 8px 0;touch-action:none;z-index:2}
+.vst-apres{position:fixed;inset:0;z-index:60;overflow:auto;background:#f4f6f9;padding:1.25rem 2rem}
+.vst-apres .vst-nao-apres{display:none!important}
+.vst-apres-titulo{display:none}
+.vst-apres .vst-apres-titulo{display:flex}
 
 @keyframes floatCloud { 0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-12px); } }
 .nuvem-home { animation: floatCloud 5s ease-in-out infinite; transition: transform 0.2s; cursor: pointer; }
@@ -277,10 +295,33 @@ button:disabled{cursor:not-allowed}
         <button id="inspAtualizar" class="bg-white border border-gray-300 text-gray-700 px-3 py-2 rounded-md text-xs font-bold shadow-sm hover:bg-gray-50">Atualizar</button>
       </div>
     </div>
-    <div id="inspConteudo"><p class="text-xs text-gray-500">Carregando…</p></div>
-    <div id="cmpConteudo"></div>
-    <div id="audConteudo"></div>
-    <div id="achConteudo"></div>
+    <div id="vistasWrap">
+      <div class="flex flex-wrap items-center justify-end gap-2 mb-4 nao-imprimir">
+        <div class="relative vst-nao-apres">
+          <button type="button" id="vstBtnPainel" class="bg-white border border-gray-300 text-gray-700 px-3 py-2 rounded-md text-xs font-bold shadow-sm hover:bg-gray-50">Vistas ▾</button>
+          <div id="vstPainel" class="hidden absolute right-0 mt-1 w-64 bg-white border border-gray-200 rounded-lg shadow-lg p-3 z-30 space-y-2 text-xs text-gray-700"></div>
+        </div>
+        <button type="button" id="vstBtnEditar" class="vst-nao-apres bg-white border border-gray-300 text-gray-700 px-3 py-2 rounded-md text-xs font-bold shadow-sm hover:bg-gray-50">Editar layout</button>
+        <button type="button" id="vstBtnApresentar" class="vst-nao-apres btn-kavak px-3 py-2 text-xs">Apresentar</button>
+      </div>
+      <div class="vst-apres-titulo items-center justify-between gap-3 mb-4 nao-imprimir">
+        <div><h2 class="text-xl font-bold text-gray-900">Dashboard Executivo de Inspeções</h2><p id="vstApresPeriodo" class="text-sm text-gray-500"></p></div>
+        <div class="flex items-center gap-2">
+          <button type="button" id="vstZoomMenos" class="bg-white border border-gray-300 text-gray-700 w-9 h-9 rounded-md text-sm font-bold" title="Diminuir">A−</button>
+          <button type="button" id="vstZoomMais" class="bg-white border border-gray-300 text-gray-700 w-9 h-9 rounded-md text-sm font-bold" title="Aumentar">A+</button>
+          <button type="button" id="vstBtnSair" class="bg-white border border-gray-300 text-gray-700 px-3 py-2 rounded-md text-xs font-bold">Sair (Esc)</button>
+        </div>
+      </div>
+      <div id="vistasGrid">
+        <div class="vista" data-vista="exec"><div class="vista-corpo"><div id="inspConteudo"><p class="text-xs text-gray-500">Carregando…</p></div></div></div>
+        <div class="vista" data-vista="cmp"><div class="vista-corpo"><div id="cmpConteudo"></div></div></div>
+        <div class="vista" data-vista="aud"><div class="vista-corpo"><div id="audConteudo"></div></div></div>
+        <div class="vista" data-vista="dias"><div class="vista-corpo"><div id="vstDias"></div></div></div>
+        <div class="vista" data-vista="tipo"><div class="vista-corpo"><div id="vstTipo"></div></div></div>
+        <div class="vista" data-vista="hub"><div class="vista-corpo"><div id="vstHub"></div></div></div>
+      </div>
+    </div>
+    <div id="achConteudo" class="hidden"></div>
   </section>
   <section id="aba-acessos" class="space-y-4 hidden">
     <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200 max-w-xl space-y-3">
@@ -1060,6 +1101,7 @@ function intervaloInsp() {
 }
 
 async function carregarInspecoes() {
+  vistasIniciar(); vistasAplicar();
   const iv = intervaloInsp();
   if (!iv) { toast('Escolha as duas datas (a primeira não pode ser maior que a segunda).'); return; }
   const seq = INSP.seq = (INSP.seq || 0) + 1;
@@ -1289,6 +1331,7 @@ async function carregarAchadosAud(iv) {
   if (MODO_LOCAL || !ehSupervisor()) { box.innerHTML = ''; return; }
   const seq = ++AUD.seq;
   AUD.dados = null;
+  limparVistasExtras('Carregando…');
   box.innerHTML = '<p class="text-xs text-gray-500 mt-5">Carregando novos achados da auditoria…</p>';
   let r;
   try { r = await api('achadosAud', iv); } catch (e) { if (e && e.sessaoExpirada) return; r = { erro: 'rede' }; }
@@ -1298,6 +1341,7 @@ async function carregarAchadosAud(iv) {
       aud_config: 'Falta colocar o ID da planilha da Auditoria em <b>AUDACH_ID_PLANILHA</b> (arquivo AchadosAuditoria.gs).',
       aud_planilha: 'Não consegui abrir a planilha da Auditoria (' + esc((r && r.msg) || '') + '). Confira o ID e se a conta que publica o app tem acesso.',
       permissao: 'Somente supervisores veem os novos achados.' };
+    limparVistasExtras('');
     box.innerHTML = `<div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-4 text-xs mt-5">Não foi possível carregar os novos achados da auditoria. ${m[r && r.erro] || 'Tente atualizar em instantes.'}</div>`;
     return;
   }
@@ -1363,6 +1407,7 @@ function renderAchadosAud() {
     const b = e.target.closest('[data-aud]');
     if (b && AUD.dados) abrirAchadosInspetor(AUD.dados.inspetores[+b.dataset.aud], AUD.dados.periodo);
   });
+  renderVistasExtras();
 }
 
 function abrirAchadosInspetor(g, periodo) {
@@ -1412,6 +1457,281 @@ async function carregarAchados(iv) {
   if (!r || r.erro || !Array.isArray(r.inspetores)) ACH.estado = 'erro';
   else { ACH.dados = r; ACH.estado = 'ok'; }
   if (AUD.dados) renderAchadosAud();
+}
+
+// ---------- Vistas personalizáveis da aba Inspeções ----------
+// Cada bloco da aba é uma "vista": dá para ocultar, arrastar, redimensionar e apresentar em tela cheia.
+// O arranjo fica salvo neste navegador (por usuário).
+const VST = {
+  charts: [], edit: false, apres: false, zoom: 1, estado: null, pronto: false, arrasta: null,
+  defs: [
+    { id: 'exec', titulo: 'Dashboard executivo', c: 12 },
+    { id: 'cmp',  titulo: 'Inspeções × Compras', c: 12 },
+    { id: 'aud',  titulo: 'Novos achados × inspeções', c: 12, sup: true },
+    { id: 'dias', titulo: 'Gráficos por dia', c: 12, sup: true },
+    { id: 'tipo', titulo: 'Express × Regular', c: 6, sup: true },
+    { id: 'hub',  titulo: 'Achados por HUB', c: 6, sup: true }
+  ],
+  SPANS: [3, 4, 6, 8, 12]
+};
+const VST_DOW = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];
+const vstDow = iso => (new Date(iso + 'T12:00:00').getDay() + 6) % 7;
+const vstEl = id => document.querySelector('#vistasGrid > [data-vista="' + id + '"]');
+const vstChave = () => 'escalapro_vistas_v1_' + ((SESSAO && SESSAO.usuario) || 'local');
+const vstDisponivel = def => !def.sup || (ehSupervisor() && !MODO_LOCAL);
+
+function vstLer() {
+  let e = null;
+  try { e = JSON.parse(localStorage.getItem(vstChave())); } catch (x) {}
+  const ids = VST.defs.map(d => d.id);
+  const ordem = (e && Array.isArray(e.ordem) ? e.ordem.filter(i => ids.includes(i)) : []);
+  ids.forEach(i => { if (!ordem.includes(i)) ordem.push(i); });
+  return { ordem, ocultas: (e && e.ocultas) || {}, tam: (e && e.tam) || {} };
+}
+function vstGravar() { try { localStorage.setItem(vstChave(), JSON.stringify(VST.estado)); } catch (x) {} }
+
+function vistasAplicar() {
+  VST.estado = vstLer();
+  const grid = $('vistasGrid');
+  VST.estado.ordem.forEach(id => { const el = vstEl(id); if (el) grid.appendChild(el); });
+  VST.defs.forEach(def => {
+    const el = vstEl(def.id); if (!el) return;
+    const t = VST.estado.tam[def.id] || {};
+    el.style.display = vstDisponivel(def) && !VST.estado.ocultas[def.id] ? '' : 'none';
+    el.style.setProperty('--c', t.c || def.c);
+    const corpo = el.querySelector('.vista-corpo');
+    corpo.style.height = t.h ? t.h + 'px' : '';
+    corpo.style.overflow = t.h ? 'auto' : '';
+  });
+  $('vistasGrid').style.zoom = VST.apres ? VST.zoom : '';
+}
+
+function vstMover(id, delta) {
+  const o = VST.estado.ordem, i = o.indexOf(id), j = i + delta;
+  if (i < 0 || j < 0 || j >= o.length) return;
+  o.splice(i, 1); o.splice(j, 0, id);
+  vstGravar(); vistasAplicar();
+}
+
+function vstPainel() {
+  const p = $('vstPainel');
+  p.innerHTML = '<p class="font-bold text-gray-900">Vistas visíveis</p>' +
+    VST.defs.filter(vstDisponivel).map(d => `<label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" data-vst-ver="${d.id}" ${VST.estado.ocultas[d.id] ? '' : 'checked'}> ${esc(d.titulo)}</label>`).join('') +
+    '<button type="button" id="vstRestaurar" class="w-full border border-gray-300 rounded px-2 py-1.5 font-bold text-gray-700 hover:bg-gray-50">Restaurar padrão</button>';
+}
+
+function vistasEditar(on) {
+  VST.edit = on;
+  $('vistasGrid').classList.toggle('vst-edit', on);
+  $('vstBtnEditar').textContent = on ? 'Concluir edição' : 'Editar layout';
+  $('vstBtnEditar').classList.toggle('bg-kavak-blue', on);
+  $('vstBtnEditar').classList.toggle('text-white', on);
+}
+
+function vistasApresentar(on) {
+  VST.apres = on;
+  const w = $('vistasWrap');
+  w.classList.toggle('vst-apres', on);
+  document.body.style.overflow = on ? 'hidden' : '';
+  if (on) {
+    vistasEditar(false); $('vstPainel').classList.add('hidden');
+    $('vstApresPeriodo').textContent = $('inspPeriodo').textContent;
+    try { if (w.requestFullscreen) w.requestFullscreen().catch(() => {}); } catch (x) {}
+  } else if (document.fullscreenElement) {
+    try { document.exitFullscreen(); } catch (x) {}
+  }
+  vistasAplicar();
+}
+
+function vistasIniciar() {
+  if (VST.pronto) return;
+  VST.pronto = true;
+  VST.defs.forEach(def => {
+    const el = vstEl(def.id); if (!el) return;
+    const barra = document.createElement('div');
+    barra.className = 'vista-barra';
+    barra.innerHTML = `<span class="vista-alca" data-alca title="Arraste para mudar de lugar">⠿</span><b>${esc(def.titulo)}</b>
+      <span class="vista-acoes"><button type="button" data-v="sobe" title="Mover para antes">↑</button><button type="button" data-v="desce" title="Mover para depois">↓</button>
+      <button type="button" data-v="4" title="Largura 1/3">⅓</button><button type="button" data-v="6" title="Largura 1/2">½</button><button type="button" data-v="8" title="Largura 2/3">⅔</button><button type="button" data-v="12" title="Largura total">Total</button>
+      <button type="button" data-v="oculta" title="Ocultar esta vista">×</button></span>`;
+    const rz = document.createElement('div');
+    rz.className = 'vista-resize'; rz.title = 'Arraste para redimensionar (duplo clique: altura automática)';
+    el.insertBefore(barra, el.firstChild); el.appendChild(rz);
+  });
+
+  const grid = $('vistasGrid');
+  grid.addEventListener('click', e => {
+    const b = e.target.closest('[data-v]'); if (!b) return;
+    const el = b.closest('.vista'), id = el.dataset.vista, v = b.dataset.v;
+    if (v === 'sobe') return vstMover(id, -1);
+    if (v === 'desce') return vstMover(id, 1);
+    if (v === 'oculta') { VST.estado.ocultas[id] = true; vstGravar(); return vistasAplicar(); }
+    VST.estado.tam[id] = { ...(VST.estado.tam[id] || {}), c: +v }; vstGravar(); vistasAplicar();
+  });
+
+  // Arrastar: só começa pela alça (⠿)
+  grid.addEventListener('mousedown', e => { const a = e.target.closest('[data-alca]'); if (a) a.closest('.vista').draggable = true; });
+  grid.addEventListener('mouseup', () => grid.querySelectorAll('.vista[draggable="true"]').forEach(v => { v.draggable = false; }));
+  grid.addEventListener('dragstart', e => {
+    const el = e.target.closest && e.target.closest('.vista');
+    if (!el || !el.draggable) return;
+    VST.arrasta = el.dataset.vista;
+    try { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', VST.arrasta); } catch (x) {}
+  });
+  grid.addEventListener('dragover', e => {
+    if (!VST.arrasta) return;
+    e.preventDefault();
+    const alvo = e.target.closest('.vista');
+    grid.querySelectorAll('.drop-on').forEach(x => { if (x !== alvo) x.classList.remove('drop-on'); });
+    if (alvo && alvo.dataset.vista !== VST.arrasta) alvo.classList.add('drop-on');
+  });
+  grid.addEventListener('drop', e => {
+    if (!VST.arrasta) return;
+    e.preventDefault();
+    const alvo = e.target.closest('.vista');
+    if (alvo && alvo.dataset.vista !== VST.arrasta) {
+      const o = VST.estado.ordem, de = o.indexOf(VST.arrasta), para = o.indexOf(alvo.dataset.vista);
+      o.splice(de, 1); o.splice(para, 0, VST.arrasta);   // vindo de baixo cai antes do alvo; vindo de cima, depois
+      vstGravar(); vistasAplicar();
+    }
+  });
+  grid.addEventListener('dragend', () => {
+    VST.arrasta = null;
+    grid.querySelectorAll('.drop-on').forEach(x => x.classList.remove('drop-on'));
+    grid.querySelectorAll('.vista[draggable="true"]').forEach(v => { v.draggable = false; });
+  });
+
+  // Redimensionar: largura (encaixa em 1/4, 1/3, 1/2, 2/3 ou total) e altura
+  grid.addEventListener('pointerdown', e => {
+    const h = e.target.closest('.vista-resize'); if (!h) return;
+    e.preventDefault();
+    const el = h.closest('.vista'), id = el.dataset.vista, corpo = el.querySelector('.vista-corpo');
+    try { h.setPointerCapture(e.pointerId); } catch (x) {}
+    const mover = ev => {
+      const g = grid.getBoundingClientRect(), r = el.getBoundingClientRect(), z = parseFloat(grid.style.zoom) || 1;
+      const cols = Math.max(1, Math.min(12, (ev.clientX - r.left) / (g.width) * 12));
+      const c = VST.SPANS.reduce((a, b) => Math.abs(b - cols) < Math.abs(a - cols) ? b : a);
+      const alt = Math.max(120, Math.round((ev.clientY - corpo.getBoundingClientRect().top) / z));
+      VST.estado.tam[id] = { c, h: alt };
+      el.style.setProperty('--c', c); corpo.style.height = alt + 'px'; corpo.style.overflow = 'auto';
+    };
+    const soltar = () => { h.removeEventListener('pointermove', mover); h.removeEventListener('pointerup', soltar); h.removeEventListener('pointercancel', soltar); vstGravar(); };
+    h.addEventListener('pointermove', mover); h.addEventListener('pointerup', soltar); h.addEventListener('pointercancel', soltar);
+  });
+  grid.addEventListener('dblclick', e => {
+    const h = e.target.closest('.vista-resize'); if (!h) return;
+    const id = h.closest('.vista').dataset.vista;
+    VST.estado.tam[id] = { ...(VST.estado.tam[id] || {}), h: null }; vstGravar(); vistasAplicar();
+  });
+
+  $('vstBtnPainel').addEventListener('click', e => { e.stopPropagation(); vstPainel(); $('vstPainel').classList.toggle('hidden'); });
+  $('vstPainel').addEventListener('click', e => e.stopPropagation());
+  $('vstPainel').addEventListener('change', e => {
+    const c = e.target.closest('[data-vst-ver]'); if (!c) return;
+    if (c.checked) delete VST.estado.ocultas[c.dataset.vstVer]; else VST.estado.ocultas[c.dataset.vstVer] = true;
+    vstGravar(); vistasAplicar();
+  });
+  $('vstPainel').addEventListener('click', e => {
+    if (!e.target.closest('#vstRestaurar')) return;
+    VST.estado = { ordem: VST.defs.map(d => d.id), ocultas: {}, tam: {} };
+    vstGravar(); vistasAplicar(); vstPainel();
+  });
+  document.addEventListener('click', () => $('vstPainel').classList.add('hidden'));
+  $('vstBtnEditar').addEventListener('click', () => vistasEditar(!VST.edit));
+  $('vstBtnApresentar').addEventListener('click', () => vistasApresentar(true));
+  $('vstBtnSair').addEventListener('click', () => vistasApresentar(false));
+  $('vstZoomMais').addEventListener('click', () => { VST.zoom = Math.min(1.8, +(VST.zoom + 0.1).toFixed(2)); vistasAplicar(); });
+  $('vstZoomMenos').addEventListener('click', () => { VST.zoom = Math.max(0.6, +(VST.zoom - 0.1).toFixed(2)); vistasAplicar(); });
+  document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && VST.apres) vistasApresentar(false); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && VST.apres) vistasApresentar(false); });
+}
+
+// ----- Vistas novas (alimentadas pelos novos achados da Auditoria + inspeções da fila) -----
+function limparVistasExtras(msg) {
+  VST.charts.forEach(c => c.destroy()); VST.charts = [];
+  ['vstDias', 'vstTipo', 'vstHub'].forEach(id => { const b = $(id); if (b) b.innerHTML = msg ? `<p class="text-xs text-gray-500">${esc(msg)}</p>` : ''; });
+}
+
+function renderVistasExtras() {
+  VST.charts.forEach(c => c.destroy()); VST.charts = [];
+  const d = AUD.dados;
+  if (!d || !window.Chart) return;
+  const iv = d.periodo, itens = [];
+  d.inspetores.forEach(g => g.itens.forEach(it => itens.push(it)));
+  const insp = ACH.estado === 'ok' ? ACH.dados : null;
+  const card = (t, sub, corpo) => `<div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200 min-w-0"><h3 class="text-sm font-bold text-gray-900">${t}</h3><p class="text-[11px] text-gray-500 mb-4">${sub}</p>${corpo}</div>`;
+  const cv = (id, h) => `<div class="relative w-full" style="height:${h}px"><canvas id="${id}"></canvas></div>`;
+  const tt = { backgroundColor: '#111827', padding: 10, cornerRadius: 6 };
+  const pct = n => n.toFixed(1).replace('.', ',') + '%';
+
+  // 1) Gráficos por dia (pela DATA DA INSPEÇÃO)
+  const noPeriodo = itens.filter(it => it.dataInsp && it.dataInsp >= iv.inicio && it.dataInsp <= iv.fim);
+  const fora = itens.length - noPeriodo.length;
+  const porDow = [0, 0, 0, 0, 0, 0, 0], porDia = {};
+  noPeriodo.forEach(it => { porDow[vstDow(it.dataInsp)]++; porDia[it.dataInsp] = (porDia[it.dataInsp] || 0) + 1; });
+  const inspDow = insp ? insp.semana.map(x => x.inspecoes) : null;
+  const inspDia = {};
+  if (insp) insp.dias.forEach(x => { inspDia[x.iso] = x.inspecoes; });
+  const isos = [...new Set([...Object.keys(porDia), ...Object.keys(inspDia)])].sort();
+  const rot = iso => fmtData(iso).slice(0, 5) + ' (' + VST_DOW[vstDow(iso)].slice(0, 3) + ')';
+  const nota = fora ? `<p class="text-[11px] text-amber-700 mb-3">⚠️ ${fora} achado(s) são de inspeções feitas fora deste período (ou sem data da inspeção) e não entram nestes gráficos.</p>` : '';
+  $('vstDias').innerHTML = nota + `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:1.25rem">
+    ${card(insp ? 'Taxa de novos achados por dia da semana' : 'Novos achados por dia da semana',
+      insp ? 'Novos achados ÷ inspeções feitas no mesmo dia da semana (pela data da inspeção)' : 'Inspeções do período indisponíveis: mostrando só a quantidade de achados', cv('chVstSemana', 280))}
+    ${card('Novos achados × inspeções por dia', 'Barras = novos achados · linha = inspeções do dia', cv('chVstDias', 280))}</div>`;
+  const taxaDow = porDow.map((n, i) => insp && inspDow[i] ? n / inspDow[i] * 100 : 0);
+  const valDow = insp ? taxaDow.map(v => +v.toFixed(2)) : porDow;
+  const maxV = Math.max(...valDow);
+  VST.charts.push(new Chart($('chVstSemana'), {
+    type: 'bar',
+    data: { labels: VST_DOW.map(x => x.slice(0, 3)), datasets: [{ data: valDow, backgroundColor: valDow.map(v => maxV > 0 && v === maxV ? '#002a99' : '#6b93ff'), borderRadius: 5, borderSkipped: false, maxBarThickness: 40 }] },
+    options: { responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { ...tt, displayColors: false, callbacks: { label: c => insp
+        ? [`Taxa: ${pct(taxaDow[c.dataIndex])}`, `${porDow[c.dataIndex]} achados em ${inspDow[c.dataIndex]} inspeções`]
+        : [`${porDow[c.dataIndex]} achados`] } } },
+      scales: { y: { beginAtZero: true, grid: { color: '#F1F5F9' }, ticks: insp ? { callback: v => v + '%' } : { precision: 0 } }, x: { grid: { display: false } } } }
+  }));
+  const ds = [{ type: 'bar', label: 'Novos achados', data: isos.map(i => porDia[i] || 0), backgroundColor: '#E11D48', borderRadius: 4, maxBarThickness: 22, yAxisID: 'y', order: 2 }];
+  if (insp) ds.push({ type: 'line', label: 'Inspeções', data: isos.map(i => inspDia[i] || 0), borderColor: '#0047FF', backgroundColor: '#0047FF', tension: .25, pointRadius: 2, borderWidth: 2, yAxisID: 'y1', order: 1 });
+  VST.charts.push(new Chart($('chVstDias'), {
+    type: 'bar', data: { labels: isos.map(rot), datasets: ds },
+    options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { display: true, position: 'bottom' }, tooltip: tt },
+      scales: { y: { beginAtZero: true, grid: { color: '#F1F5F9' }, ticks: { precision: 0 }, title: { display: true, text: 'Novos achados' } },
+        ...(insp ? { y1: { position: 'right', beginAtZero: true, grid: { drawOnChartArea: false }, title: { display: true, text: 'Inspeções' } } } : {}),
+        x: { grid: { display: false } } } }
+  }));
+
+  // 2) Express × Regular
+  const porTipo = {};
+  itens.forEach(it => { const k = it.tipo || 'Sem tipo'; porTipo[k] = (porTipo[k] || 0) + 1; });
+  const tipos = Object.keys(porTipo).sort((a, b) => porTipo[b] - porTipo[a]);
+  const corTipo = k => k === 'Express' ? '#0047FF' : k === 'Regular' ? '#6b93ff' : k === 'Sem tipo' ? '#cbd5e1' : '#94a3b8';
+  const totT = itens.length;
+  $('vstTipo').innerHTML = card('Novos achados: Express × Regular', 'Tipo da inspeção, vindo do post “Inspeção iniciada” do Slack. “Sem tipo” = placa sem esse post.',
+    totT ? `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1rem;align-items:center">
+      ${cv('chVstTipo', 200)}
+      <table class="w-full text-xs"><tbody>${tipos.map(k => `<tr class="border-t border-gray-100"><td class="py-1.5"><span class="inline-block w-2.5 h-2.5 rounded-full mr-2" style="background:${corTipo(k)}"></span>${esc(k)}</td><td class="py-1.5 text-right font-bold text-gray-900">${porTipo[k]}</td><td class="py-1.5 text-right text-gray-500">${pct(porTipo[k] / totT * 100)}</td></tr>`).join('')}</tbody></table></div>`
+    : '<p class="text-xs text-gray-500">Nenhum novo achado no período.</p>');
+  if (totT) VST.charts.push(new Chart($('chVstTipo'), {
+    type: 'doughnut',
+    data: { labels: tipos, datasets: [{ data: tipos.map(k => porTipo[k]), backgroundColor: tipos.map(corTipo), borderWidth: 0 }] },
+    options: { responsive: true, maintainAspectRatio: false, cutout: '62%', plugins: { legend: { display: false }, tooltip: tt } }
+  }));
+
+  // 3) Por HUB
+  const porHub = {};
+  itens.forEach(it => { const k = it.hub || 'Sem HUB'; porHub[k] = (porHub[k] || 0) + 1; });
+  const hubs = Object.keys(porHub).sort((a, b) => porHub[b] - porHub[a] || a.localeCompare(b, 'pt-BR'));
+  $('vstHub').innerHTML = card('Novos achados por HUB', 'HUB onde a inspeção foi feita (coluna B da Auditoria)',
+    hubs.length ? cv('chVstHub', Math.max(200, hubs.length * 34 + 40)) : '<p class="text-xs text-gray-500">Nenhum novo achado no período.</p>');
+  if (hubs.length) VST.charts.push(new Chart($('chVstHub'), {
+    type: 'bar',
+    data: { labels: hubs, datasets: [{ data: hubs.map(k => porHub[k]), backgroundColor: hubs.map((k, i) => i === 0 ? '#002a99' : '#0047FF'), borderRadius: 5, borderSkipped: false, maxBarThickness: 22 }] },
+    options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { ...tt, displayColors: false, callbacks: { label: c => `${c.parsed.x} novos achados (${pct(c.parsed.x / itens.length * 100)})` } } },
+      scales: { x: { beginAtZero: true, grid: { color: '#F1F5F9' }, ticks: { precision: 0 } }, y: { grid: { display: false } } } }
+  }));
 }
 
 const ATIVA = 'py-3 px-4 border-b-2 text-xs font-bold flex items-center gap-2 transition whitespace-nowrap border-kavak-blue text-kavak-blue';
