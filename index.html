@@ -1719,7 +1719,23 @@ function renderAlertasVazia() {
        </div>` : '';
   const semCad = S.lojas.filter(l => !lojaTemCadastro(l));
   const notaCad = semCad.length ? `<p class="text-[11px] text-gray-500 mt-3">ℹ️ Sem funcionários cadastrados (fora dos alertas): ${semCad.map(esc).join(', ')}</p>` : '';
-  el.innerHTML = feriadoBannerHtml(iso, rotulo) + topo + chips + proxFeriadosHtml(iso) + notaCad;
+  el.innerHTML = feriadoBannerHtml(iso, rotulo) + avisosDoDiaHtml(iso) + topo + chips + proxFeriadosHtml(iso) + notaCad;
+}
+
+// Avisos do quadro que foram marcados com DIA: aparecem também na timeline e no painel do dia
+function avisosDoDia(iso) {
+  const ordem = { urgente: 0, importante: 1, info: 2 };
+  return (S.quadro || []).filter(a => a.dia === iso).sort((a, b) => (ordem[a.tipo] ?? 3) - (ordem[b.tipo] ?? 3));
+}
+function avisosDoDiaHtml(iso) {
+  const lista = avisosDoDia(iso);
+  if (!lista.length) return '';
+  return lista.map(a => {
+    const t = TIPOS_AVISO[a.tipo] || TIPOS_AVISO.info;
+    return `<div class="border ${t.cls} rounded-md p-3 text-xs shadow-sm mb-3">
+      <div class="font-bold mb-1">${t.ic} Aviso · ${t.rot}</div>
+      <div class="whitespace-pre-wrap break-words">${esc(a.texto)}</div></div>`;
+  }).join('');
 }
 
 // ---------- Quadro de avisos do mês ----------
@@ -1951,8 +1967,33 @@ function novoAviso() {
         let dia = $('avDia').value;
         if (dia && dia.slice(0, 7) !== mes) dia = '';
         snapshot('novo aviso');
-        S.quadro.push({ id: Date.now(), mes, dia, tipo: $('avTipo').value, texto: texto.slice(0, 400) });
+        const novo = { id: Date.now(), mes, dia, tipo: $('avTipo').value, texto: texto.slice(0, 400) };
+        S.quadro.push(novo);
         fechar(); atualizarTudo(); toast('Aviso publicado!');
+        perguntarTelegramAviso(novo);
+      } }
+  ]);
+}
+
+// Depois de publicar: confirma se manda o mesmo aviso no Telegram
+function perguntarTelegramAviso(av) {
+  if (MODO_LOCAL) return;                         // sem servidor não há como enviar
+  const t = TIPOS_AVISO[av.tipo] || TIPOS_AVISO.info;
+  const msg = `${t.ic} AVISO ${t.rot.toUpperCase()}${av.dia ? ' · ' + fmtDiaSemana(av.dia) : ''}\n\n${av.texto}`;
+  modal('Enviar também no Telegram?', `
+    <p class="mb-2">O aviso já está no site. Quer mandar uma cópia no Telegram?</p>
+    <div class="border ${t.cls} rounded-md p-3 text-xs whitespace-pre-wrap break-words">${esc(msg)}</div>`, [
+    { txt: 'Não, só no site', cls: BTN_CANCELA },
+    { txt: '📨 Enviar no Telegram', cls: 'btn-kavak text-white', fecha: false, fn: async () => {
+        toast('Enviando no Telegram…');
+        let r;
+        try { r = await api('avisoTelegram', { texto: msg }); } catch (e) { if (e && e.sessaoExpirada) return; r = { erro: 'rede' }; }
+        fechar();
+        if (r && r.ok) { toast('Aviso enviado no Telegram!'); return; }
+        const m = { telegram_config: 'Falta configurar o Telegram no Apps Script (TELEGRAM_TOKEN e TELEGRAM_CHAT_AVISOS).',
+          acao_desconhecida: 'O Apps Script ainda não tem a ação do Telegram. Cole o AvisoTelegram.gs, troque a rotear_ e publique nova versão.',
+          permissao: 'Só o supervisor pode enviar no Telegram.' };
+        toast('Não consegui enviar: ' + (m[r && r.erro] || (r && r.detalhe) || 'tente de novo em instantes.'));
       } }
   ]);
 }
@@ -2057,6 +2098,8 @@ function renderTimeline() {
     const sel = iso === dataSelecionada;
     const cobDia = coberturaEm(iso), nVaz = cobDia.length, nSem = cobDia.filter(c => !c.por).length;
     const fer = resumoFeriado(iso);
+    const avs = avisosDoDia(iso);
+    const avTitulo = avs.map(a => (TIPOS_AVISO[a.tipo] || TIPOS_AVISO.info).ic + ' ' + a.texto).join('\n');
 
     if (cur.getMonth() !== mesAnt) {
       mesAnt = cur.getMonth();
@@ -2069,6 +2112,7 @@ function renderTimeline() {
       <div class="text-xs font-bold mt-0.5">${dateStr}</div>
       ${nVaz ? `<div class="text-[10px] font-bold mt-0.5 ${sel ? 'text-white' : (nSem ? 'text-rose-600' : 'text-amber-600')}">${nSem ? '⛔' : '🔴'} ${nVaz}</div>` : '<div class="text-[10px] mt-0.5">&nbsp;</div>'}
       ${fer ? `<div title="${esc(nomesFeriado(fer))}" class="text-[9px] font-bold mt-0.5 ${sel ? 'text-violet-100' : 'text-violet-600'}">🎌 ${esc(rotuloFeriadoCurto(fer))}</div>` : '<div class="text-[9px] mt-0.5">&nbsp;</div>'}
+      ${avs.length ? `<div title="${esc(avTitulo)}" class="text-[9px] font-bold mt-0.5 ${sel ? 'text-sky-100' : 'text-sky-700'}">${avs.some(a => a.tipo === 'urgente') ? '🚨' : avs.some(a => a.tipo === 'importante') ? '⚠️' : '📌'} ${avs.length > 1 ? avs.length + ' avisos' : 'aviso'}</div>` : '<div class="text-[9px] mt-0.5">&nbsp;</div>'}
     </button>`;
   }
   container.innerHTML = html;
