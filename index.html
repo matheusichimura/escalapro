@@ -1613,6 +1613,7 @@ function renderLojas() {
         <span class="font-bold text-gray-900">📍 ${esc(l)} <span class="text-gray-400 font-normal">· ${fs.length}</span></span>
         <div class="flex items-center gap-2">
           <button data-act="domingo" data-loja="${esc(l)}" title="Esta loja abre aos domingos?" class="px-2 py-0.5 rounded border font-bold ${dom ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-gray-100 border-gray-300 text-gray-500'}">Domingo: ${dom ? 'Sim' : 'Não'}</button>
+          <button data-act="renL" data-loja="${esc(l)}" title="Mudar o nome desta loja" class="text-gray-500 hover:text-gray-800 font-bold">Renomear</button>
           <button data-act="delL" data-loja="${esc(l)}" class="text-rose-500 hover:text-rose-700 font-bold">Remover</button>
         </div>
       </div>
@@ -2491,6 +2492,31 @@ document.addEventListener('click', e => {
       atualizarTudo();
       toast('Funcionário removido! (dá para desfazer)');
     });
+  } else if (act === 'renL') {
+    const velho = btn.dataset.loja;
+    modal('Renomear loja', `
+      <p class="mb-2">Todas as pessoas, dias avulsos e o "Domingo" desta loja continuam valendo com o nome novo.</p>
+      <label class="text-[11px] font-bold text-gray-700">Novo nome
+        <input id="renLojaNome" type="text" maxlength="60" value="${esc(velho)}" class="mt-1 w-full border border-gray-300 rounded px-2 py-2 text-xs font-normal"></label>`, [
+      { txt: 'Cancelar', cls: BTN_CANCELA },
+      { txt: 'Salvar nome', cls: 'btn-kavak text-white', fecha: false, fn: () => {
+          const novo = $('renLojaNome').value.trim().replace(/\s+/g, ' ');
+          if (!novo) return toast('Digite o nome da loja');
+          if (novo === velho) return fechar();
+          if (S.lojas.some(l => l !== velho && l.toLowerCase() === novo.toLowerCase())) return toast('Já existe uma loja com esse nome');
+          snapshot('renomear loja');
+          S.lojas = S.lojas.map(l => l === velho ? novo : l);
+          S.funcs.forEach(f => {
+            if (f.loja === velho) f.loja = novo;
+            if (f.lojaDia) Object.keys(f.lojaDia).forEach(k => { if (f.lojaDia[k] === velho) f.lojaDia[k] = novo; });
+          });
+          if (S.lojasInfo[velho]) { S.lojasInfo[novo] = S.lojasInfo[velho]; delete S.lojasInfo[velho]; }
+          fechar();
+          atualizarTudo();
+          toast(`Loja renomeada para ${novo}! (dá para desfazer)`);
+        } }
+    ]);
+    setTimeout(() => { const i = $('renLojaNome'); if (i) { i.focus(); i.select(); } }, 50);
   } else if (act === 'delL') {
     const loja = btn.dataset.loja;
     confirmar('Remover Loja', `Deseja remover a loja ${esc(loja)}? Os funcionários ficarão sem loja atribuída (volantes).`, 'Remover', () => {
