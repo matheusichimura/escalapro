@@ -1527,6 +1527,12 @@ function renderAchadosAud() {
         <th class="text-left py-2 px-3">Inspetor</th><th class="text-right py-2 px-3">Inspeções</th><th class="text-right py-2 px-3">Alinhar Inspetor</th><th class="text-right py-2 px-3">Alinhar Resguardo</th><th class="text-right py-2 px-3">Novos achados</th><th class="text-right py-2 px-3">Taxa</th></tr></thead>
         <tbody id="audTbody">${linhas || '<tr><td colspan="6" class="py-4 px-3 text-gray-500">Nenhum dado no período.</td></tr>'}</tbody></table></div>
     </div>
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-5">
+      <h3 class="text-base font-bold text-gray-900">Achados por item (N.A)</h3>
+      <p class="text-xs text-gray-500 mb-1">Quais itens mais aparecem nos novos achados. Segue os filtros da lista abaixo (inspetor, alinhamento e tipo). Clique numa barra para ver só aquele item na lista.</p>
+      <p id="audGrafInfo" class="text-[11px] text-gray-400 mb-3"></p>
+      <div id="audGrafBox" class="relative w-full" style="height:300px"><canvas id="chAudItens"></canvas></div>
+    </div>
     <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
       <div class="p-5 pb-3">
         <h3 class="text-base font-bold text-gray-900">Lista de todos os novos achados</h3>
@@ -1555,13 +1561,41 @@ function renderAchadosAud() {
 
 // Lista geral de novos achados (todas as linhas, com filtros e CSV)
 const AUDL = { q: '', insp: '', alin: '', tipo: '' };
-function audItensFiltrados() {
-  const q = AUDL.q.trim().toUpperCase();
+function audItensFiltrados(semBusca) {
+  const q = semBusca ? '' : AUDL.q.trim().toUpperCase();
   const out = [];
   ((AUD.dados && AUD.dados.inspetores) || []).forEach(g => g.itens.forEach(it => out.push({ ...it, inspetor: g.nome })));
   out.sort((a, b) => a.dataPos < b.dataPos ? 1 : a.dataPos > b.dataPos ? -1 : (a.placa < b.placa ? -1 : 1));
   return out.filter(it => (!AUDL.insp || it.inspetor === AUDL.insp) && (!AUDL.alin || it.alin === AUDL.alin) && (!AUDL.tipo || it.tipo === AUDL.tipo)
     && (!q || String(it.placa).toUpperCase().includes(q) || String(it.peca).toUpperCase().includes(q)));
+}
+function audGrafDesenhar() {
+  const box = $('audGrafBox'); if (!box) return;
+  if (AUDL.chart) { AUDL.chart.destroy(); AUDL.chart = null; }
+  if (!window.Chart) { $('audGrafInfo').textContent = 'Gráfico indisponível (biblioteca não carregou).'; return; }
+  const itens = audItensFiltrados(true), mapa = {};
+  itens.forEach(it => {
+    const k = String(it.peca || '').trim().toUpperCase() || '(SEM ITEM)';
+    const x = mapa[k] = mapa[k] || { nome: k, inspetor: 0, resguardo: 0, total: 0 };
+    x[it.alin === 'resguardo' ? 'resguardo' : 'inspetor']++; x.total++;
+  });
+  const todos = Object.values(mapa).sort((a, b) => b.total - a.total || a.nome.localeCompare(b.nome, 'pt-BR'));
+  const top = todos.slice(0, 15);
+  $('audGrafInfo').textContent = todos.length ? `${itens.length} achados em ${todos.length} itens diferentes${todos.length > 15 ? ' · mostrando os 15 mais frequentes' : ''}.` : 'Nenhum achado com esses filtros.';
+  box.style.height = Math.max(160, top.length * 30 + 70) + 'px';
+  if (!top.length) return;
+  AUDL.top = top;
+  AUDL.chart = new Chart($('chAudItens'), {
+    type: 'bar',
+    data: { labels: top.map(x => x.nome), datasets: [
+      { label: 'Alinhar Inspetor', data: top.map(x => x.inspetor), backgroundColor: '#0047FF', borderRadius: 3, stack: 's' },
+      { label: 'Alinhar Resguardo', data: top.map(x => x.resguardo), backgroundColor: '#F59E0B', borderRadius: 3, stack: 's' } ] },
+    options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      onClick: (e, els) => { if (!els.length) return; AUDL.q = AUDL.top[els[0].index].nome; if ($('audLq')) $('audLq').value = AUDL.q; audListaDesenhar(); const t = $('audLtbody'); if (t) t.scrollIntoView({ behavior: 'smooth', block: 'center' }); },
+      onHover: (e, els) => { e.native.target.style.cursor = els.length ? 'pointer' : 'default'; },
+      plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, usePointStyle: true } }, tooltip: { backgroundColor: '#111827', padding: 10, cornerRadius: 6, callbacks: { footer: it => 'Total: ' + AUDL.top[it[0].dataIndex].total } } },
+      scales: { x: { stacked: true, beginAtZero: true, ticks: { precision: 0 }, grid: { color: '#F1F5F9' } }, y: { stacked: true, grid: { display: false }, ticks: { color: '#334155', font: { size: 11 } } } } }
+  });
 }
 function audListaDesenhar() {
   const tb = $('audLtbody'); if (!tb) return;
@@ -1585,9 +1619,9 @@ function audListaLigar() {
   $('audLq').value = AUDL.q; $('audLinsp').value = AUDL.insp; $('audLalin').value = AUDL.alin; $('audLtipo').value = AUDL.tipo;
   if ($('audLinsp').value !== AUDL.insp) { AUDL.insp = ''; $('audLinsp').value = ''; }
   $('audLq').oninput = e => { AUDL.q = e.target.value; audListaDesenhar(); };
-  $('audLinsp').onchange = e => { AUDL.insp = e.target.value; audListaDesenhar(); };
-  $('audLalin').onchange = e => { AUDL.alin = e.target.value; audListaDesenhar(); };
-  $('audLtipo').onchange = e => { AUDL.tipo = e.target.value; audListaDesenhar(); };
+  $('audLinsp').onchange = e => { AUDL.insp = e.target.value; audListaDesenhar(); audGrafDesenhar(); };
+  $('audLalin').onchange = e => { AUDL.alin = e.target.value; audListaDesenhar(); audGrafDesenhar(); };
+  $('audLtipo').onchange = e => { AUDL.tipo = e.target.value; audListaDesenhar(); audGrafDesenhar(); };
   $('audLcsv').onclick = () => {
     const l = audItensFiltrados();
     const c = v => '"' + String(v === undefined || v === null ? '' : v).replace(/"/g, '""') + '"';
@@ -1598,6 +1632,7 @@ function audListaLigar() {
     a.download = 'novos-achados.csv'; document.body.appendChild(a); a.click(); a.remove();
   };
   audListaDesenhar();
+  audGrafDesenhar();
 }
 
 function abrirAchadosInspetor(g, periodo) {
