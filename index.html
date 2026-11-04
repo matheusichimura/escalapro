@@ -1536,9 +1536,9 @@ function renderAchadosAud() {
     <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
       <div class="p-5 pb-3">
         <h3 class="text-base font-bold text-gray-900">Lista de todos os novos achados</h3>
-        <p class="text-xs text-gray-500">Uma linha por item apontado na Auditoria (coluna N.A), do mais recente para o mais antigo.</p>
+        <p class="text-xs text-gray-500">Uma linha por item apontado na Auditoria (coluna N.A), do mais recente para o mais antigo. Busca também pelo número do ticket.</p>
         <div class="flex flex-wrap items-center gap-2 mt-3 nao-imprimir">
-          <input id="audLq" type="search" placeholder="Buscar placa ou item…" aria-label="Buscar placa ou item" class="border border-gray-300 rounded px-3 py-2 text-xs w-52">
+          <input id="audLq" type="search" placeholder="Buscar placa, item ou ticket…" aria-label="Buscar placa, item ou ticket" class="border border-gray-300 rounded px-3 py-2 text-xs w-52">
           <select id="audLinsp" aria-label="Inspetor" class="border border-gray-300 rounded px-2 py-2 text-xs"><option value="">Todos os inspetores</option>${(AUD.dados.inspetores || []).map(g => `<option value="${esc(g.nome)}">${esc(g.nome)}</option>`).join('')}</select>
           <select id="audLalin" aria-label="Alinhamento" class="border border-gray-300 rounded px-2 py-2 text-xs"><option value="">Inspetor e Resguardo</option><option value="inspetor">Só Alinhar Inspetor</option><option value="resguardo">Só Alinhar Resguardo</option></select>
           <select id="audLtipo" aria-label="Tipo de inspeção" class="border border-gray-300 rounded px-2 py-2 text-xs"><option value="">Express e Regular</option><option value="Express">Só Express</option><option value="Regular">Só Regular</option></select>
@@ -1547,7 +1547,7 @@ function renderAchadosAud() {
         </div>
       </div>
       <div class="overflow-auto max-h-[32rem]"><table class="w-full text-xs"><thead class="bg-gray-50 text-gray-500 sticky top-0"><tr>
-        <th class="text-left py-2 px-3">Data do achado</th><th class="text-left py-2 px-3">Data da inspeção</th><th class="text-left py-2 px-3">Placa</th><th class="text-left py-2 px-3">Inspetor</th><th class="text-left py-2 px-3">Alinhamento</th><th class="text-left py-2 px-3">Tipo</th><th class="text-left py-2 px-3">Item (N.A)</th><th class="text-left py-2 px-3">HUB</th><th class="text-left py-2 px-3">+7 carros?</th><th class="text-left py-2 px-3">Dia</th></tr></thead>
+        <th class="text-left py-2 px-3">Data do achado</th><th class="text-left py-2 px-3">Data da inspeção</th><th class="text-left py-2 px-3">Placa</th><th class="text-left py-2 px-3">Inspetor</th><th class="text-left py-2 px-3">Alinhamento</th><th class="text-left py-2 px-3">Tipo</th><th class="text-left py-2 px-3">Item (N.A)</th><th class="text-left py-2 px-3">Ticket</th><th class="text-left py-2 px-3">HUB</th><th class="text-left py-2 px-3">+7 carros?</th><th class="text-left py-2 px-3">Dia</th></tr></thead>
         <tbody id="audLtbody"></tbody></table></div>
     </div></div>`;
   audListaLigar();
@@ -1559,6 +1559,12 @@ function renderAchadosAud() {
   renderVistasExtras();
 }
 
+// Ticket do ControlTower: texto clicável (abre o link da célula da Auditoria)
+const ticketHtml = it => {
+  const t = String(it.ticket || '').trim(), u = String(it.ticketUrl || '');
+  if (!t && !u) return '–';
+  return /^https?:\/\//i.test(u) ? `<a href="${esc(u)}" target="_blank" rel="noopener" class="text-kavak-blue underline font-semibold hover:opacity-80">${esc(t || 'Abrir ticket')}</a>` : esc(t);
+};
 // Lista geral de novos achados (todas as linhas, com filtros e CSV)
 const AUDL = { q: '', insp: '', alin: '', tipo: '' };
 function audItensFiltrados(semBusca) {
@@ -1567,7 +1573,7 @@ function audItensFiltrados(semBusca) {
   ((AUD.dados && AUD.dados.inspetores) || []).forEach(g => g.itens.forEach(it => out.push({ ...it, inspetor: g.nome })));
   out.sort((a, b) => a.dataPos < b.dataPos ? 1 : a.dataPos > b.dataPos ? -1 : (a.placa < b.placa ? -1 : 1));
   return out.filter(it => (!AUDL.insp || it.inspetor === AUDL.insp) && (!AUDL.alin || it.alin === AUDL.alin) && (!AUDL.tipo || it.tipo === AUDL.tipo)
-    && (!q || String(it.placa).toUpperCase().includes(q) || String(it.peca).toUpperCase().includes(q)));
+    && (!q || String(it.placa).toUpperCase().includes(q) || String(it.peca).toUpperCase().includes(q) || String(it.ticket || '').toUpperCase().includes(q)));
 }
 function audGrafDesenhar() {
   const box = $('audGrafBox'); if (!box) return;
@@ -1609,10 +1615,11 @@ function audListaDesenhar() {
     <td class="py-1.5 px-3 whitespace-nowrap"><span class="px-2 py-0.5 rounded-full text-[11px] font-bold ${it.alin === 'resguardo' ? 'bg-amber-50 text-amber-700' : 'bg-blue-50 text-kavak-blue'}">${it.alin === 'resguardo' ? 'Resguardo' : 'Inspetor'}</span></td>
     <td class="py-1.5 px-3 whitespace-nowrap ${it.tipo === 'Express' ? 'text-sky-700 font-semibold' : 'text-gray-700'}">${esc(it.tipo || '–')}</td>
     <td class="py-1.5 px-3 text-gray-800">${esc(it.peca || '–')}</td>
+    <td class="py-1.5 px-3 whitespace-nowrap">${ticketHtml(it)}</td>
     <td class="py-1.5 px-3 whitespace-nowrap text-gray-700">${esc(it.hub || '–')}</td>
     <td class="py-1.5 px-3 whitespace-nowrap ${it.mais7 === 'Sim' ? 'text-rose-600 font-bold' : 'text-gray-500'}">${esc(it.mais7 || '–')}</td>
     <td class="py-1.5 px-3 whitespace-nowrap ${it.dia === 'Sábado' ? 'text-amber-700 font-bold' : 'text-gray-700'}">${esc(it.dia || '–')}</td></tr>`).join('')
-    : '<tr><td colspan="10" class="py-4 px-3 text-gray-500">Nenhum achado com esses filtros.</td></tr>';
+    : '<tr><td colspan="11" class="py-4 px-3 text-gray-500">Nenhum achado com esses filtros.</td></tr>';
 }
 function audListaLigar() {
   if (!$('audLq')) return;
@@ -1625,8 +1632,8 @@ function audListaLigar() {
   $('audLcsv').onclick = () => {
     const l = audItensFiltrados();
     const c = v => '"' + String(v === undefined || v === null ? '' : v).replace(/"/g, '""') + '"';
-    const linhas = [['Data do achado', 'Data da inspeção', 'Placa', 'Inspetor', 'Alinhamento', 'Tipo', 'Item (N.A)', 'HUB', 'Mais de 7 carros', 'Dia'].map(c).join(';')]
-      .concat(l.map(it => [fmtData(it.dataPos), fmtData(it.dataInsp), it.placa, it.inspetor, it.alin === 'resguardo' ? 'Resguardo' : 'Inspetor', it.tipo, it.peca, it.hub, it.mais7, it.dia].map(c).join(';')));
+    const linhas = [['Data do achado', 'Data da inspeção', 'Placa', 'Inspetor', 'Alinhamento', 'Tipo', 'Item (N.A)', 'Ticket', 'Link do ticket', 'HUB', 'Mais de 7 carros', 'Dia'].map(c).join(';')]
+      .concat(l.map(it => [fmtData(it.dataPos), fmtData(it.dataInsp), it.placa, it.inspetor, it.alin === 'resguardo' ? 'Resguardo' : 'Inspetor', it.tipo, it.peca, it.ticket, it.ticketUrl, it.hub, it.mais7, it.dia].map(c).join(';')));
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob(['\ufeff' + linhas.join('\r\n')], { type: 'text/csv;charset=utf-8' }));
     a.download = 'novos-achados.csv'; document.body.appendChild(a); a.click(); a.remove();
@@ -1645,6 +1652,7 @@ function abrirAchadosInspetor(g, periodo) {
       <td class="py-1.5 pr-3 font-mono font-bold text-gray-900 whitespace-nowrap">${esc(it.placa || '–')}</td>
       <td class="py-1.5 pr-3 whitespace-nowrap ${it.tipo === 'Express' ? 'text-sky-700 font-semibold' : 'text-gray-700'}">${esc(it.tipo || '–')}</td>
       <td class="py-1.5 pr-3 text-gray-700">${esc(it.peca || '–')}</td>
+      <td class="py-1.5 pr-3 whitespace-nowrap">${ticketHtml(it)}</td>
       <td class="py-1.5 pr-3 whitespace-nowrap ${it.mais7 === 'Sim' ? 'text-rose-600 font-bold' : 'text-gray-500'}">${esc(it.mais7 || '–')}</td>
       <td class="py-1.5 whitespace-nowrap ${it.dia === 'Sábado' ? 'text-amber-700 font-bold' : 'text-gray-700'}">${esc(it.dia || '–')}</td></tr>`).join('');
   const m = document.createElement('div');
@@ -1657,8 +1665,8 @@ function abrirAchadosInspetor(g, periodo) {
         <button type="button" class="text-gray-400 hover:text-gray-700 text-xl leading-none px-2" data-fechar>×</button>
       </div>
       <div class="p-4 overflow-auto"><table class="w-full text-xs"><thead class="text-gray-500 text-left"><tr>
-        <th class="pb-2 pr-3">HUB</th><th class="pb-2 pr-3">Data pós</th><th class="pb-2 pr-3">Data inspeção</th><th class="pb-2 pr-3">Placa</th><th class="pb-2 pr-3">Tipo</th><th class="pb-2 pr-3">N.A</th><th class="pb-2 pr-3">Mais de 7 carros?</th><th class="pb-2">Dia</th></tr></thead>
-        <tbody>${linhas || '<tr><td colspan="8" class="py-3 text-gray-500">Nenhum achado.</td></tr>'}</tbody></table></div>
+        <th class="pb-2 pr-3">HUB</th><th class="pb-2 pr-3">Data pós</th><th class="pb-2 pr-3">Data inspeção</th><th class="pb-2 pr-3">Placa</th><th class="pb-2 pr-3">Tipo</th><th class="pb-2 pr-3">N.A</th><th class="pb-2 pr-3">Ticket</th><th class="pb-2 pr-3">Mais de 7 carros?</th><th class="pb-2">Dia</th></tr></thead>
+        <tbody>${linhas || '<tr><td colspan="9" class="py-3 text-gray-500">Nenhum achado.</td></tr>'}</tbody></table></div>
     </div>`;
   m.addEventListener('click', e => { if (e.target === m || e.target.hasAttribute('data-fechar')) m.remove(); });
   document.addEventListener('keydown', function fechaEsc(e) { if (e.key === 'Escape') { m.remove(); document.removeEventListener('keydown', fechaEsc); } });
