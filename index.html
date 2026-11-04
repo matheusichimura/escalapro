@@ -1240,7 +1240,7 @@ async function carregarCompras(iv) {
   if (seq !== CMP.seq) return;
   if (!r || r.erro || !Array.isArray(r.canais)) {
     const m = { acao_desconhecida: 'O Apps Script ainda não tem a ação <b>comprasInsp</b>. Cole o ComprasInsp.gs, troque a rotear_ e publique uma nova versão.',
-      compras_aba: 'Falta a aba <b>Histórico Compras</b> na planilha da fila. No projeto do Canais Lojas, rode <b>ativarHistoricoCompras</b>.' };
+      compras_aba: 'Falta a BD na aba <b>Compras</b> da planilha Base do Site Escalapro (cabeçalho na linha 1).' };
     box.innerHTML = `<div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-4 text-xs">Não foi possível carregar as compras. ${m[r && r.erro] || 'Tente atualizar em instantes.'}</div>`;
     return;
   }
@@ -1253,11 +1253,12 @@ function renderCompras(d) {
   CMP.charts.forEach(c => c.destroy()); CMP.charts = [];
   const lojas = d.canais.filter(c => c.grupo === 'loja');
   const soma = (a, k) => a.reduce((s, x) => s + (x[k] || 0), 0);
-  const insp = soma(lojas, 'inspecoes'), agend = soma(lojas, 'agendados'), comp = soma(lojas, 'compras');
+  const insp = soma(lojas, 'inspecoes'), comp = soma(lojas, 'compras');
+  const fora = soma(d.canais.filter(c => c.grupo !== 'loja'), 'compras');
 
   let aviso = '';
-  if (!d.histInicio) aviso = 'Ainda não há compras salvas no histórico. Cole o relatório do Salesforce na aba <b>Compras</b> (ou rode <b>salvarComprasNoHistorico</b> no Apps Script). Se acabou de salvar, espere 2 minutos e recarregue.';
-  else if (d.periodo && d.histInicio > d.periodo.inicio) aviso = `O histórico de compras começa em <b>${fmtData(d.histInicio)}</b>. Os dias antes disso não têm compras salvas, então a conversão do período pode aparecer mais baixa do que é.`;
+  if (!d.histInicio) aviso = 'Ainda não há compras salvas no histórico. Cole a BD de inspeções na aba <b>Compras</b> da planilha Base do Site Escalapro e recarregue em 2 minutos.';
+  else if (d.periodo && d.histInicio > d.periodo.inicio) aviso = `A BD de compras começa em <b>${fmtData(d.histInicio)}</b>. Os dias antes disso não têm compras salvas, então a conversão do período pode aparecer mais baixa do que é.`;
 
   const kpi = (t, n, sub) => `<div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
     <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">${esc(t)}</p>
@@ -1267,20 +1268,19 @@ function renderCompras(d) {
   const linhas = d.canais.map(c => `<tr class="border-t border-gray-100">
       <td class="py-2 pr-3 font-semibold text-gray-800">${esc(c.nome)}</td>
       <td class="py-2 px-3 text-right">${c.inspecoes}</td>
-      <td class="py-2 px-3 text-right">${c.agendados}</td>
       <td class="py-2 px-3 text-right font-bold text-green-700">${c.compras}</td>
-      <td class="py-2 pl-3 text-right font-bold text-kavak-blue">${c.grupo === 'b2b' ? '—' : cmpPct(c.compras, c.inspecoes)}</td></tr>`).join('');
+      <td class="py-2 pl-3 text-right font-bold text-kavak-blue">${c.grupo !== 'loja' ? '—' : cmpPct(c.compras, c.inspecoes)}</td></tr>`).join('');
 
   $('cmpConteudo').innerHTML = `<div class="space-y-5">
     <div>
       <h2 class="text-lg font-bold text-gray-900">Inspeções x Compras</h2>
-      <p class="text-xs text-gray-500">Inspeções (Slack) contra carros com fase Comprado no Salesforce, por loja.</p>
+      <p class="text-xs text-gray-500">Inspeções (Slack) contra carros comprados (BD de inspeções), por loja.</p>
     </div>
     ${aviso ? `<div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-3 text-xs">${aviso}</div>` : ''}
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
       ${kpi('Inspeções (lojas físicas)', insp, 'carros que chegaram nas lojas')}
-      ${kpi('Agendados no Salesforce', agend, 'inspeções com agendamento')}
-      ${kpi('Comprados', comp, 'fase Comprado no Salesforce')}
+      ${kpi('Comprados fora das lojas', fora, 'online, B2B e outros locais')}
+      ${kpi('Comprados (lojas)', comp, 'flg_purchased = TRUE, placas únicas')}
       ${kpi('Conversão', cmpPct(comp, insp), 'comprados ÷ inspeções')}
     </div>
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
@@ -1295,15 +1295,15 @@ function renderCompras(d) {
         <table class="w-full text-xs">
           <thead><tr class="text-[11px] text-gray-400 uppercase tracking-wider">
             <th class="text-left font-bold pb-2">Loja</th><th class="text-right font-bold pb-2 px-3">Insp.</th>
-            <th class="text-right font-bold pb-2 px-3">Agend.</th><th class="text-right font-bold pb-2 px-3">Comp.</th>
+            <th class="text-right font-bold pb-2 px-3">Comp.</th>
             <th class="text-right font-bold pb-2 pl-3">Conv.</th></tr></thead>
           <tbody>${linhas}</tbody>
           <tfoot><tr class="border-t-2 border-gray-200 font-extrabold text-gray-900">
             <td class="pt-2">Total</td><td class="pt-2 px-3 text-right">${d.totais.inspecoes}</td>
-            <td class="pt-2 px-3 text-right">${d.totais.agendados}</td><td class="pt-2 px-3 text-right text-green-700">${d.totais.compras}</td>
-            <td class="pt-2 pl-3 text-right text-kavak-blue">${cmpPct(d.totais.compras, d.totais.inspecoes)}</td></tr></tfoot>
+            <td class="pt-2 px-3 text-right text-green-700">${d.totais.compras}</td>
+            <td class="pt-2 pl-3 text-right text-kavak-blue">${cmpPct(comp, insp)}</td></tr></tfoot>
         </table>
-        <p class="text-[11px] text-gray-400 mt-3">Carros que chegam sem agendamento (encaixes) podem não aparecer no Salesforce. Por isso a conversão real pode ser maior que a mostrada.</p>
+        <p class="text-[11px] text-gray-400 mt-3">Compras contadas pela data da inspeção, uma vez por placa. A conversão considera só as lojas.</p>
       </div>
     </div>
   </div>`;
