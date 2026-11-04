@@ -40,6 +40,13 @@ button:disabled{cursor:not-allowed}
   .col-nome{position:static!important}
   *{-webkit-print-color-adjust:exact;print-color-adjust:exact;box-shadow:none!important}
   @page{size:landscape;margin:10mm}
+  /* PDF da aba Inspeções */
+  body.pdf-insp #aba-escala{display:none!important}
+  body.pdf-insp #aba-inspecoes{display:block!important}
+  body.pdf-insp #vistasGrid{display:block!important}
+  body.pdf-insp .vista{break-inside:avoid;page-break-inside:avoid;margin-bottom:14px}
+  body.pdf-insp .vista:not(:first-child){break-before:page;page-break-before:always}
+  body.pdf-insp .overflow-auto,body.pdf-insp .overflow-x-auto{overflow:visible!important;max-height:none!important}
 }
 .btn-desfazer:disabled{opacity:.4}
 /* Vistas personalizáveis (aba Inspeções) */
@@ -76,6 +83,7 @@ button:disabled{cursor:not-allowed}
 .text-kavak-blue { color: #0047FF; }
 .bg-kavak-blue { background-color: #0047FF; }
 .border-kavak-blue { border-color: #0047FF; }
+  .sec-h{font-size:1.25rem;line-height:1.75rem;font-weight:800;color:#111827;border-left:4px solid #0047FF;padding-left:.75rem}
 </style>
 </head>
 <body class="font-sans min-h-screen flex flex-col">
@@ -271,14 +279,17 @@ button:disabled{cursor:not-allowed}
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div>
         <h2 class="text-lg font-bold text-gray-900">Dashboard Executivo de Inspeções</h2>
-        <p id="inspPeriodo" class="text-xs text-gray-500"></p>
+        <p id="inspPeriodo" class="text-sm font-semibold text-kavak-blue"></p>
       </div>
-      <div class="flex flex-wrap items-center gap-2">
+      <div class="flex flex-wrap items-center gap-2 nao-imprimir">
+        <label for="inspFiltro" class="text-xs font-bold text-gray-500 uppercase tracking-wider">Período</label>
         <select id="inspFiltro" aria-label="Período" class="border border-gray-300 rounded px-2 py-2 text-xs font-bold text-gray-700">
           <option value="hoje">Hoje</option>
           <option value="ontem">Ontem</option>
-          <option value="semana" selected>Esta semana</option>
+          <option value="semana" selected>Esta semana (seg até hoje)</option>
           <option value="semana_passada">Semana passada</option>
+          <option value="ultimos7">Últimos 7 dias</option>
+          <option value="ultimos30">Últimos 30 dias</option>
           <option value="mes">Este mês</option>
           <option value="mes_passado">Mês passado</option>
           <option value="dois_meses">Mês passado + este mês</option>
@@ -292,17 +303,19 @@ button:disabled{cursor:not-allowed}
           <input type="date" id="inspAte" aria-label="Até" class="border border-gray-300 rounded px-2 py-1.5 text-xs">
         </span>
         <span id="inspFonte" class="text-[11px] font-bold rounded px-2 py-1 hidden"></span>
-        <button id="inspAtualizar" class="bg-white border border-gray-300 text-gray-700 px-3 py-2 rounded-md text-xs font-bold shadow-sm hover:bg-gray-50">Atualizar</button>
+        <button id="inspAtualizar" class="bg-white border border-gray-300 text-gray-700 px-3 py-2 rounded-md text-xs font-bold shadow-sm hover:bg-gray-50">↻ Atualizar dados</button>
       </div>
     </div>
     <div id="vistasWrap">
       <div class="flex flex-wrap items-center justify-end gap-2 mb-4 nao-imprimir">
+        <span class="vst-nao-apres text-xs font-bold text-gray-500 uppercase tracking-wider mr-1">Tela</span>
         <div class="relative vst-nao-apres">
-          <button type="button" id="vstBtnPainel" class="bg-white border border-gray-300 text-gray-700 px-3 py-2 rounded-md text-xs font-bold shadow-sm hover:bg-gray-50">Vistas ▾</button>
+          <button type="button" id="vstBtnPainel" class="bg-white border border-gray-300 text-gray-700 px-3 py-2 rounded-md text-xs font-bold shadow-sm hover:bg-gray-50">Escolher blocos ▾</button>
           <div id="vstPainel" class="hidden absolute right-0 mt-1 w-64 bg-white border border-gray-200 rounded-lg shadow-lg p-3 z-30 space-y-2 text-xs text-gray-700"></div>
         </div>
-        <button type="button" id="vstBtnEditar" class="vst-nao-apres bg-white border border-gray-300 text-gray-700 px-3 py-2 rounded-md text-xs font-bold shadow-sm hover:bg-gray-50">Editar layout</button>
-        <button type="button" id="vstBtnApresentar" class="vst-nao-apres btn-kavak px-3 py-2 text-xs">Apresentar</button>
+        <button type="button" id="vstBtnEditar" title="Arraste e redimensione os blocos" class="vst-nao-apres bg-white border border-gray-300 text-gray-700 px-3 py-2 rounded-md text-xs font-bold shadow-sm hover:bg-gray-50">Reorganizar blocos</button>
+        <button type="button" id="vstBtnPdf" title="Salva os blocos visíveis em PDF" class="vst-nao-apres bg-white border border-gray-300 text-gray-700 px-3 py-2 rounded-md text-xs font-bold shadow-sm hover:bg-gray-50">📄 Gerar PDF</button>
+        <button type="button" id="vstBtnApresentar" title="Tela cheia para reunião" class="vst-nao-apres btn-kavak px-3 py-2 text-xs">Modo apresentação</button>
       </div>
       <div class="vst-apres-titulo items-center justify-between gap-3 mb-4 nao-imprimir">
         <div><h2 class="text-xl font-bold text-gray-900">Dashboard Executivo de Inspeções</h2><p id="vstApresPeriodo" class="text-sm text-gray-500"></p></div>
@@ -1092,6 +1105,8 @@ function intervaloInsp() {
   if (v === 'hoje') return { inicio: h, fim: h };
   if (v === 'ontem') { const o = somaDias(h, -1); return { inicio: o, fim: o }; }
   if (v === 'semana_passada') return { inicio: somaDias(seg, -7), fim: somaDias(seg, -1) };
+  if (v === 'ultimos7') return { inicio: somaDias(h, -6), fim: h };
+  if (v === 'ultimos30') return { inicio: somaDias(h, -29), fim: h };
   if (v === 'mes') return { inicio: h.slice(0, 8) + '01', fim: h };
   if (v === 'mes_passado') { const d = new Date(h + 'T12:00:00'); return { inicio: isoDe(new Date(d.getFullYear(), d.getMonth() - 1, 1)), fim: isoDe(new Date(d.getFullYear(), d.getMonth(), 0)) }; }
   if (v === 'dois_meses') { const d = new Date(h + 'T12:00:00'); return { inicio: isoDe(new Date(d.getFullYear(), d.getMonth() - 1, 1)), fim: h }; }
@@ -1139,12 +1154,23 @@ function renderInspecoes(d, fonte) {
   f.classList.add(...(fonte === 'servidor' ? ['bg-green-100', 'text-green-800'] : ['bg-amber-100', 'text-amber-800']));
   f.textContent = fonte === 'servidor' ? 'Dados da planilha' : 'Dados de exemplo';
 
-  const kpi = (t, n, p) => `<div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
-    <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">${esc(t)}</p>
-    <div class="flex items-baseline justify-between mt-2"><span class="text-3xl font-extrabold text-gray-900">${n}</span><span class="text-xs font-bold text-kavak-blue bg-blue-50 rounded px-2 py-1">${p}</span></div>
+  const diaSem = r => { const m = /\((\w+)\)/.exec(r); return m ? m[1] : ''; };
+  const maxD = Math.max(0, ...d.dias.map(x => x.total));
+  const picoDia = maxD > 0 ? d.dias.find(x => x.total === maxD) : null;
+  const iniDados = d.dias.findIndex(x => x.total > 0);
+  let mediaSemana = '';
+  if (iniDados >= 0 && d.dias.length > 7) {
+    const ordem = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'], ac = {};
+    d.dias.slice(iniDados).forEach(x => { const s = diaSem(x.rotulo); (ac[s] = ac[s] || { t: 0, n: 0 }); ac[s].t += x.total; ac[s].n++; });
+    const med = ordem.map(s => ({ s, m: ac[s] && ac[s].n ? ac[s].t / ac[s].n : 0 }));
+    const mm = Math.max(...med.map(x => x.m));
+    mediaSemana = `<p class="text-[11px] font-bold text-gray-400 uppercase tracking-wider mt-4 mb-2">Média de placas por dia da semana</p>
+      <div class="grid grid-cols-7 gap-1.5">${med.map(x => `<div class="rounded-md text-center py-1.5 ${x.m === mm && mm > 0 ? 'bg-kavak-blue text-white' : 'bg-gray-100 text-gray-700'}"><div class="text-[10px] font-bold opacity-80">${x.s}</div><div class="text-sm font-extrabold">${Math.round(x.m)}</div></div>`).join('')}</div>`;
+  }
+  const kpi = (t, n, p) => `<div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200">\n    <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">${esc(t)}</p>\n    <div class="flex items-baseline justify-between mt-2"><span class="text-3xl font-extrabold text-gray-900">${n}</span><span class="text-xs font-bold text-kavak-blue bg-blue-50 rounded px-2 py-1">${p}</span></div>
     <div class="w-full bg-gray-100 h-1.5 rounded-full mt-3 overflow-hidden"><div class="bg-kavak-blue h-1.5 rounded-full" style="width:${total ? n / total * 100 : 0}%"></div></div></div>`;
   const card = (t, sub, id, h) => `<div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
-    <h3 class="text-sm font-bold text-gray-900">${t}</h3><p class="text-[11px] text-gray-500 mb-4">${sub}</p>
+    <h3 class="text-base font-bold text-gray-900">${t}</h3><p class="text-xs text-gray-500 mb-4">${sub}</p>
     <div class="relative w-full" style="height:${h}px"><canvas id="${id}"></canvas></div></div>`;
 
   $('inspConteudo').innerHTML = `<div class="space-y-5">
@@ -1154,7 +1180,13 @@ function renderInspecoes(d, fonte) {
     </div>
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
       ${card('Placas por loja / canal', 'Veículos inspecionados por canal de atendimento', 'chInspCanais', 340)}
-      ${card('Placas por dia', 'Inspeções ao longo do período', 'chInspDias', 340)}
+      <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
+        <h3 class="text-base font-bold text-gray-900">Placas por dia</h3>
+        <p class="text-xs text-gray-500 mb-1">${picoDia ? `Dia com mais placas: <b>${esc(picoDia.rotulo)}</b> · ${picoDia.total}` : 'Inspeções ao longo do período'}</p>
+        <p class="text-[11px] text-gray-400 mb-3"><span class="inline-block w-2.5 h-2.5 rounded-sm align-middle" style="background:#0036cc"></span> pico · <span class="inline-block w-2.5 h-2.5 rounded-sm align-middle" style="background:#F59E0B"></span> domingo · <span class="inline-block w-2.5 h-2.5 rounded-sm align-middle" style="background:#6b93ff"></span> demais dias</p>
+        <div class="relative w-full" style="height:300px"><canvas id="chInspDias"></canvas></div>
+        ${mediaSemana}
+      </div>
     </div>
     ${card('Inspetores', `${top.length} inspetor${top.length === 1 ? '' : 'es'} · total de <b>${totTop}</b> inspeções no período. Clique na barra para ver as placas.`, 'chInspTop', Math.max(400, top.length * 30 + 60))}
   </div>`;
@@ -1171,7 +1203,10 @@ function renderInspecoes(d, fonte) {
   }));
   const maxDia = Math.max(...d.dias.map(x => x.total));
   mk('chInspCanais', true, d.canais.map(x => x.nome), d.canais.map(x => x.total), '#0047FF', 16);
-  mk('chInspDias', false, d.dias.map(x => x.rotulo), d.dias.map(x => x.total), d.dias.map(x => x.total === maxDia ? '#0036cc' : '#6b93ff'), d.dias.length > 14 ? undefined : 30);
+  mk('chInspDias', false, d.dias.map(x => d.dias.length <= 31 ? [x.rotulo.slice(0, 5), diaSem(x.rotulo)] : x.rotulo), d.dias.map(x => x.total),
+     d.dias.map(x => x.total === maxDia && maxDia > 0 ? '#0036cc' : diaSem(x.rotulo) === 'Dom' ? '#F59E0B' : '#6b93ff'), d.dias.length > 14 ? undefined : 30);
+  { const g = INSP.charts[INSP.charts.length - 1]; g.options.scales.x.ticks = { color: '#334155', autoSkip: d.dias.length > 31, maxRotation: 0, font: { size: d.dias.length > 20 ? 9 : 11 } };
+    g.options.plugins.tooltip.callbacks.title = it => d.dias[it[0].dataIndex].rotulo; g.update(); }
   mk('chInspTop', true, top.map(x => x.nome), top.map(x => x.total), top.map((x, i) => i === 0 ? '#002a99' : '#0047FF'), 20);
 
   // Clique na linha do inspetor (barra ou nome) -> abre as placas que ele fez no período
@@ -1274,7 +1309,7 @@ function renderCompras(d) {
 
   $('cmpConteudo').innerHTML = `<div class="space-y-5">
     <div>
-      <h2 class="text-lg font-bold text-gray-900">Inspeções x Compras</h2>
+      <h2 class="sec-h">Inspeções x Compras</h2>
       <p class="text-xs text-gray-500">Inspeções (Slack) contra carros comprados (BD de inspeções), por loja.</p>
     </div>
     ${aviso ? `<div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-3 text-xs">${aviso}</div>` : ''}
@@ -1286,12 +1321,12 @@ function renderCompras(d) {
     </div>
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
       <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
-        <h3 class="text-sm font-bold text-gray-900">Inspeções x comprados por loja</h3>
+        <h3 class="text-base font-bold text-gray-900">Inspeções x comprados por loja</h3>
         <p class="text-[11px] text-gray-500 mb-4">Azul = inspeções · Verde = comprados</p>
         <div class="relative w-full" style="height:${Math.max(220, 70 + lojas.length * 56)}px"><canvas id="chCmpLojas"></canvas></div>
       </div>
       <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200 overflow-x-auto">
-        <h3 class="text-sm font-bold text-gray-900">Conversão por loja</h3>
+        <h3 class="text-base font-bold text-gray-900">Conversão por loja</h3>
         <p class="text-[11px] text-gray-500 mb-3">Comprados ÷ inspeções do período</p>
         <table class="w-full text-xs">
           <thead><tr class="text-[11px] text-gray-400 uppercase tracking-wider">
@@ -1372,7 +1407,7 @@ function renderComprasAchados() {
       <td class="py-2 pl-3 text-right font-bold text-kavak-blue">${cmpPct(g.comAchado, g.comprados)}</td></tr>${det}`;
   }).join('');
   $('cmpAchados').innerHTML = `<div class="space-y-5">
-    <div><h2 class="text-lg font-bold text-gray-900">Comprados x novos achados</h2>
+    <div><h2 class="sec-h">Comprados x novos achados</h2>
       <p class="text-xs text-gray-500">Dos carros comprados no período, quais tiveram novo achado (Alinhar Inspetor ou Resguardo), cruzando pela placa. Clique no inspetor para ver as placas.</p></div>
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
       ${kpi('Comprados', t.comprados, 'placas únicas no período')}
@@ -1382,7 +1417,7 @@ function renderComprasAchados() {
     </div>
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
       <div class="lg:col-span-2 bg-white p-5 rounded-lg shadow-sm border border-gray-200 overflow-x-auto">
-        <h3 class="text-sm font-bold text-gray-900">Por inspetor</h3>
+        <h3 class="text-base font-bold text-gray-900">Por inspetor</h3>
         <p class="text-[11px] text-gray-500 mb-3">Inspetor identificado pela placa nas inspeções do Slack</p>
         <table class="w-full text-xs"><thead><tr class="text-[11px] text-gray-400 uppercase tracking-wider">
           <th class="text-left font-bold pb-2">Inspetor</th><th class="text-right font-bold pb-2 px-3">Insp.</th><th class="text-right font-bold pb-2 px-3">Comp.</th>
@@ -1390,7 +1425,7 @@ function renderComprasAchados() {
           <tbody>${linhasInsp}</tbody></table>
       </div>
       <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200 overflow-x-auto">
-        <h3 class="text-sm font-bold text-gray-900">Por loja</h3>
+        <h3 class="text-base font-bold text-gray-900">Por loja</h3>
         <p class="text-[11px] text-gray-500 mb-3">Local da inspeção na BD</p>
         <table class="w-full text-xs"><thead><tr class="text-[11px] text-gray-400 uppercase tracking-wider">
           <th class="text-left font-bold pb-2">Loja</th><th class="text-right font-bold pb-2 px-3">Comp.</th><th class="text-right font-bold pb-2 px-3">Com ach.</th><th class="text-right font-bold pb-2 pl-3">%</th></tr></thead>
@@ -1468,21 +1503,30 @@ function renderAchadosAud() {
     return `<tr class="border-t border-gray-100"><td class="py-2 px-3 font-semibold text-gray-800">${esc(l.nome)}</td>
       ${cel(insp, 'text-gray-600')}${cel(l.g ? l.g.inspetor : 0, 'text-gray-600')}${cel(l.g ? l.g.resguardo : 0, 'text-gray-600')}
       <td class="py-2 px-3 text-right">${btn}</td>
-      ${cel(taxa === null ? '–' : audPct(taxa), 'font-bold ' + (alta ? 'text-rose-600' : 'text-gray-700'))}</tr>`;
+      ${l.insp !== null && l.insp < 20 && tot ? `<td class="py-2 px-3 text-right text-gray-400" title="${tot} achados em ${l.insp} inspeções: poucas inspeções para calcular taxa">—</td>` : cel(taxa === null ? '–' : audPct(taxa), 'font-bold ' + (alta ? 'text-rose-600' : 'text-gray-700'))}</tr>`;
   }).join('');
   const av = [];
   if (d.semData) av.push(`${d.semData} achado(s) sem data legível na DATA PÓS ficaram de fora.`);
   if (ACH.estado === 'erro') av.push('Não consegui carregar as inspeções do período, por isso a taxa está em branco. Tente atualizar.');
-  const sub = temInsp ? ` · ${totInsp} inspeções · taxa ${audPct(taxaGeral)}` : '';
-  $('audConteudo').innerHTML = `<div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden mt-5">
-      <div class="p-5 pb-3">
-        <h3 class="text-sm font-bold text-gray-900">Novos achados por inspetor <span class="text-gray-400 font-normal">· ${d.total} no período${sub}</span></h3>
-        <p class="text-[11px] text-gray-500">Novos achados = linhas da Auditoria marcadas “Alinhar Inspetor” ou “Alinhar Resguardo”, pela data do achado (${esc(periodo)}). Taxa = novos achados ÷ inspeções do inspetor no período (vermelho = acima da média da equipe, com 20+ inspeções). Clique no número para ver as placas.</p>
-      </div>${av.length ? `<div class="mx-5 mb-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-3 text-[11px] space-y-1">${av.map(x => `<p>⚠️ ${x}</p>`).join('')}</div>` : ''}
-      <div class="overflow-auto max-h-[28rem]"><table class="w-full text-xs"><thead class="bg-gray-50 text-gray-500 sticky top-0"><tr>
+  const maior = d.inspetores && d.inspetores.length ? d.inspetores[0] : null;
+  const kp = (t, n, s) => `<div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200"><p class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">${esc(t)}</p>
+    <div class="mt-2 text-3xl font-extrabold text-gray-900">${n}</div><p class="text-[11px] text-gray-500 mt-2">${s}</p></div>`;
+  $('audConteudo').innerHTML = `<div class="space-y-5 mt-5">
+    <div><h2 class="sec-h">Novos achados por inspetor</h2>
+      <p class="text-sm text-gray-600 mt-2">Carros que voltaram da Auditoria marcados como <b>Alinhar Inspetor</b> ou <b>Alinhar Resguardo</b>, contados pela <b>data do achado</b> (${esc(periodo)}). Podem ser de inspeções feitas antes do período.</p></div>
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      ${kp('Novos achados', d.total, 'no período')}
+      ${kp('Inspeções', temInsp ? totInsp : '…', 'da equipe no período')}
+      ${kp('Taxa da equipe', temInsp ? audPct(taxaGeral) : '…', 'novos achados ÷ inspeções')}
+      ${kp('Mais achados', maior ? esc(maior.nome) : '–', maior ? maior.total + ' novos achados' : '')}
+    </div>
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+      <div class="p-5 pb-3"><h3 class="text-base font-bold text-gray-900">Quem teve mais achados</h3>
+        <p class="text-xs text-gray-500">Clique no número azul para ver as placas. <span class="text-rose-600 font-bold">Taxa em vermelho</span> = acima da média da equipe. A taxa só aparece com 20 ou mais inspeções, porque com poucas ela engana.</p></div>${av.length ? `<div class="mx-5 mb-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-3 text-[11px] space-y-1">${av.map(x => `<p>⚠️ ${x}</p>`).join('')}</div>` : ''}
+      <div class="overflow-auto max-h-[28rem]"><table class="w-full text-sm"><thead class="bg-gray-50 text-gray-500 sticky top-0 text-xs"><tr>
         <th class="text-left py-2 px-3">Inspetor</th><th class="text-right py-2 px-3">Inspeções</th><th class="text-right py-2 px-3">Alinhar Inspetor</th><th class="text-right py-2 px-3">Alinhar Resguardo</th><th class="text-right py-2 px-3">Novos achados</th><th class="text-right py-2 px-3">Taxa</th></tr></thead>
         <tbody id="audTbody">${linhas || '<tr><td colspan="6" class="py-4 px-3 text-gray-500">Nenhum dado no período.</td></tr>'}</tbody></table></div>
-    </div>`;
+    </div></div>`;
   const tb = $('audTbody');
   if (tb) tb.addEventListener('click', e => {
     const b = e.target.closest('[data-aud]');
@@ -1548,7 +1592,7 @@ const VST = {
   defs: [
     { id: 'exec', titulo: 'Dashboard executivo', c: 12 },
     { id: 'cmp',  titulo: 'Inspeções × Compras', c: 12 },
-    { id: 'aud',  titulo: 'Novos achados × inspeções', c: 12, sup: true },
+    { id: 'aud',  titulo: 'Novos achados por inspetor', c: 12, sup: true },
     { id: 'ftq',  titulo: 'Online × Alinhar FTQ', c: 12, sup: true },
     { id: 'dias', titulo: 'Gráficos por dia', c: 12, sup: true },
     { id: 'tipo', titulo: 'Express × Regular', c: 6, sup: true },
@@ -1597,7 +1641,7 @@ function vstMover(id, delta) {
 
 function vstPainel() {
   const p = $('vstPainel');
-  p.innerHTML = '<p class="font-bold text-gray-900">Vistas visíveis</p>' +
+  p.innerHTML = '<p class="font-bold text-gray-900">Blocos que aparecem na tela</p><p class="text-[11px] text-gray-500">Desmarque o que não quiser ver.</p>' +
     VST.defs.filter(vstDisponivel).map(d => `<label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" data-vst-ver="${d.id}" ${VST.estado.ocultas[d.id] ? '' : 'checked'}> ${esc(d.titulo)}</label>`).join('') +
     '<button type="button" id="vstRestaurar" class="w-full border border-gray-300 rounded px-2 py-1.5 font-bold text-gray-700 hover:bg-gray-50">Restaurar padrão</button>';
 }
@@ -1605,7 +1649,7 @@ function vstPainel() {
 function vistasEditar(on) {
   VST.edit = on;
   $('vistasGrid').classList.toggle('vst-edit', on);
-  $('vstBtnEditar').textContent = on ? 'Concluir edição' : 'Editar layout';
+  $('vstBtnEditar').textContent = on ? '✓ Concluir' : 'Reorganizar blocos';
   $('vstBtnEditar').classList.toggle('bg-kavak-blue', on);
   $('vstBtnEditar').classList.toggle('text-white', on);
 }
@@ -1721,6 +1765,14 @@ function vistasIniciar() {
   document.addEventListener('click', () => $('vstPainel').classList.add('hidden'));
   $('vstBtnEditar').addEventListener('click', () => vistasEditar(!VST.edit));
   $('vstBtnApresentar').addEventListener('click', () => vistasApresentar(true));
+  $('vstBtnPdf').addEventListener('click', () => {
+    if (VST.edit) vistasEditar(false);
+    document.body.classList.add('pdf-insp');
+    const redim = () => { try { Object.values(Chart.instances).forEach(c => c.resize()); } catch (e) {} };
+    window.addEventListener('afterprint', function fim() { document.body.classList.remove('pdf-insp'); window.removeEventListener('afterprint', fim); redim(); });
+    redim();
+    setTimeout(() => { window.print(); }, 400);   // no diálogo, escolha "Salvar como PDF"
+  });
   $('vstBtnSair').addEventListener('click', () => vistasApresentar(false));
   $('vstZoomMais').addEventListener('click', () => { VST.zoom = Math.min(1.8, +(VST.zoom + 0.1).toFixed(2)); vistasAplicar(); });
   $('vstZoomMenos').addEventListener('click', () => { VST.zoom = Math.max(0.6, +(VST.zoom - 0.1).toFixed(2)); vistasAplicar(); });
@@ -1741,7 +1793,7 @@ function renderVistasExtras() {
   const iv = d.periodo, itens = [];
   d.inspetores.forEach(g => g.itens.forEach(it => itens.push(it)));
   const insp = ACH.estado === 'ok' ? ACH.dados : null;
-  const card = (t, sub, corpo) => `<div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200 min-w-0"><h3 class="text-sm font-bold text-gray-900">${t}</h3><p class="text-[11px] text-gray-500 mb-4">${sub}</p>${corpo}</div>`;
+  const card = (t, sub, corpo) => `<div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200 min-w-0"><h3 class="text-base font-bold text-gray-900">${t}</h3><p class="text-xs text-gray-500 mb-4">${sub}</p>${corpo}</div>`;
   const cv = (id, h) => `<div class="relative w-full" style="height:${h}px"><canvas id="${id}"></canvas></div>`;
   const tt = { backgroundColor: '#111827', padding: 10, cornerRadius: 6 };
   const pct = n => n.toFixed(1).replace('.', ',') + '%';
@@ -1759,7 +1811,7 @@ function renderVistasExtras() {
     if (of.total > of.itens.length) av.push(`A lista mostra só os ${of.itens.length} mais recentes (os totais consideram todos).`);
     const linhasF = of.itens.map(it => `<tr class="border-t border-gray-100"><td class="py-1.5 px-3 whitespace-nowrap text-gray-700">${esc(fmtData(it.dataPos) || '–')}</td><td class="py-1.5 px-3 whitespace-nowrap text-gray-700">${esc(fmtData(it.dataInsp) || '–')}</td><td class="py-1.5 px-3 font-mono font-bold text-gray-900 whitespace-nowrap">${esc(it.placa || '–')}</td><td class="py-1.5 px-3 text-gray-700">${esc(it.peca || '–')}</td><td class="py-1.5 px-3 text-gray-700">${esc(it.motivo)}</td><td class="py-1.5 px-3 whitespace-nowrap text-gray-700">${esc(it.hub || '–')}</td><td class="py-1.5 px-3 whitespace-nowrap text-gray-700">${esc(it.inspetor || '–')}</td></tr>`).join('');
     $('vstFtq').innerHTML = `<div class="space-y-5">
-      <div><h3 class="text-sm font-bold text-gray-900">Inspeção online × Alinhar FTQ</h3><p class="text-[11px] text-gray-500">Achados da inspeção online que a gente não consegue ver (vídeo ruim ou peça que só se vê desmontando). Linhas com ERRO = “Inspeção On Line” e ALINHAMENTO = “Alinhar FTQ”, pela data do achado.</p></div>
+      <div><h2 class="sec-h">Inspeção online × Alinhar FTQ</h2><p class="text-xs text-gray-500 mt-1">Achados da inspeção online que a gente não consegue ver (vídeo ruim ou peça que só se vê desmontando). Linhas com ERRO = “Inspeção On Line” e ALINHAMENTO = “Alinhar FTQ”, pela data do achado.</p></div>
       ${av.length ? `<div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-3 text-[11px] space-y-1">${av.map(x => `<p>⚠️ ${x}</p>`).join('')}</div>` : ''}
       <div class="grid grid-cols-2 lg:grid-cols-3 gap-4">
         ${kp('Achados online (FTQ)', of.total, 'linhas no período')}
