@@ -1133,7 +1133,7 @@ async function carregarInspecoes() {
   if (seq !== INSP.seq) return;
   renderInspecoes(d, fonte);
   carregarCompras(iv);
-  carregarComprasAchados(iv);
+  // carregarComprasAchados(iv);   // desabilitado: os achados já usam os carros comprados direto
   carregarAchadosAud(iv);
   carregarAchados(iv);
 }
@@ -1154,18 +1154,20 @@ function renderInspecoes(d, fonte) {
   f.classList.add(...(fonte === 'servidor' ? ['bg-green-100', 'text-green-800'] : ['bg-amber-100', 'text-amber-800']));
   f.textContent = fonte === 'servidor' ? 'Dados da planilha' : 'Dados de exemplo';
 
-  const diaSem = r => { const m = /\((\w+)\)/.exec(r); return m ? m[1] : ''; };
+  const diaSem = r => { const m = /\(([^)]+)\)/.exec(r); return m ? m[1].trim() : ''; };   // "24/10 (Sáb)" → "Sáb"
   const maxD = Math.max(0, ...d.dias.map(x => x.total));
   const picoDia = maxD > 0 ? d.dias.find(x => x.total === maxD) : null;
   const iniDados = d.dias.findIndex(x => x.total > 0);
   let mediaSemana = '';
   if (iniDados >= 0 && d.dias.length > 7) {
     const ordem = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'], ac = {};
-    d.dias.slice(iniDados).forEach(x => { const s = diaSem(x.rotulo); (ac[s] = ac[s] || { t: 0, n: 0 }); ac[s].t += x.total; ac[s].n++; });
-    const med = ordem.map(s => ({ s, m: ac[s] && ac[s].n ? ac[s].t / ac[s].n : 0 }));
-    const mm = Math.max(...med.map(x => x.m));
-    mediaSemana = `<p class="text-[11px] font-bold text-gray-400 uppercase tracking-wider mt-4 mb-2">Média de placas por dia da semana</p>
-      <div class="grid grid-cols-7 gap-1.5">${med.map(x => `<div class="rounded-md text-center py-1.5 ${x.m === mm && mm > 0 ? 'bg-kavak-blue text-white' : 'bg-gray-100 text-gray-700'}"><div class="text-[10px] font-bold opacity-80">${x.s}</div><div class="text-sm font-extrabold">${Math.round(x.m)}</div></div>`).join('')}</div>`;
+    // média só nos dias que tiveram inspeção (dia sem nenhum carro não puxa a média para baixo)
+    d.dias.slice(iniDados).forEach(x => { if (!x.total) return; const s = diaSem(x.rotulo); (ac[s] = ac[s] || { t: 0, n: 0 }); ac[s].t += x.total; ac[s].n++; });
+    const med = ordem.map(s => ({ s, m: ac[s] && ac[s].n ? ac[s].t / ac[s].n : null, n: ac[s] ? ac[s].n : 0 }));
+    const mm = Math.max(0, ...med.map(x => x.m || 0));
+    mediaSemana = `<p class="text-[11px] font-bold text-gray-400 uppercase tracking-wider mt-4 mb-1">Média de carros por dia da semana</p>
+      <p class="text-[11px] text-gray-400 mb-2">Só conta os dias que tiveram inspeção. "—" = nenhum dia com inspeção no período.</p>
+      <div class="grid grid-cols-7 gap-1.5">${med.map(x => `<div title="${x.n} dia(s) com inspeção" class="rounded-md text-center py-1.5 ${x.m !== null && x.m === mm && mm > 0 ? 'bg-kavak-blue text-white' : 'bg-gray-100 text-gray-700'}"><div class="text-[10px] font-bold opacity-80">${x.s}</div><div class="text-sm font-extrabold">${x.m === null ? '—' : Math.round(x.m)}</div></div>`).join('')}</div>`;
   }
   const kpi = (t, n, p) => `<div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200">\n    <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">${esc(t)}</p>\n    <div class="flex items-baseline justify-between mt-2"><span class="text-3xl font-extrabold text-gray-900">${n}</span><span class="text-xs font-bold text-kavak-blue bg-blue-50 rounded px-2 py-1">${p}</span></div>
     <div class="w-full bg-gray-100 h-1.5 rounded-full mt-3 overflow-hidden"><div class="bg-kavak-blue h-1.5 rounded-full" style="width:${total ? n / total * 100 : 0}%"></div></div></div>`;
@@ -1179,10 +1181,10 @@ function renderInspecoes(d, fonte) {
       ${kpi('Canal online', grupo('online'), pct(grupo('online')))}${kpi('B2B + KUNA', grupo('b2b'), pct(grupo('b2b')))}
     </div>
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
-      ${card('Placas por loja / canal', 'Veículos inspecionados por canal de atendimento', 'chInspCanais', 340)}
+      ${card('Carros por loja / canal', 'Carros inspecionados por canal de atendimento', 'chInspCanais', 340)}
       <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
-        <h3 class="text-base font-bold text-gray-900">Placas por dia</h3>
-        <p class="text-xs text-gray-500 mb-1">${picoDia ? `Dia com mais placas: <b>${esc(picoDia.rotulo)}</b> · ${picoDia.total}` : 'Inspeções ao longo do período'}</p>
+        <h3 class="text-base font-bold text-gray-900">Carros por dia</h3>
+        <p class="text-xs text-gray-500 mb-1">${picoDia ? `Dia com mais carros: <b>${esc(picoDia.rotulo)}</b> · ${picoDia.total} carros` : 'Carros inspecionados ao longo do período'}</p>
         <p class="text-[11px] text-gray-400 mb-3"><span class="inline-block w-2.5 h-2.5 rounded-sm align-middle" style="background:#0036cc"></span> pico · <span class="inline-block w-2.5 h-2.5 rounded-sm align-middle" style="background:#F59E0B"></span> domingo · <span class="inline-block w-2.5 h-2.5 rounded-sm align-middle" style="background:#6b93ff"></span> demais dias</p>
         <div class="relative w-full" style="height:300px"><canvas id="chInspDias"></canvas></div>
         ${mediaSemana}
@@ -1198,14 +1200,14 @@ function renderInspecoes(d, fonte) {
     type: 'bar',
     data: { labels, datasets: [{ data: valores, backgroundColor: cores, borderRadius: 5, borderSkipped: false, barThickness: espessura, maxBarThickness: 30 }] },
     options: { indexAxis: horizontal ? 'y' : 'x', responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: false }, tooltip: { ...tooltip, callbacks: { label: c => `${c.parsed[horizontal ? 'x' : 'y']} placas` } } },
+      plugins: { legend: { display: false }, tooltip: { ...tooltip, callbacks: { label: c => `${c.parsed[horizontal ? 'x' : 'y']} carros` } } },
       scales: { [horizontal ? 'x' : 'y']: { grid: { color: '#F1F5F9' }, beginAtZero: true }, [horizontal ? 'y' : 'x']: { grid: { display: false }, ticks: { color: '#334155' } } } }
   }));
   const maxDia = Math.max(...d.dias.map(x => x.total));
   mk('chInspCanais', true, d.canais.map(x => x.nome), d.canais.map(x => x.total), '#0047FF', 16);
-  mk('chInspDias', false, d.dias.map(x => d.dias.length <= 31 ? [x.rotulo.slice(0, 5), diaSem(x.rotulo)] : x.rotulo), d.dias.map(x => x.total),
+  mk('chInspDias', false, d.dias.map(x => d.dias.length <= 31 ? [x.rotulo.slice(0, 2), diaSem(x.rotulo)] : x.rotulo.slice(0, 5)), d.dias.map(x => x.total),
      d.dias.map(x => x.total === maxDia && maxDia > 0 ? '#0036cc' : diaSem(x.rotulo) === 'Dom' ? '#F59E0B' : '#6b93ff'), d.dias.length > 14 ? undefined : 30);
-  { const g = INSP.charts[INSP.charts.length - 1]; g.options.scales.x.ticks = { color: '#334155', autoSkip: d.dias.length > 31, maxRotation: 0, font: { size: d.dias.length > 20 ? 9 : 11 } };
+  { const g = INSP.charts[INSP.charts.length - 1]; g.options.scales.x.ticks = { color: '#334155', autoSkip: true, autoSkipPadding: 2, maxRotation: 0, font: { size: d.dias.length > 20 ? 10 : 11 } };
     g.options.plugins.tooltip.callbacks.title = it => d.dias[it[0].dataIndex].rotulo; g.update(); }
   mk('chInspTop', true, top.map(x => x.nome), top.map(x => x.total), top.map((x, i) => i === 0 ? '#002a99' : '#0047FF'), 20);
 
@@ -1262,7 +1264,7 @@ $('inspFiltro').addEventListener('change', () => {
 
 // ---------- Inspeções x Compras (Salesforce) ----------
 // Fonte: api('comprasInsp') no Apps Script (arquivo ComprasInsp.gs). As compras vêm da aba "Histórico Compras".
-const CMP = { charts: [], seq: 0 };
+const CMP = { charts: [], seq: 0, dados: null };
 const cmpPct = (n, t) => t ? (n / t * 100).toFixed(1).replace('.', ',') + '%' : '—';
 
 async function carregarCompras(iv) {
@@ -1270,6 +1272,7 @@ async function carregarCompras(iv) {
   CMP.charts.forEach(c => c.destroy()); CMP.charts = [];
   if (MODO_LOCAL) { box.innerHTML = ''; return; }
   const seq = ++CMP.seq;
+  CMP.dados = null;
   box.innerHTML = '<p class="text-xs text-gray-500">Carregando compras…</p>';
   let r;
   try { r = await api('comprasInsp', iv); } catch (e) { if (e && e.sessaoExpirada) return; r = { erro: 'rede' }; }
@@ -1282,79 +1285,79 @@ async function carregarCompras(iv) {
   }
   try { await carregarChartJs(); } catch (e) { box.innerHTML = ''; return; }
   if (seq !== CMP.seq) return;
+  CMP.dados = r;
   renderCompras(r);
+  if (AUD.dados) renderAchadosAud();   // os cards de achados usam os carros comprados
 }
 
 function renderCompras(d) {
   CMP.charts.forEach(c => c.destroy()); CMP.charts = [];
-  const lojas = d.canais.filter(c => c.grupo === 'loja');
-  const soma = (a, k) => a.reduce((s, x) => s + (x[k] || 0), 0);
-  const insp = soma(lojas, 'inspecoes'), comp = soma(lojas, 'compras');
-  const fora = soma(d.canais.filter(c => c.grupo !== 'loja'), 'compras');
+  const t = d.totais || { inspecoes: 0, compras: 0 };
+  const canais = d.canais.filter(c => c.inspecoes > 0);
 
   let aviso = '';
-  if (!d.histInicio) aviso = 'Ainda não há compras salvas no histórico. Cole a BD de inspeções na aba <b>Compras</b> da planilha Base do Site Escalapro e recarregue em 2 minutos.';
-  else if (d.periodo && d.histInicio > d.periodo.inicio) aviso = `A BD de compras começa em <b>${fmtData(d.histInicio)}</b>. Os dias antes disso não têm compras salvas, então a conversão do período pode aparecer mais baixa do que é.`;
+  if (!d.histInicio) aviso = 'Ainda não há compras na BD. Cole a BD de inspeções na aba <b>Compras</b> da planilha Base do Site Escalapro e recarregue em 2 minutos.';
+  else if (d.periodo && d.histInicio > d.periodo.inicio) aviso = `A BD de compras começa em <b>${fmtData(d.histInicio)}</b>. Carros inspecionados antes disso não têm como aparecer como comprados.`;
 
-  const kpi = (t, n, sub) => `<div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
-    <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">${esc(t)}</p>
+  const kpi = (tt, n, sub) => `<div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
+    <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">${esc(tt)}</p>
     <div class="mt-2"><span class="text-3xl font-extrabold text-gray-900">${n}</span></div>
     <p class="text-[11px] text-gray-500 mt-2">${sub}</p></div>`;
 
-  const linhas = d.canais.map(c => `<tr class="border-t border-gray-100">
+  const linhas = canais.map(c => `<tr class="border-t border-gray-100">
       <td class="py-2 pr-3 font-semibold text-gray-800">${esc(c.nome)}</td>
       <td class="py-2 px-3 text-right">${c.inspecoes}</td>
       <td class="py-2 px-3 text-right font-bold text-green-700">${c.compras}</td>
-      <td class="py-2 pl-3 text-right font-bold text-kavak-blue">${c.grupo !== 'loja' ? '—' : cmpPct(c.compras, c.inspecoes)}</td></tr>`).join('');
+      <td class="py-2 pl-3 text-right font-bold text-kavak-blue">${cmpPct(c.compras, c.inspecoes)}</td></tr>`).join('');
+  const locais = (d.semSlackLocais || []).map(x => `${esc(x.nome)} (${x.total})`).join(', ');
 
   $('cmpConteudo').innerHTML = `<div class="space-y-5">
     <div>
       <h2 class="sec-h">Inspeções x Compras</h2>
-      <p class="text-xs text-gray-500">Inspeções (Slack) contra carros comprados (BD de inspeções), por loja.</p>
+      <p class="text-xs text-gray-500 mt-1">Cada carro inspecionado no Slack conta no canal onde foi inspecionado. Ele vira "comprado" se a placa aparece na BD com flg_purchased = TRUE.</p>
     </div>
     ${aviso ? `<div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-3 text-xs">${aviso}</div>` : ''}
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
-      ${kpi('Inspeções (lojas físicas)', insp, 'carros que chegaram nas lojas')}
-      ${kpi('Comprados fora das lojas', fora, 'online, B2B e outros locais')}
-      ${kpi('Comprados (lojas)', comp, 'flg_purchased = TRUE, placas únicas')}
-      ${kpi('Conversão', cmpPct(comp, insp), 'comprados ÷ inspeções')}
+      ${kpi('Carros inspecionados', t.inspecoes, 'todos os canais, 1 vez por placa')}
+      ${kpi('Comprados', t.compras, 'desses carros inspecionados')}
+      ${kpi('Conversão', cmpPct(t.compras, t.inspecoes), 'comprados ÷ carros inspecionados')}
+      ${kpi('Comprados sem registro no Slack', d.semSlack || 0, 'estão na BD do período, mas não no Slack')}
     </div>
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
       <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
-        <h3 class="text-base font-bold text-gray-900">Inspeções x comprados por loja</h3>
-        <p class="text-[11px] text-gray-500 mb-4">Azul = inspeções · Verde = comprados</p>
-        <div class="relative w-full" style="height:${Math.max(220, 70 + lojas.length * 56)}px"><canvas id="chCmpLojas"></canvas></div>
+        <h3 class="text-base font-bold text-gray-900">Carros inspecionados x comprados</h3>
+        <p class="text-xs text-gray-500 mb-4">Azul = inspecionados · Verde = comprados (a barra verde é sempre parte da azul)</p>
+        <div class="relative w-full" style="height:${Math.max(220, 70 + canais.length * 46)}px"><canvas id="chCmpLojas"></canvas></div>
       </div>
       <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200 overflow-x-auto">
-        <h3 class="text-base font-bold text-gray-900">Conversão por loja</h3>
-        <p class="text-[11px] text-gray-500 mb-3">Comprados ÷ inspeções do período</p>
+        <h3 class="text-base font-bold text-gray-900">Conversão por loja / canal</h3>
+        <p class="text-xs text-gray-500 mb-3">Comprados ÷ carros inspecionados no período</p>
         <table class="w-full text-xs">
           <thead><tr class="text-[11px] text-gray-400 uppercase tracking-wider">
-            <th class="text-left font-bold pb-2">Loja</th><th class="text-right font-bold pb-2 px-3">Insp.</th>
-            <th class="text-right font-bold pb-2 px-3">Comp.</th>
-            <th class="text-right font-bold pb-2 pl-3">Conv.</th></tr></thead>
+            <th class="text-left font-bold pb-2">Loja / canal</th><th class="text-right font-bold pb-2 px-3">Carros</th>
+            <th class="text-right font-bold pb-2 px-3">Comprados</th><th class="text-right font-bold pb-2 pl-3">Conv.</th></tr></thead>
           <tbody>${linhas}</tbody>
           <tfoot><tr class="border-t-2 border-gray-200 font-extrabold text-gray-900">
-            <td class="pt-2">Total</td><td class="pt-2 px-3 text-right">${d.totais.inspecoes}</td>
-            <td class="pt-2 px-3 text-right text-green-700">${d.totais.compras}</td>
-            <td class="pt-2 pl-3 text-right text-kavak-blue">${cmpPct(comp, insp)}</td></tr></tfoot>
+            <td class="pt-2">Total</td><td class="pt-2 px-3 text-right">${t.inspecoes}</td>
+            <td class="pt-2 px-3 text-right text-green-700">${t.compras}</td>
+            <td class="pt-2 pl-3 text-right text-kavak-blue">${cmpPct(t.compras, t.inspecoes)}</td></tr></tfoot>
         </table>
-        <p class="text-[11px] text-gray-400 mt-3">Compras contadas pela data da inspeção, uma vez por placa. A conversão considera só as lojas.</p>
+        <p class="text-[11px] text-gray-400 mt-3">Carro inspecionado mais de uma vez no período conta uma vez, no canal da última inspeção.${d.semSlack ? ` Comprados sem registro no Slack, pelo local da BD: ${locais}.` : ''}</p>
       </div>
     </div>
   </div>`;
 
-  if (!lojas.length) return;
-  const tooltip = { backgroundColor: '#111827', padding: 10, cornerRadius: 6 };
+  if (!canais.length) return;
+  const tooltip = { backgroundColor: '#111827', padding: 10, cornerRadius: 6, callbacks: { footer: it => 'Conversão: ' + cmpPct(canais[it[0].dataIndex].compras, canais[it[0].dataIndex].inspecoes) } };
   CMP.charts.push(new Chart($('chCmpLojas'), {
     type: 'bar',
-    data: { labels: lojas.map(x => x.nome), datasets: [
-      { label: 'Inspeções', data: lojas.map(x => x.inspecoes), backgroundColor: '#0047FF', borderRadius: 4, maxBarThickness: 18 },
-      { label: 'Comprados', data: lojas.map(x => x.compras), backgroundColor: '#16A34A', borderRadius: 4, maxBarThickness: 18 }
+    data: { labels: canais.map(x => x.nome), datasets: [
+      { label: 'Inspecionados', data: canais.map(x => x.inspecoes), backgroundColor: '#0047FF', borderRadius: 4, maxBarThickness: 16 },
+      { label: 'Comprados', data: canais.map(x => x.compras), backgroundColor: '#16A34A', borderRadius: 4, maxBarThickness: 16 }
     ] },
     options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false,
       plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, usePointStyle: true } }, tooltip },
-      scales: { x: { grid: { color: '#F1F5F9' }, beginAtZero: true }, y: { grid: { display: false }, ticks: { color: '#334155' } } } }
+      scales: { x: { grid: { color: '#F1F5F9' }, beginAtZero: true, ticks: { precision: 0 } }, y: { grid: { display: false }, ticks: { color: '#334155' } } } }
   }));
 }
 
@@ -1375,7 +1378,7 @@ async function carregarComprasAchados(iv) {
     const m = { acao_desconhecida: 'O Apps Script ainda não tem a ação <b>comprasAchados</b>. Cole o ComprasAchados.gs, troque a rotear_ e publique uma nova versão.',
       compras_aba: 'Falta a BD na aba <b>Compras</b> da planilha Base do Site Escalapro.',
       aud_planilha: 'Não consegui abrir a planilha da Auditoria.' };
-    box.innerHTML = `<div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-4 text-xs">Não foi possível cruzar com os novos achados. ${m[r && r.erro] || 'Tente atualizar em instantes.'}</div>`;
+    box.innerHTML = `<div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-4 text-xs">Não foi possível cruzar com os novos achados. ${m[r && r.erro] || ('Tente atualizar em instantes. <span class="text-[11px] opacity-70">(código: ' + esc((r && (r.erro || r.msg)) || 'sem resposta') + ')</span>')}</div>`;
     return;
   }
   CAC.dados = r; CAC.aberto = null;
@@ -1482,60 +1485,75 @@ function audCruzar() {
     if (c.length === 1) c[0].insp = (c[0].insp || 0) + x.inspecoes;
     else extras.push({ nome: x.nome, g: null, idx: -1, insp: x.inspecoes });
   });
-  return linhas.concat(extras).sort((a, b) => (b.g ? b.g.total : 0) - (a.g ? a.g.total : 0) || (b.insp || 0) - (a.insp || 0) || a.nome.localeCompare(b.nome, 'pt-BR'));
+  const todas = linhas.concat(extras);
+  // Carros comprados por inspetor (Inspeções x Compras, cruzado pela placa)
+  const comp = CMP.dados && Array.isArray(CMP.dados.porInspetor) ? CMP.dados.porInspetor : null;
+  if (comp) comp.forEach(x => {
+    const n = audNorm(x.nome);
+    let c = todas.filter(l => audNorm(l.nome) === n);
+    if (!c.length) c = todas.filter(l => { const a = audNorm(l.nome); return a.startsWith(n + ' ') || n.startsWith(a + ' '); });
+    if (c.length === 1) c[0].comp = (c[0].comp || 0) + x.comprados;
+    else todas.push({ nome: x.nome, g: null, idx: -1, insp: null, comp: x.comprados });
+  });
+  todas.forEach(l => { l.carros = l.g ? new Set(l.g.itens.map(it => it.placa)).size : 0; if (comp && l.comp === undefined) l.comp = 0; });
+  return todas.sort((a, b) => b.carros - a.carros || (b.g ? b.g.total : 0) - (a.g ? a.g.total : 0) || (b.comp || 0) - (a.comp || 0) || a.nome.localeCompare(b.nome, 'pt-BR'));
 }
 
 function renderAchadosAud() {
   const d = AUD.dados;
   if (!d) return;
   const periodo = d.periodo ? `${fmtData(d.periodo.inicio)}${d.periodo.inicio !== d.periodo.fim ? ' a ' + fmtData(d.periodo.fim) : ''}` : '';
-  const temInsp = ACH.estado === 'ok';
-  const totInsp = temInsp ? (ACH.dados.totalInsp || 0) : 0;
-  const taxaGeral = totInsp ? d.total / totInsp * 100 : 0;
+  const temComp = !!(CMP.dados && CMP.dados.totais);
+  const totComp = temComp ? CMP.dados.totais.compras : 0;
+  const cruz = audCruzar();
+  const carrosTot = new Set([].concat(...(d.inspetores || []).map(g => g.itens.map(it => it.placa)))).size;
+  const taxaGeral = totComp ? carrosTot / totComp * 100 : 0;
+  const MIN_COMP = 15;   // abaixo disso a taxa do inspetor engana
   const cel = (v, cls) => `<td class="py-2 px-3 text-right ${cls}">${v}</td>`;
-  const linhas = audCruzar().map(l => {
+  const aguarde = CMP.dados === null && !MODO_LOCAL ? '…' : '–';
+  const linhas = cruz.map(l => {
     const tot = l.g ? l.g.total : 0;
-    const taxa = l.insp ? tot / l.insp * 100 : null;
-    const alta = taxa !== null && l.insp >= 20 && taxa > taxaGeral;
-    const insp = l.insp !== null ? l.insp : (ACH.estado === 'carregando' ? '…' : '–');
-    const btn = tot ? `<button type="button" data-aud="${l.idx}" title="Ver os achados de ${esc(l.nome)}"
-        class="min-w-[2.5rem] px-2 py-1 rounded-md bg-blue-50 text-kavak-blue font-extrabold hover:bg-kavak-blue hover:text-white transition">${tot}</button>` : '<span class="text-gray-400">0</span>';
+    const temC = l.comp !== undefined && l.comp !== null;
+    const taxa = temC && l.comp ? l.carros / l.comp * 100 : null;
+    const alta = taxa !== null && l.comp >= MIN_COMP && taxa > taxaGeral;
+    const btn = l.carros ? `<button type="button" data-aud="${l.idx}" title="Ver os achados de ${esc(l.nome)}"
+        class="min-w-[2.5rem] px-2 py-1 rounded-md bg-blue-50 text-kavak-blue font-extrabold hover:bg-kavak-blue hover:text-white transition">${l.carros}</button>` : '<span class="text-gray-400">0</span>';
+    const celTaxa = !temC ? cel(aguarde, 'text-gray-400')
+      : (l.carros && l.comp < MIN_COMP) ? `<td class="py-2 px-3 text-right text-gray-400" title="${l.carros} carro(s) com achado em ${l.comp} comprado(s): poucos carros para calcular taxa">—</td>`
+      : cel(taxa === null ? '–' : audPct(taxa), 'font-bold ' + (alta ? 'text-rose-600' : 'text-gray-700'));
     return `<tr class="border-t border-gray-100"><td class="py-2 px-3 font-semibold text-gray-800">${esc(l.nome)}</td>
-      ${cel(insp, 'text-gray-600')}${cel(l.g ? l.g.inspetor : 0, 'text-gray-600')}${cel(l.g ? l.g.resguardo : 0, 'text-gray-600')}
+      ${cel(l.insp !== null && l.insp !== undefined ? l.insp : (ACH.estado === 'carregando' ? '…' : '–'), 'text-gray-500')}
+      ${cel(temC ? l.comp : aguarde, 'text-gray-800 font-semibold')}
       <td class="py-2 px-3 text-right">${btn}</td>
-      ${cel(l.g && l.g.itens.some(x => x.comprado) ? l.g.itens.filter(x => x.comprado === 'sim').length : '–', 'text-green-700 font-bold')}
-      ${l.insp !== null && l.insp < 20 && tot ? `<td class="py-2 px-3 text-right text-gray-400" title="${tot} achados em ${l.insp} inspeções: poucas inspeções para calcular taxa">—</td>` : cel(taxa === null ? '–' : audPct(taxa), 'font-bold ' + (alta ? 'text-rose-600' : 'text-gray-700'))}</tr>`;
+      ${cel(tot ? `${tot} <span class="text-[11px] text-gray-400">(${l.g.inspetor} insp. · ${l.g.resguardo} resg.)</span>` : '0', 'text-gray-600 whitespace-nowrap')}
+      ${celTaxa}</tr>`;
   }).join('');
   const av = [];
   if (d.semData) av.push(`${d.semData} achado(s) sem data legível na DATA PÓS ficaram de fora.`);
-  if (ACH.estado === 'erro') av.push('Não consegui carregar as inspeções do período, por isso a taxa está em branco. Tente atualizar.');
-  const maior = d.inspetores && d.inspetores.length ? d.inspetores[0] : null;
-  const todosIt = []; (d.inspetores || []).forEach(g => g.itens.forEach(it => todosIt.push(it)));
-  const temComp = todosIt.some(it => it.comprado);
-  const nComp = todosIt.filter(it => it.comprado === 'sim').length;
-  const pComp = new Set(todosIt.filter(it => it.comprado === 'sim').map(it => it.placa)).size;
+  if (CMP.dados === null && !MODO_LOCAL) av.push('Carregando os carros comprados (bloco Inspeções x Compras). A taxa aparece quando ele terminar.');
+  // inspetor com mais carros com achado (empate: mais itens)
+  const maior = cruz.filter(l => l.carros).sort((a, b) => b.carros - a.carros || b.g.total - a.g.total)[0] || null;
   const kp = (t, n, s) => `<div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200"><p class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">${esc(t)}</p>
     <div class="mt-2 text-3xl font-extrabold text-gray-900">${n}</div><p class="text-[11px] text-gray-500 mt-2">${s}</p></div>`;
   $('audConteudo').innerHTML = `<div class="space-y-5 mt-5">
     <div><h2 class="sec-h">Novos achados por inspetor</h2>
-      <p class="text-sm text-gray-600 mt-2">Carros que voltaram da Auditoria marcados como <b>Alinhar Inspetor</b> ou <b>Alinhar Resguardo</b>, contados pela <b>data do achado</b> (${esc(periodo)}). Podem ser de inspeções feitas antes do período.</p></div>
-    <div class="grid grid-cols-2 lg:grid-cols-5 gap-4">
-      ${kp('Novos achados', d.total, 'no período')}
-      ${kp('Inspeções', temInsp ? totInsp : '…', 'da equipe no período')}
-      ${kp('Taxa da equipe', temInsp ? audPct(taxaGeral) : '…', 'novos achados ÷ inspeções')}
-      ${kp('Em carros comprados', temComp ? nComp : '–', temComp ? `${d.total ? Math.round(nComp / d.total * 100) : 0}% dos achados · ${pComp} carro${pComp === 1 ? '' : 's'}` : 'BD indisponível')}
-      ${kp('Mais achados', maior ? esc(maior.nome) : '–', maior ? maior.total + ' novos achados' : '')}
+      <p class="text-sm text-gray-600 mt-2">Carros comprados que voltaram da Auditoria marcados como <b>Alinhar Inspetor</b> ou <b>Alinhar Resguardo</b>, contados pela <b>data do achado</b> (${esc(periodo)}). A taxa compara com os carros comprados do período.</p></div>
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      ${kp('Carros com novo achado', carrosTot, `${d.total} ite${d.total === 1 ? 'm apontado' : 'ns apontados'} nesses carros`)}
+      ${kp('Carros comprados', temComp ? totComp : aguarde, 'inspecionados no período e comprados')}
+      ${kp('Comprados com achado', temComp ? audPct(taxaGeral) : aguarde, 'carros com achado ÷ carros comprados')}
+      ${kp('Mais carros com achado', maior ? esc(maior.nome) : '–', maior ? `${maior.carros} carro${maior.carros === 1 ? '' : 's'} · ${maior.g.total} ite${maior.g.total === 1 ? 'm' : 'ns'}` : '')}
     </div>
     <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
       <div class="p-5 pb-3"><h3 class="text-base font-bold text-gray-900">Quem teve mais achados</h3>
-        <p class="text-xs text-gray-500">Clique no número azul para ver as placas. <span class="text-rose-600 font-bold">Taxa em vermelho</span> = acima da média da equipe. A taxa só aparece com 20 ou mais inspeções, porque com poucas ela engana.</p></div>${av.length ? `<div class="mx-5 mb-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-3 text-[11px] space-y-1">${av.map(x => `<p>⚠️ ${x}</p>`).join('')}</div>` : ''}
+        <p class="text-xs text-gray-500">Clique no número azul para ver os carros. Taxa = carros com achado ÷ carros comprados do inspetor. <span class="text-rose-600 font-bold">Vermelho</span> = acima da média da equipe. Com menos de ${MIN_COMP} comprados a taxa não aparece, porque engana.</p></div>${av.length ? `<div class="mx-5 mb-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-3 text-[11px] space-y-1">${av.map(x => `<p>⚠️ ${x}</p>`).join('')}</div>` : ''}
       <div class="overflow-auto max-h-[28rem]"><table class="w-full text-sm"><thead class="bg-gray-50 text-gray-500 sticky top-0 text-xs"><tr>
-        <th class="text-left py-2 px-3">Inspetor</th><th class="text-right py-2 px-3">Inspeções</th><th class="text-right py-2 px-3">Alinhar Inspetor</th><th class="text-right py-2 px-3">Alinhar Resguardo</th><th class="text-right py-2 px-3">Novos achados</th><th class="text-right py-2 px-3">Em comprados</th><th class="text-right py-2 px-3">Taxa</th></tr></thead>
-        <tbody id="audTbody">${linhas || '<tr><td colspan="7" class="py-4 px-3 text-gray-500">Nenhum dado no período.</td></tr>'}</tbody></table></div>
+        <th class="text-left py-2 px-3">Inspetor</th><th class="text-right py-2 px-3">Inspeções</th><th class="text-right py-2 px-3">Comprados</th><th class="text-right py-2 px-3">Carros com achado</th><th class="text-right py-2 px-3">Itens apontados</th><th class="text-right py-2 px-3">Taxa</th></tr></thead>
+        <tbody id="audTbody">${linhas || '<tr><td colspan="6" class="py-4 px-3 text-gray-500">Nenhum dado no período.</td></tr>'}</tbody></table></div>
     </div>
     <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-5">
       <h3 class="text-base font-bold text-gray-900">Achados por item (N.A)</h3>
-      <p class="text-xs text-gray-500 mb-1">Quais itens mais aparecem nos novos achados. Segue os filtros da lista abaixo (inspetor, alinhamento e tipo). Clique numa barra para ver só aquele item na lista.</p>
+      <p class="text-xs text-gray-500 mb-1">Quantas vezes cada item foi apontado. Para separar Alinhar Inspetor de Resguardo, use o filtro da lista abaixo (o gráfico acompanha). Clique numa barra para ver só aquele item na lista.</p>
       <p id="audGrafInfo" class="text-[11px] text-gray-400 mb-3"></p>
       <div id="audGrafBox" class="relative w-full" style="height:300px"><canvas id="chAudItens"></canvas></div>
     </div>
@@ -1548,13 +1566,12 @@ function renderAchadosAud() {
           <select id="audLinsp" aria-label="Inspetor" class="border border-gray-300 rounded px-2 py-2 text-xs"><option value="">Todos os inspetores</option>${(AUD.dados.inspetores || []).map(g => `<option value="${esc(g.nome)}">${esc(g.nome)}</option>`).join('')}</select>
           <select id="audLalin" aria-label="Alinhamento" class="border border-gray-300 rounded px-2 py-2 text-xs"><option value="">Inspetor e Resguardo</option><option value="inspetor">Só Alinhar Inspetor</option><option value="resguardo">Só Alinhar Resguardo</option></select>
           <select id="audLtipo" aria-label="Tipo de inspeção" class="border border-gray-300 rounded px-2 py-2 text-xs"><option value="">Express e Regular</option><option value="Express">Só Express</option><option value="Regular">Só Regular</option></select>
-          <select id="audLcomp" aria-label="Comprado" class="border border-gray-300 rounded px-2 py-2 text-xs"><option value="">Comprados e não comprados</option><option value="sim">Só comprados</option><option value="nao">Só não comprados</option><option value="fora">Fora da BD</option></select>
           <button type="button" id="audLcsv" class="bg-white border border-gray-300 text-gray-700 px-3 py-2 rounded-md text-xs font-bold hover:bg-gray-50">⬇ Baixar CSV</button>
           <span id="audLcont" class="text-xs font-bold text-gray-500 ml-auto"></span>
         </div>
       </div>
       <div class="overflow-auto max-h-[32rem]"><table class="w-full text-xs"><thead class="bg-gray-50 text-gray-500 sticky top-0"><tr>
-        <th class="text-left py-2 px-3">Data do achado</th><th class="text-left py-2 px-3">Data da inspeção</th><th class="text-left py-2 px-3">Placa</th><th class="text-left py-2 px-3">Inspetor</th><th class="text-left py-2 px-3">Alinhamento</th><th class="text-left py-2 px-3">Tipo</th><th class="text-left py-2 px-3">Item (N.A)</th><th class="text-left py-2 px-3">Ticket</th><th class="text-left py-2 px-3">Comprado?</th><th class="text-left py-2 px-3">HUB</th><th class="text-left py-2 px-3">+7 carros?</th><th class="text-left py-2 px-3">Dia</th></tr></thead>
+        <th class="text-left py-2 px-3">Data do achado</th><th class="text-left py-2 px-3">Data da inspeção</th><th class="text-right py-2 px-3" title="Data do achado menos data da inspeção">Dias até o achado</th><th class="text-left py-2 px-3">Placa</th><th class="text-left py-2 px-3">Inspetor</th><th class="text-left py-2 px-3">Alinhamento</th><th class="text-left py-2 px-3">Tipo</th><th class="text-left py-2 px-3">Item (N.A)</th><th class="text-left py-2 px-3">Ticket</th><th class="text-left py-2 px-3">HUB</th><th class="text-left py-2 px-3">+7 carros?</th><th class="text-left py-2 px-3">Dia</th></tr></thead>
         <tbody id="audLtbody"></tbody></table></div>
     </div></div>`;
   audListaLigar();
@@ -1572,6 +1589,12 @@ const ticketHtml = it => {
   if (!t && !u) return '–';
   return /^https?:\/\//i.test(u) ? `<a href="${esc(u)}" target="_blank" rel="noopener" class="text-kavak-blue underline font-semibold hover:opacity-80">${esc(t || 'Abrir ticket')}</a>` : esc(t);
 };
+// Dias entre a inspeção e o achado (quanto tempo o problema levou para aparecer)
+const audDias = it => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(it.dataInsp || '') || !/^\d{4}-\d{2}-\d{2}$/.test(it.dataPos || '')) return null;
+  const n = Math.round((Date.parse(it.dataPos + 'T12:00:00Z') - Date.parse(it.dataInsp + 'T12:00:00Z')) / 864e5);
+  return n >= 0 ? n : null;
+};
 // Carro comprado? (cruzamento da placa com a BD de inspeções: sim / nao / fora da BD)
 const compradoHtml = it => it.comprado === 'sim' ? '<span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-green-50 text-green-700">Comprado</span>'
   : it.comprado === 'nao' ? '<span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-gray-100 text-gray-600">Não comprou</span>'
@@ -1584,7 +1607,7 @@ function audItensFiltrados(semBusca) {
   const out = [];
   ((AUD.dados && AUD.dados.inspetores) || []).forEach(g => g.itens.forEach(it => out.push({ ...it, inspetor: g.nome })));
   out.sort((a, b) => a.dataPos < b.dataPos ? 1 : a.dataPos > b.dataPos ? -1 : (a.placa < b.placa ? -1 : 1));
-  return out.filter(it => (!AUDL.insp || it.inspetor === AUDL.insp) && (!AUDL.alin || it.alin === AUDL.alin) && (!AUDL.tipo || it.tipo === AUDL.tipo) && (!AUDL.comp || it.comprado === AUDL.comp)
+  return out.filter(it => (!AUDL.insp || it.inspetor === AUDL.insp) && (!AUDL.alin || it.alin === AUDL.alin) && (!AUDL.tipo || it.tipo === AUDL.tipo)
     && (!q || String(it.placa).toUpperCase().includes(q) || String(it.peca).toUpperCase().includes(q) || String(it.ticket || '').toUpperCase().includes(q)));
 }
 function audGrafDesenhar() {
@@ -1594,25 +1617,33 @@ function audGrafDesenhar() {
   const itens = audItensFiltrados(true), mapa = {};
   itens.forEach(it => {
     const k = String(it.peca || '').trim().toUpperCase() || '(SEM ITEM)';
-    const x = mapa[k] = mapa[k] || { nome: k, inspetor: 0, resguardo: 0, total: 0 };
-    x[it.alin === 'resguardo' ? 'resguardo' : 'inspetor']++; x.total++;
+    const x = mapa[k] = mapa[k] || { nome: k, inspetor: 0, resguardo: 0, total: 0, placas: new Set() };
+    x[it.alin === 'resguardo' ? 'resguardo' : 'inspetor']++; x.total++; x.placas.add(it.placa);
   });
+  Object.values(mapa).forEach(x => { x.carros = x.placas.size; });
   const todos = Object.values(mapa).sort((a, b) => b.total - a.total || a.nome.localeCompare(b.nome, 'pt-BR'));
   const top = todos.slice(0, 15);
   $('audGrafInfo').textContent = todos.length ? `${itens.length} achados em ${todos.length} itens diferentes${todos.length > 15 ? ' · mostrando os 15 mais frequentes' : ''}.` : 'Nenhum achado com esses filtros.';
   box.style.height = Math.max(160, top.length * 30 + 70) + 'px';
   if (!top.length) return;
   AUDL.top = top;
+  const rotuloFim = { id: 'rotuloFim', afterDatasetsDraw(ch) {
+    const c = ch.ctx, m = ch.getDatasetMeta(0);
+    c.save(); c.font = 'bold 11px Inter, sans-serif'; c.fillStyle = '#111827'; c.textBaseline = 'middle';
+    m.data.forEach((b, i) => c.fillText(String(top[i].total), b.x + 6, b.y));
+    c.restore();
+  } };
   AUDL.chart = new Chart($('chAudItens'), {
     type: 'bar',
+    plugins: [rotuloFim],
     data: { labels: top.map(x => x.nome), datasets: [
-      { label: 'Alinhar Inspetor', data: top.map(x => x.inspetor), backgroundColor: '#0047FF', borderRadius: 3, stack: 's' },
-      { label: 'Alinhar Resguardo', data: top.map(x => x.resguardo), backgroundColor: '#F59E0B', borderRadius: 3, stack: 's' } ] },
+      { label: 'Vezes apontado', data: top.map(x => x.total), backgroundColor: top.map((x, i) => i === 0 ? '#002a99' : '#0047FF'), borderRadius: 4, maxBarThickness: 20 } ] },
     options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false,
       onClick: (e, els) => { if (!els.length) return; AUDL.q = AUDL.top[els[0].index].nome; if ($('audLq')) $('audLq').value = AUDL.q; audListaDesenhar(); const t = $('audLtbody'); if (t) t.scrollIntoView({ behavior: 'smooth', block: 'center' }); },
       onHover: (e, els) => { e.native.target.style.cursor = els.length ? 'pointer' : 'default'; },
-      plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, usePointStyle: true } }, tooltip: { backgroundColor: '#111827', padding: 10, cornerRadius: 6, callbacks: { footer: it => 'Total: ' + AUDL.top[it[0].dataIndex].total } } },
-      scales: { x: { stacked: true, beginAtZero: true, ticks: { precision: 0 }, grid: { color: '#F1F5F9' } }, y: { stacked: true, grid: { display: false }, ticks: { color: '#334155', font: { size: 11 } } } } }
+      layout: { padding: { right: 28 } },
+      plugins: { legend: { display: false }, tooltip: { backgroundColor: '#111827', padding: 10, cornerRadius: 6, displayColors: false, callbacks: { label: c => { const x = AUDL.top[c.dataIndex]; return [`${x.total} vez(es) apontado`, `${x.carros} carro(s)`, `Alinhar Inspetor ${x.inspetor} · Resguardo ${x.resguardo}`]; } } } },
+      scales: { x: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: '#F1F5F9' } }, y: { grid: { display: false }, ticks: { color: '#334155', font: { size: 11 } } } } }
   });
 }
 function audListaDesenhar() {
@@ -1622,13 +1653,13 @@ function audListaDesenhar() {
   tb.innerHTML = l.length ? l.map(it => `<tr class="border-t border-gray-100">
     <td class="py-1.5 px-3 whitespace-nowrap">${esc(fmtData(it.dataPos) || '–')}</td>
     <td class="py-1.5 px-3 whitespace-nowrap">${esc(fmtData(it.dataInsp) || '–')}</td>
+    <td class="py-1.5 px-3 whitespace-nowrap text-right font-bold ${(audDias(it) || 0) > 30 ? 'text-rose-600' : 'text-gray-700'}">${audDias(it) === null ? '–' : audDias(it)}</td>
     <td class="py-1.5 px-3 font-mono font-bold text-gray-900 whitespace-nowrap">${esc(it.placa || '–')}</td>
     <td class="py-1.5 px-3 font-semibold text-gray-800 whitespace-nowrap">${esc(it.inspetor)}</td>
     <td class="py-1.5 px-3 whitespace-nowrap"><span class="px-2 py-0.5 rounded-full text-[11px] font-bold ${it.alin === 'resguardo' ? 'bg-amber-50 text-amber-700' : 'bg-blue-50 text-kavak-blue'}">${it.alin === 'resguardo' ? 'Resguardo' : 'Inspetor'}</span></td>
     <td class="py-1.5 px-3 whitespace-nowrap ${it.tipo === 'Express' ? 'text-sky-700 font-semibold' : 'text-gray-700'}">${esc(it.tipo || '–')}</td>
     <td class="py-1.5 px-3 text-gray-800">${esc(it.peca || '–')}</td>
     <td class="py-1.5 px-3 whitespace-nowrap">${ticketHtml(it)}</td>
-    <td class="py-1.5 px-3 whitespace-nowrap">${compradoHtml(it)}</td>
     <td class="py-1.5 px-3 whitespace-nowrap text-gray-700">${esc(it.hub || '–')}</td>
     <td class="py-1.5 px-3 whitespace-nowrap ${it.mais7 === 'Sim' ? 'text-rose-600 font-bold' : 'text-gray-500'}">${esc(it.mais7 || '–')}</td>
     <td class="py-1.5 px-3 whitespace-nowrap ${it.dia === 'Sábado' ? 'text-amber-700 font-bold' : 'text-gray-700'}">${esc(it.dia || '–')}</td></tr>`).join('')
@@ -1636,18 +1667,17 @@ function audListaDesenhar() {
 }
 function audListaLigar() {
   if (!$('audLq')) return;
-  $('audLq').value = AUDL.q; $('audLinsp').value = AUDL.insp; $('audLalin').value = AUDL.alin; $('audLtipo').value = AUDL.tipo; $('audLcomp').value = AUDL.comp;
+  $('audLq').value = AUDL.q; $('audLinsp').value = AUDL.insp; $('audLalin').value = AUDL.alin; $('audLtipo').value = AUDL.tipo;
   if ($('audLinsp').value !== AUDL.insp) { AUDL.insp = ''; $('audLinsp').value = ''; }
   $('audLq').oninput = e => { AUDL.q = e.target.value; audListaDesenhar(); };
   $('audLinsp').onchange = e => { AUDL.insp = e.target.value; audListaDesenhar(); audGrafDesenhar(); };
   $('audLalin').onchange = e => { AUDL.alin = e.target.value; audListaDesenhar(); audGrafDesenhar(); };
   $('audLtipo').onchange = e => { AUDL.tipo = e.target.value; audListaDesenhar(); audGrafDesenhar(); };
-  $('audLcomp').onchange = e => { AUDL.comp = e.target.value; audListaDesenhar(); audGrafDesenhar(); };
   $('audLcsv').onclick = () => {
     const l = audItensFiltrados();
     const c = v => '"' + String(v === undefined || v === null ? '' : v).replace(/"/g, '""') + '"';
-    const linhas = [['Data do achado', 'Data da inspeção', 'Placa', 'Inspetor', 'Alinhamento', 'Tipo', 'Item (N.A)', 'Ticket', 'Link do ticket', 'Comprado', 'HUB', 'Mais de 7 carros', 'Dia'].map(c).join(';')]
-      .concat(l.map(it => [fmtData(it.dataPos), fmtData(it.dataInsp), it.placa, it.inspetor, it.alin === 'resguardo' ? 'Resguardo' : 'Inspetor', it.tipo, it.peca, it.ticket, it.ticketUrl, compradoTxt(it), it.hub, it.mais7, it.dia].map(c).join(';')));
+    const linhas = [['Data do achado', 'Data da inspeção', 'Dias até o achado', 'Placa', 'Inspetor', 'Alinhamento', 'Tipo', 'Item (N.A)', 'Ticket', 'Link do ticket', 'HUB', 'Mais de 7 carros', 'Dia'].map(c).join(';')]
+      .concat(l.map(it => [fmtData(it.dataPos), fmtData(it.dataInsp), audDias(it) === null ? '' : audDias(it), it.placa, it.inspetor, it.alin === 'resguardo' ? 'Resguardo' : 'Inspetor', it.tipo, it.peca, it.ticket, it.ticketUrl, it.hub, it.mais7, it.dia].map(c).join(';')));
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob(['\ufeff' + linhas.join('\r\n')], { type: 'text/csv;charset=utf-8' }));
     a.download = 'novos-achados.csv'; document.body.appendChild(a); a.click(); a.remove();
@@ -1667,7 +1697,6 @@ function abrirAchadosInspetor(g, periodo) {
       <td class="py-1.5 pr-3 whitespace-nowrap ${it.tipo === 'Express' ? 'text-sky-700 font-semibold' : 'text-gray-700'}">${esc(it.tipo || '–')}</td>
       <td class="py-1.5 pr-3 text-gray-700">${esc(it.peca || '–')}</td>
       <td class="py-1.5 pr-3 whitespace-nowrap">${ticketHtml(it)}</td>
-      <td class="py-1.5 pr-3 whitespace-nowrap">${compradoHtml(it)}</td>
       <td class="py-1.5 pr-3 whitespace-nowrap ${it.mais7 === 'Sim' ? 'text-rose-600 font-bold' : 'text-gray-500'}">${esc(it.mais7 || '–')}</td>
       <td class="py-1.5 whitespace-nowrap ${it.dia === 'Sábado' ? 'text-amber-700 font-bold' : 'text-gray-700'}">${esc(it.dia || '–')}</td></tr>`).join('');
   const m = document.createElement('div');
@@ -1680,8 +1709,8 @@ function abrirAchadosInspetor(g, periodo) {
         <button type="button" class="text-gray-400 hover:text-gray-700 text-xl leading-none px-2" data-fechar>×</button>
       </div>
       <div class="p-4 overflow-auto"><table class="w-full text-xs"><thead class="text-gray-500 text-left"><tr>
-        <th class="pb-2 pr-3">HUB</th><th class="pb-2 pr-3">Data pós</th><th class="pb-2 pr-3">Data inspeção</th><th class="pb-2 pr-3">Placa</th><th class="pb-2 pr-3">Tipo</th><th class="pb-2 pr-3">N.A</th><th class="pb-2 pr-3">Ticket</th><th class="pb-2 pr-3">Comprado?</th><th class="pb-2 pr-3">Mais de 7 carros?</th><th class="pb-2">Dia</th></tr></thead>
-        <tbody>${linhas || '<tr><td colspan="10" class="py-3 text-gray-500">Nenhum achado.</td></tr>'}</tbody></table></div>
+        <th class="pb-2 pr-3">HUB</th><th class="pb-2 pr-3">Data pós</th><th class="pb-2 pr-3">Data inspeção</th><th class="pb-2 pr-3">Placa</th><th class="pb-2 pr-3">Tipo</th><th class="pb-2 pr-3">N.A</th><th class="pb-2 pr-3">Ticket</th><th class="pb-2 pr-3">Mais de 7 carros?</th><th class="pb-2">Dia</th></tr></thead>
+        <tbody>${linhas || '<tr><td colspan="9" class="py-3 text-gray-500">Nenhum achado.</td></tr>'}</tbody></table></div>
     </div>`;
   m.addEventListener('click', e => { if (e.target === m || e.target.hasAttribute('data-fechar')) m.remove(); });
   document.addEventListener('keydown', function fechaEsc(e) { if (e.key === 'Escape') { m.remove(); document.removeEventListener('keydown', fechaEsc); } });
@@ -1926,20 +1955,24 @@ function renderVistasExtras() {
   if (!of) {
     $('vstFtq').innerHTML = card('Inspeção online × Alinhar FTQ', '', '<p class="text-xs text-amber-700">Atualize o arquivo AchadosAuditoria.gs no Apps Script e publique uma nova versão para liberar esta vista.</p>');
   } else {
-    const onl = INSP.d && Array.isArray(INSP.d.canais) ? INSP.d.canais.filter(c => c.grupo === 'online').reduce((a, c) => a + (c.total || 0), 0) : 0;
+    // Base: carros ONLINE comprados (Inspeções x Compras, cruzado pela placa)
+    const onlComp = CMP.dados && Array.isArray(CMP.dados.canais) ? CMP.dados.canais.filter(c => c.grupo === 'online').reduce((a, c) => a + (c.compras || 0), 0) : null;
+    const carrosFtq = new Set(of.itens.map(it => it.placa)).size;
     const kp = (t, v, sub) => `<div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200"><p class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">${esc(t)}</p><div class="mt-2 text-3xl font-extrabold text-gray-900">${v}</div><p class="text-[11px] text-gray-500 mt-1">${sub}</p></div>`;
     const av = [];
     if (!of.achou) av.push('Não achei a coluna ERRO nas abas da Auditoria, então não consegui separar o que é “Inspeção On Line”.');
     if (of.semData) av.push(`${of.semData} linha(s) sem data legível na DATA PÓS ficaram de fora.`);
     if (of.total > of.itens.length) av.push(`A lista mostra só os ${of.itens.length} mais recentes (os totais consideram todos).`);
+    { const antigos = of.itens.filter(it => it.dataInsp && d.periodo && it.dataInsp < d.periodo.inicio).length;
+      if (antigos) av.push(`${antigos} desses itens são de carros inspecionados antes do período (o achado é que caiu agora).`); }
     const linhasF = of.itens.map(it => `<tr class="border-t border-gray-100"><td class="py-1.5 px-3 whitespace-nowrap text-gray-700">${esc(fmtData(it.dataPos) || '–')}</td><td class="py-1.5 px-3 whitespace-nowrap text-gray-700">${esc(fmtData(it.dataInsp) || '–')}</td><td class="py-1.5 px-3 font-mono font-bold text-gray-900 whitespace-nowrap">${esc(it.placa || '–')}</td><td class="py-1.5 px-3 text-gray-700">${esc(it.peca || '–')}</td><td class="py-1.5 px-3 text-gray-700">${esc(it.motivo)}</td><td class="py-1.5 px-3 whitespace-nowrap text-gray-700">${esc(it.hub || '–')}</td><td class="py-1.5 px-3 whitespace-nowrap text-gray-700">${esc(it.inspetor || '–')}</td></tr>`).join('');
     $('vstFtq').innerHTML = `<div class="space-y-5">
       <div><h2 class="sec-h">Inspeção online × Alinhar FTQ</h2><p class="text-xs text-gray-500 mt-1">Achados da inspeção online que a gente não consegue ver (vídeo ruim ou peça que só se vê desmontando). Linhas com ERRO = “Inspeção On Line” e ALINHAMENTO = “Alinhar FTQ”, pela data do achado.</p></div>
       ${av.length ? `<div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-3 text-[11px] space-y-1">${av.map(x => `<p>⚠️ ${x}</p>`).join('')}</div>` : ''}
       <div class="grid grid-cols-2 lg:grid-cols-3 gap-4">
-        ${kp('Achados online (FTQ)', of.total, 'linhas no período')}
-        ${kp('Inspeções online', onl || '–', 'canal online no período')}
-        ${kp('Taxa', onl ? pct(of.total / onl * 100) : '–', 'achados FTQ ÷ inspeções online')}
+        ${kp('Carros online com achado FTQ', carrosFtq, `${of.total} ite${of.total === 1 ? 'm apontado' : 'ns apontados'}`)}
+        ${kp('Carros online comprados', onlComp === null ? '…' : onlComp, 'inspecionados no canal online e comprados')}
+        ${kp('Taxa', onlComp ? pct(carrosFtq / onlComp * 100) : '–', 'carros com achado FTQ ÷ carros online comprados')}
       </div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:1.25rem">
         ${card('Por motivo', 'Observação da linha (coluna OBS)', of.motivos.length ? cv('chVstFtq', Math.max(180, of.motivos.length * 34 + 40)) : '<p class="text-xs text-gray-500">Nenhum achado online FTQ no período.</p>')}
@@ -1994,22 +2027,26 @@ function renderVistasExtras() {
         x: { grid: { display: false } } } }
   }));
 
-  // 2) Express × Regular
-  const porTipo = {};
-  itens.forEach(it => { const k = it.tipo || 'Sem tipo'; porTipo[k] = (porTipo[k] || 0) + 1; });
-  const tipos = Object.keys(porTipo).sort((a, b) => porTipo[b] - porTipo[a]);
-  const corTipo = k => k === 'Express' ? '#0047FF' : k === 'Regular' ? '#6b93ff' : k === 'Sem tipo' ? '#cbd5e1' : '#94a3b8';
-  const totT = itens.length;
-  $('vstTipo').innerHTML = card('Novos achados: Express × Regular', 'Tipo da inspeção, vindo do post “Inspeção iniciada” do Slack. “Sem tipo” = placa sem esse post.',
-    totT ? `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1rem;align-items:center">
-      ${cv('chVstTipo', 200)}
-      <table class="w-full text-xs"><tbody>${tipos.map(k => `<tr class="border-t border-gray-100"><td class="py-1.5"><span class="inline-block w-2.5 h-2.5 rounded-full mr-2" style="background:${corTipo(k)}"></span>${esc(k)}</td><td class="py-1.5 text-right font-bold text-gray-900">${porTipo[k]}</td><td class="py-1.5 text-right text-gray-500">${pct(porTipo[k] / totT * 100)}</td></tr>`).join('')}</tbody></table></div>`
+  // 2) Express × Regular: em CARROS com achado (1 carro = 1 placa)
+  const tipoCarro = {}, itensTipo = {};
+  itens.forEach(it => {
+    const t = it.tipo === 'Express' || it.tipo === 'Regular' ? it.tipo : '';
+    if (!(it.placa in tipoCarro) || (!tipoCarro[it.placa] && t)) tipoCarro[it.placa] = t;
+  });
+  itens.forEach(it => { const k = tipoCarro[it.placa] || 'Sem tipo'; itensTipo[k] = (itensTipo[k] || 0) + 1; });
+  const carrosTipo = { Express: 0, Regular: 0, 'Sem tipo': 0 };
+  Object.values(tipoCarro).forEach(t => { carrosTipo[t || 'Sem tipo']++; });
+  const comTipo = carrosTipo.Express + carrosTipo.Regular;
+  const cardTipo = (k, cor) => `<div class="rounded-lg border border-gray-200 p-4">
+      <p class="text-[11px] font-bold uppercase tracking-wider" style="color:${cor}">${k}</p>
+      <div class="mt-1 text-3xl font-extrabold text-gray-900">${carrosTipo[k]} <span class="text-sm font-semibold text-gray-500">carro${carrosTipo[k] === 1 ? '' : 's'}</span></div>
+      <p class="text-[11px] text-gray-500 mt-1">${itensTipo[k] || 0} ite${(itensTipo[k] || 0) === 1 ? 'm apontado' : 'ns apontados'}${comTipo ? ` · ${pct(carrosTipo[k] / comTipo * 100)} dos carros com tipo` : ''}</p>
+      <div class="w-full bg-gray-100 h-1.5 rounded-full mt-3 overflow-hidden"><div class="h-1.5 rounded-full" style="background:${cor};width:${comTipo ? carrosTipo[k] / comTipo * 100 : 0}%"></div></div>
+    </div>`;
+  $('vstTipo').innerHTML = card('Carros com novo achado: Express × Regular', 'Tipo da inspeção, vindo do post “Inspeção iniciada” do Slack. Conta cada carro uma vez.',
+    Object.keys(tipoCarro).length ? `<div class="grid grid-cols-2 gap-3">${cardTipo('Express', '#0047FF')}${cardTipo('Regular', '#6b93ff')}</div>
+      ${carrosTipo['Sem tipo'] ? `<p class="text-[11px] text-gray-500 mt-3">+ ${carrosTipo['Sem tipo']} carro(s) sem tipo (placa sem o post “Inspeção iniciada”), fora da comparação.</p>` : ''}`
     : '<p class="text-xs text-gray-500">Nenhum novo achado no período.</p>');
-  if (totT) VST.charts.push(new Chart($('chVstTipo'), {
-    type: 'doughnut',
-    data: { labels: tipos, datasets: [{ data: tipos.map(k => porTipo[k]), backgroundColor: tipos.map(corTipo), borderWidth: 0 }] },
-    options: { responsive: true, maintainAspectRatio: false, cutout: '62%', plugins: { legend: { display: false }, tooltip: tt } }
-  }));
 
   // 3) Por HUB
   const porHub = {};
@@ -2092,7 +2129,7 @@ function renderCobertura() {
       const ativos = S.funcs.filter(x => !x.isInspetor && lojaDoDia(x, iso) === l && statusDia(x, iso) !== 'FÉ');
       const n = ativos.filter(x => statusDia(x, iso) === 'T').length;
       const nInsp = insp.filter(x => statusDia(x, iso) === 'T').length;
-      return badgeCob(n, ativos.length, n < S.cfg.min, nInsp, feriadosDaLoja(l, iso));
+      return badgeCob(n, ativos.length, n < S.cfg.min && !lojaSemAlerta(l), nInsp, feriadosDaLoja(l, iso));
     }).join('');
     linhas.push(`<tr><td class="py-2 px-4 text-left font-bold text-gray-700">${esc(l)}</td>${cel}</tr>`);
   });
@@ -2277,9 +2314,12 @@ const cadastradosDaLoja = l => S.funcs.filter(f => f.loja === l && !f.isInspetor
 const lojaTemCadastro = l => cadastradosDaLoja(l).length > 0;
 const lojaEquipeTodaAfastada = (l, iso = hoje()) => lojaTemCadastro(l) && cadastradosDaLoja(l).every(f => afastadoEm(f, iso));
 const lojaAbre = (l, iso) => diaIdx(iso) !== 6 || !(S.lojasInfo[l] && S.lojasInfo[l].domingo === false);
+// Loja sem alertas (On Line / home office): continua sendo loja, mas não entra em mínimo, loja vazia, sábado fraco nem reforços
+const lojaSemAlerta = l => /^(on ?line|home ?office|virtual)$/.test(String(l || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase())
+  || !!(S.lojasInfo[l] && S.lojasInfo[l].alertas === false);
 // Quem trabalha na loja naquele dia (considera quem foi movido só por aquele dia). Inspetor não conta.
 const trabalhandoEm = (l, iso) => S.funcs.filter(f => !f.isInspetor && lojaDoDia(f, iso) === l && statusDia(f, iso) === 'T');
-const lojaVaziaEm = (l, iso) => lojaTemCadastro(l) && lojaAbre(l, iso) && trabalhandoEm(l, iso).length === 0;
+const lojaVaziaEm = (l, iso) => lojaTemCadastro(l) && lojaAbre(l, iso) && !lojaSemAlerta(l) && trabalhandoEm(l, iso).length === 0;
 const fmtDiaSemana = iso => DIAS[diaIdx(iso)] + ' ' + fmtCurto(iso);
 
 // ---------- Feriados: nacionais, estadual (SP) e municipais de São Paulo, Santo André e Barueri ----------
@@ -2776,15 +2816,17 @@ function renderNuvens() {
     const semCad = cad.length === 0;
     const fechada = !lojaAbre(l, dia);
     let statusBg = 'bg-emerald-500', statusBorder = 'border-emerald-200', statusText = 'text-emerald-700';
-    if (semCad || fechada) {
+    if (semCad || fechada || (lojaSemAlerta(l) && trabalhando.length === 0)) {
       statusBg = 'bg-gray-300'; statusBorder = 'border-gray-200'; statusText = 'text-gray-500';
+    } else if (lojaSemAlerta(l)) {
+      // On Line / home office: sem alerta de mínimo
     } else if (trabalhando.length === 0) {
       statusBg = 'bg-rose-500'; statusBorder = 'border-rose-200'; statusText = 'text-rose-700';
     } else if (trabalhando.length < S.cfg.min) {
       statusBg = 'bg-amber-500'; statusBorder = 'border-amber-200'; statusText = 'text-amber-700';
     }
 
-    const vazia = !semCad && !fechada && trabalhando.length === 0;
+    const vazia = !semCad && !fechada && !lojaSemAlerta(l) && trabalhando.length === 0;
     const nAfast = cad.filter(f => afastadoEm(f, dia)).length;
     const cobN = vazia ? (coberturaEm(dia).find(c => c.loja === l) || {}).por : null;
     const linhaCob = vazia
@@ -3418,7 +3460,7 @@ function gerarEscalaLocal(semanas, regras) {
         const lacunas = datas.map(iso => {
           let c = 0;
           S.lojas.forEach(l => {
-            if (!lojaAbre(l, iso)) return;
+            if (!lojaAbre(l, iso) || lojaSemAlerta(l)) return;
             const comuns = ativos.filter(f => f.loja === l && !f.isInspetor);
             if (!comuns.length || ativos.some(f => f.loja === l && f.isInspetor)) return;
             if (comuns.filter(f => statusDia(f, iso) === 'T').length < S.cfg.min) c++;
@@ -3529,7 +3571,7 @@ function conferirMinimo(semanas) {
       const comuns = ativos.filter(f => f.loja === l && !f.isInspetor);
       DIAS.forEach((_, i) => {
         const iso = somaDias(seg, i);
-        if (!lojaAbre(l, iso)) return;
+        if (!lojaAbre(l, iso) || lojaSemAlerta(l)) return;
         const n = trabalhandoEm(l, iso).length;
         if (n < S.cfg.min) falhas.push({ loja: l, iso, n });
       });
@@ -3632,7 +3674,7 @@ function sugestoesDoDia(iso) {
   const precisa = [];
   S.lojas.forEach(l => {
     if (!lojaTemCadastro(l)) return;   // sem funcionários cadastrados: nada a cobrir
-    if (!lojaAbre(l, iso)) return;
+    if (!lojaAbre(l, iso) || lojaSemAlerta(l)) return;   // On Line / home office não pede reforço
     const n = trabalhandoEm(l, iso).length;
     // Regra do inspetor: ele evita loja sem ninguém, mas NÃO conta para o mínimo.
     if (n === 0 && inspetores.some(f => f.loja === l && statusDia(f, iso) === 'T')) return;
