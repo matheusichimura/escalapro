@@ -82,11 +82,75 @@ button:disabled{cursor:not-allowed}
 .btn-outline-kavak:hover { background-color: #ebf0ff; }
 .text-kavak-blue { color: #0047FF; }
 .bg-kavak-blue { background-color: #0047FF; }
+/* ===== Modo escuro (botão 🌙 no topo). Só na tela: impressão/PDF continua claro ===== */
+@media screen {
+html.escuro{color-scheme:dark}
+html.escuro *,html.escuro ::before,html.escuro ::after{border-color:#232c3b}
+html.escuro .border-kavak-blue{border-color:#0047FF}
+html.escuro .border-transparent{border-color:transparent}
+html.escuro .divide-y>:not([hidden])~:not([hidden]),html.escuro .divide-x>:not([hidden])~:not([hidden]),html.escuro [class*="divide-gray"]>:not([hidden])~:not([hidden]){border-color:#232c3b}
+html.escuro body{background:#0b0f17;color:#e5e7eb}
+html.escuro .bg-white,html.escuro .hover\:bg-white:hover{background-color:#151b26}
+html.escuro .bg-white\/70{background-color:rgba(21,27,38,.85)}
+html.escuro .bg-gray-50,html.escuro .bg-gray-50\/60,html.escuro .bg-gray-50\/50,html.escuro .bg-gray-50\/30,html.escuro .hover\:bg-gray-50:hover{background-color:#1a2130}
+html.escuro .bg-gray-100,html.escuro .hover\:bg-gray-100:hover{background-color:#222b3b}
+html.escuro .bg-gray-200{background-color:#2a3445}
+html.escuro .bg-gray-300{background-color:#3a4558}
+html.escuro .text-gray-900{color:#f1f5f9}
+html.escuro .text-gray-800,html.escuro .hover\:text-gray-800:hover{color:#e2e8f0}
+html.escuro .text-gray-700,html.escuro .hover\:text-gray-700:hover{color:#cbd5e1}
+html.escuro .text-gray-600{color:#b6c2d3}
+html.escuro .text-gray-500{color:#94a3b8}
+html.escuro .text-gray-400{color:#7c8aa0}
+html.escuro .border-gray-100,html.escuro .divide-gray-100>*+*{border-color:#232c3b}
+html.escuro .border-gray-200{border-color:#2a3445}
+html.escuro .border-gray-300,html.escuro .hover\:border-gray-300:hover{border-color:#3a4558}
+html.escuro .text-kavak-blue,html.escuro .hover\:text-kavak-blue:hover{color:#7ea2ff}
+html.escuro .bg-blue-50{background-color:rgba(59,130,246,.16)}
+html.escuro .border-blue-200{border-color:rgba(59,130,246,.35)}
+html.escuro .text-blue-700{color:#93c5fd}
+html.escuro .bg-amber-50{background-color:rgba(245,158,11,.12)}
+html.escuro .bg-amber-100{background-color:rgba(245,158,11,.22)}
+html.escuro .border-amber-200,html.escuro .border-amber-300{border-color:rgba(245,158,11,.35)}
+html.escuro .text-amber-600,html.escuro .text-amber-700,html.escuro .text-amber-800,html.escuro .text-amber-900,html.escuro .hover\:text-amber-800:hover{color:#fbbf24}
+html.escuro .bg-rose-50,html.escuro .bg-rose-50\/60{background-color:rgba(244,63,94,.12)}
+html.escuro .bg-rose-100{background-color:rgba(244,63,94,.22)}
+html.escuro .border-rose-200,html.escuro .border-rose-300{border-color:rgba(244,63,94,.4)}
+html.escuro .text-rose-500,html.escuro .text-rose-600,html.escuro .text-rose-700,html.escuro .text-rose-800,html.escuro .text-rose-900,html.escuro .text-red-600,html.escuro .text-red-700{color:#fb7185}
+html.escuro .bg-green-50,html.escuro .bg-emerald-50{background-color:rgba(34,197,94,.12)}
+html.escuro .bg-green-100{background-color:rgba(34,197,94,.22)}
+html.escuro .border-emerald-100,html.escuro .border-emerald-200{border-color:rgba(34,197,94,.35)}
+html.escuro .text-green-700,html.escuro .text-green-800,html.escuro .text-emerald-600,html.escuro .text-emerald-700,html.escuro .text-emerald-800{color:#4ade80}
+html.escuro .bg-violet-50,html.escuro .bg-violet-50\/60{background-color:rgba(139,92,246,.14)}
+html.escuro .bg-violet-100{background-color:rgba(139,92,246,.24)}
+html.escuro .border-violet-200,html.escuro .border-violet-300,html.escuro .border-violet-400{border-color:rgba(139,92,246,.4)}
+html.escuro .text-violet-600,html.escuro .text-violet-700,html.escuro .text-violet-800{color:#c4b5fd}
+html.escuro .bg-indigo-50,html.escuro .bg-indigo-50\/30,html.escuro .hover\:bg-indigo-50\/60:hover,html.escuro .hover\:bg-indigo-100:hover{background-color:rgba(99,102,241,.16)}
+html.escuro .border-indigo-200,html.escuro .border-indigo-300{border-color:rgba(99,102,241,.4)}
+html.escuro .text-indigo-600,html.escuro .text-indigo-700{color:#a5b4fc}
+html.escuro .bg-sky-50{background-color:rgba(14,165,233,.14)}
+html.escuro .border-sky-200{border-color:rgba(14,165,233,.35)}
+html.escuro .text-sky-700,html.escuro .text-sky-900{color:#7dd3fc}
+html.escuro input,html.escuro select,html.escuro textarea{background-color:#1a2130;color:#e5e7eb;-webkit-text-fill-color:#e5e7eb;color-scheme:dark;border-color:#3a4558}
+html.escuro input::placeholder{color:#7c8aa0;-webkit-text-fill-color:#7c8aa0}
+html.escuro .kavak-logo span{color:#f1f5f9}
+html.escuro .col-nome{background:#151b26}
+html.escuro .drop-on{background:rgba(0,71,255,.18)}
+html.escuro .vst-edit .vista-barra{background:rgba(0,71,255,.18);color:#a9c1ff}
+html.escuro .vista-acoes button{background:#151b26;color:#a9c1ff;border-color:#2f4a8a}
+html.escuro .vst-apres{background:#0b0f17}
+html.escuro .btn-outline-kavak:hover{background-color:rgba(0,71,255,.18)}
+html.escuro .shadow-sm{box-shadow:none}
+html.escuro .sec-h{color:#f1f5f9}
+html.escuro .text-black{color:#f1f5f9}
+}
+
 .border-kavak-blue { border-color: #0047FF; }
   .sec-h{font-size:1.25rem;line-height:1.75rem;font-weight:800;color:#111827;border-left:4px solid #0047FF;padding-left:.75rem}
 </style>
 </head>
 <body class="font-sans min-h-screen flex flex-col">
+<script>try { if (localStorage.getItem('escalapro_tema') === 'escuro') document.documentElement.classList.add('escuro'); } catch (e) {}</script>
 
 <!-- Header -->
 <header class="bg-white border-b border-gray-200 sticky top-0 z-40">
@@ -102,6 +166,7 @@ button:disabled{cursor:not-allowed}
     <div class="flex flex-wrap items-center gap-2">
       <span id="syncStatus" role="status" aria-live="polite" class="text-[11px] font-medium text-gray-500 px-1"></span>
       <span id="usuarioInfo" class="text-[11px] font-bold text-gray-700 bg-gray-100 rounded px-2 py-1.5" style="display:none"></span>
+      <button id="btnTema" type="button" aria-label="Alternar modo escuro" title="Modo escuro / claro" class="bg-white border border-gray-300 text-gray-700 px-3 py-2 rounded-md text-xs font-bold shadow-sm transition hover:bg-gray-50">🌙</button>
       <button id="btnSair" class="bg-white border border-gray-300 text-gray-700 px-3 py-2 rounded-md text-xs font-bold shadow-sm transition hover:bg-gray-50" style="display:none">Sair</button>
       <button id="btnDesfazer" aria-label="Desfazer a última ação" class="btn-desfazer bg-white border border-gray-300 text-gray-700 px-3 py-2 rounded-md text-xs font-bold flex items-center gap-2 shadow-sm transition hover:bg-gray-50" title="Desfazer a última ação grande (gerar escala, importar, resetar, excluir)">
         <i data-ic="undo"></i> <span class="hidden sm:inline">Desfazer</span>
@@ -1087,12 +1152,45 @@ const INSP_EXEMPLO = {
 const INSP = { charts: [], promessa: null };
 const fmtData = iso => iso ? iso.slice(0, 10).split('-').reverse().join('/') : '';
 
+// ---------- Modo escuro ----------
+const temaEscuro = () => document.documentElement.classList.contains('escuro');
+function temaGraficos() {
+  if (!window.Chart || Chart.__temaOk) return;
+  Chart.__temaOk = true;
+  // Antes de desenhar, troca as cores de eixo/grade/legenda conforme o tema (sem mexer em cada gráfico)
+  Chart.register({ id: 'temaEscalaPro', beforeUpdate(ch) {
+    const e = temaEscuro(), sc = ch.options.scales || {};
+    if (!ch.$temaOrig) ch.$temaOrig = {};
+    Object.keys(sc).forEach(k => {
+      const s = sc[k]; if (!s) return;
+      const o = ch.$temaOrig[k] = ch.$temaOrig[k] || { t: s.ticks && s.ticks.color, g: s.grid && s.grid.color };
+      if (s.ticks) s.ticks.color = e ? '#b6c2d3' : (o.t || '#666');
+      if (s.grid && s.grid.display !== false) s.grid.color = e ? '#243044' : (o.g || 'rgba(0,0,0,0.1)');
+    });
+    const lg = ch.options.plugins && ch.options.plugins.legend;
+    if (lg && lg.labels) lg.labels.color = e ? '#cbd5e1' : '#666';
+  } });
+}
+function aplicarTema(escuro) {
+  document.documentElement.classList.toggle('escuro', escuro);
+  try { localStorage.setItem('escalapro_tema', escuro ? 'escuro' : 'claro'); } catch (e) {}
+  const b = document.getElementById('btnTema'); if (b) b.textContent = escuro ? '☀️' : '🌙';
+  if (window.Chart) { temaGraficos(); Object.values(Chart.instances).forEach(c => { try { c.update(); } catch (e) {} }); }
+}
+(function ligarBotaoTema() {
+  const ligar = () => {
+    const b = document.getElementById('btnTema');
+    if (b && !b.dataset.ok) { b.dataset.ok = '1'; b.textContent = temaEscuro() ? '☀️' : '🌙'; b.addEventListener('click', () => aplicarTema(!temaEscuro())); }
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', ligar); else ligar();
+})();
+
 function carregarChartJs() {
-  if (window.Chart) return Promise.resolve();
+  if (window.Chart) { temaGraficos(); return Promise.resolve(); }
   if (!INSP.promessa) INSP.promessa = new Promise((ok, falha) => {
     const s = document.createElement('script');
     s.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js';
-    s.onload = ok; s.onerror = () => { INSP.promessa = null; falha(new Error('chartjs')); };
+    s.onload = () => { temaGraficos(); ok(); }; s.onerror = () => { INSP.promessa = null; falha(new Error('chartjs')); };
     document.head.appendChild(s);
   });
   return INSP.promessa;
@@ -1629,7 +1727,7 @@ function audGrafDesenhar() {
   AUDL.top = top;
   const rotuloFim = { id: 'rotuloFim', afterDatasetsDraw(ch) {
     const c = ch.ctx, m = ch.getDatasetMeta(0);
-    c.save(); c.font = 'bold 11px Inter, sans-serif'; c.fillStyle = '#111827'; c.textBaseline = 'middle';
+    c.save(); c.font = 'bold 11px Inter, sans-serif'; c.fillStyle = temaEscuro() ? '#e5e7eb' : '#111827'; c.textBaseline = 'middle';
     m.data.forEach((b, i) => c.fillText(String(top[i].total), b.x + 6, b.y));
     c.restore();
   } };
@@ -1804,6 +1902,9 @@ function vistasEditar(on) {
   $('vstBtnEditar').textContent = on ? '✓ Concluir' : 'Reorganizar blocos';
   $('vstBtnEditar').classList.toggle('bg-kavak-blue', on);
   $('vstBtnEditar').classList.toggle('text-white', on);
+  $('vstBtnEditar').classList.toggle('bg-white', !on);
+  $('vstBtnEditar').classList.toggle('text-gray-700', !on);
+  $('vstBtnEditar').classList.toggle('border-kavak-blue', on);
 }
 
 function vistasApresentar(on) {
@@ -1920,8 +2021,9 @@ function vistasIniciar() {
   $('vstBtnPdf').addEventListener('click', () => {
     if (VST.edit) vistasEditar(false);
     document.body.classList.add('pdf-insp');
+    const eraEscuro = temaEscuro(); if (eraEscuro) document.documentElement.classList.remove('escuro');
     const redim = () => { try { Object.values(Chart.instances).forEach(c => c.resize()); } catch (e) {} };
-    window.addEventListener('afterprint', function fim() { document.body.classList.remove('pdf-insp'); window.removeEventListener('afterprint', fim); redim(); });
+    window.addEventListener('afterprint', function fim() { document.body.classList.remove('pdf-insp'); if (eraEscuro) document.documentElement.classList.add('escuro'); window.removeEventListener('afterprint', fim); redim(); });
     redim();
     setTimeout(() => { window.print(); }, 400);   // no diálogo, escolha "Salvar como PDF"
   });
@@ -1965,7 +2067,16 @@ function renderVistasExtras() {
     if (of.total > of.itens.length) av.push(`A lista mostra só os ${of.itens.length} mais recentes (os totais consideram todos).`);
     { const antigos = of.itens.filter(it => it.dataInsp && d.periodo && it.dataInsp < d.periodo.inicio).length;
       if (antigos) av.push(`${antigos} desses itens são de carros inspecionados antes do período (o achado é que caiu agora).`); }
-    const linhasF = of.itens.map(it => `<tr class="border-t border-gray-100"><td class="py-1.5 px-3 whitespace-nowrap text-gray-700">${esc(fmtData(it.dataPos) || '–')}</td><td class="py-1.5 px-3 whitespace-nowrap text-gray-700">${esc(fmtData(it.dataInsp) || '–')}</td><td class="py-1.5 px-3 font-mono font-bold text-gray-900 whitespace-nowrap">${esc(it.placa || '–')}</td><td class="py-1.5 px-3 text-gray-700">${esc(it.peca || '–')}</td><td class="py-1.5 px-3 text-gray-700">${esc(it.motivo)}</td><td class="py-1.5 px-3 whitespace-nowrap text-gray-700">${esc(it.hub || '–')}</td><td class="py-1.5 px-3 whitespace-nowrap text-gray-700">${esc(it.inspetor || '–')}</td></tr>`).join('');
+    const linhasF = of.itens.map(it => `<tr class="border-t border-gray-100">
+      <td class="py-1.5 px-3 whitespace-nowrap">${esc(fmtData(it.dataPos) || '–')}</td>
+      <td class="py-1.5 px-3 whitespace-nowrap">${esc(fmtData(it.dataInsp) || '–')}</td>
+      <td class="py-1.5 px-3 whitespace-nowrap text-right font-bold ${(audDias(it) || 0) > 30 ? 'text-rose-600' : 'text-gray-700'}">${audDias(it) === null ? '–' : audDias(it)}</td>
+      <td class="py-1.5 px-3 font-mono font-bold text-gray-900 whitespace-nowrap">${esc(it.placa || '–')}</td>
+      <td class="py-1.5 px-3 font-semibold text-gray-800 whitespace-nowrap">${esc(it.inspetor || '–')}</td>
+      <td class="py-1.5 px-3 text-gray-800">${esc(it.peca || '–')}</td>
+      <td class="py-1.5 px-3 text-gray-700">${esc(it.motivo || '–')}</td>
+      <td class="py-1.5 px-3 whitespace-nowrap">${ticketHtml(it)}</td>
+      <td class="py-1.5 px-3 whitespace-nowrap text-gray-700">${esc(it.hub || '–')}</td></tr>`).join('');
     $('vstFtq').innerHTML = `<div class="space-y-5">
       <div><h2 class="sec-h">Inspeção online × Alinhar FTQ</h2><p class="text-xs text-gray-500 mt-1">Achados da inspeção online que a gente não consegue ver (vídeo ruim ou peça que só se vê desmontando). Linhas com ERRO = “Inspeção On Line” e ALINHAMENTO = “Alinhar FTQ”, pela data do achado.</p></div>
       ${av.length ? `<div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-3 text-[11px] space-y-1">${av.map(x => `<p>⚠️ ${x}</p>`).join('')}</div>` : ''}
@@ -1976,9 +2087,13 @@ function renderVistasExtras() {
       </div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:1.25rem">
         ${card('Por motivo', 'Observação da linha (coluna OBS)', of.motivos.length ? cv('chVstFtq', Math.max(180, of.motivos.length * 34 + 40)) : '<p class="text-xs text-gray-500">Nenhum achado online FTQ no período.</p>')}
-        <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden min-w-0"><div class="p-5 pb-3"><h3 class="text-sm font-bold text-gray-900">Placas</h3></div>
-          <div class="overflow-auto max-h-80"><table class="w-full text-xs"><thead class="bg-gray-50 text-gray-500 sticky top-0"><tr><th class="text-left py-2 px-3">Data pós</th><th class="text-left py-2 px-3">Data insp.</th><th class="text-left py-2 px-3">Placa</th><th class="text-left py-2 px-3">N.A</th><th class="text-left py-2 px-3">Motivo</th><th class="text-left py-2 px-3">HUB</th><th class="text-left py-2 px-3">Inspetor</th></tr></thead>
-          <tbody>${linhasF || '<tr><td colspan="7" class="py-4 px-3 text-gray-500">Nenhum achado.</td></tr>'}</tbody></table></div></div>
+      </div>
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+        <div class="p-5 pb-3"><h3 class="text-base font-bold text-gray-900">Lista dos achados online (FTQ)</h3>
+          <p class="text-xs text-gray-500">Uma linha por item apontado, do mais recente para o mais antigo.</p></div>
+        <div class="overflow-auto max-h-[32rem]"><table class="w-full text-xs"><thead class="bg-gray-50 text-gray-500 sticky top-0"><tr>
+          <th class="text-left py-2 px-3">Data do achado</th><th class="text-left py-2 px-3">Data da inspeção</th><th class="text-right py-2 px-3" title="Data do achado menos data da inspeção">Dias até o achado</th><th class="text-left py-2 px-3">Placa</th><th class="text-left py-2 px-3">Inspetor</th><th class="text-left py-2 px-3">Item (N.A)</th><th class="text-left py-2 px-3">Motivo</th><th class="text-left py-2 px-3">Ticket</th><th class="text-left py-2 px-3">HUB</th></tr></thead>
+          <tbody>${linhasF || '<tr><td colspan="9" class="py-4 px-3 text-gray-500">Nenhum achado.</td></tr>'}</tbody></table></div>
       </div></div>`;
     if (of.motivos.length) VST.charts.push(new Chart($('chVstFtq'), {
       type: 'bar',
