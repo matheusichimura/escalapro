@@ -1651,16 +1651,22 @@ function renderAchadosAud() {
     </div>
     <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-5">
       <h3 class="text-base font-bold text-gray-900">Achados por item (N.A)</h3>
-      <p class="text-xs text-gray-500 mb-1">Quantas vezes cada item foi apontado. Para separar Alinhar Inspetor de Resguardo, use o filtro da lista abaixo (o gráfico acompanha). Clique numa barra para ver só aquele item na lista.</p>
+      <p class="text-xs text-gray-500 mb-1">Quantas vezes cada item foi apontado. Para separar Alinhar Inspetor de Resguardo, use o filtro da lista abaixo (o gráfico acompanha). Clique numa barra para ver as placas.</p>
       <p id="audGrafInfo" class="text-[11px] text-gray-400 mb-3"></p>
       <div id="audGrafBox" class="relative w-full" style="height:300px"><canvas id="chAudItens"></canvas></div>
+    </div>
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-5">
+      <h3 class="text-base font-bold text-gray-900">Modelos com mais novos achados</h3>
+      <p class="text-xs text-gray-500 mb-1">Quantos carros de cada modelo voltaram com achado (modelo vem da BD de inspeções, pela placa). Segue os mesmos filtros. Clique numa barra para ver as placas.</p>
+      <p id="audModInfo" class="text-[11px] text-gray-400 mb-3"></p>
+      <div id="audModBox" class="relative w-full" style="height:300px"><canvas id="chAudModelos"></canvas></div>
     </div>
     <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
       <div class="p-5 pb-3">
         <h3 class="text-base font-bold text-gray-900">Lista de todos os novos achados</h3>
         <p class="text-xs text-gray-500">Uma linha por item apontado na Auditoria (coluna N.A), do mais recente para o mais antigo. Busca também pelo número do ticket.</p>
         <div class="flex flex-wrap items-center gap-2 mt-3 nao-imprimir">
-          <input id="audLq" type="search" placeholder="Buscar placa, item ou ticket…" aria-label="Buscar placa, item ou ticket" class="border border-gray-300 rounded px-3 py-2 text-xs w-52">
+          <input id="audLq" type="search" placeholder="Buscar placa, item, modelo ou ticket…" aria-label="Buscar placa, item, modelo ou ticket" class="border border-gray-300 rounded px-3 py-2 text-xs w-52">
           <select id="audLinsp" aria-label="Inspetor" class="border border-gray-300 rounded px-2 py-2 text-xs"><option value="">Todos os inspetores</option>${(AUD.dados.inspetores || []).map(g => `<option value="${esc(g.nome)}">${esc(g.nome)}</option>`).join('')}</select>
           <select id="audLalin" aria-label="Alinhamento" class="border border-gray-300 rounded px-2 py-2 text-xs"><option value="">Inspetor e Resguardo</option><option value="inspetor">Só Alinhar Inspetor</option><option value="resguardo">Só Alinhar Resguardo</option></select>
           <select id="audLtipo" aria-label="Tipo de inspeção" class="border border-gray-300 rounded px-2 py-2 text-xs"><option value="">Express e Regular</option><option value="Express">Só Express</option><option value="Regular">Só Regular</option></select>
@@ -1669,7 +1675,7 @@ function renderAchadosAud() {
         </div>
       </div>
       <div class="overflow-auto max-h-[32rem]"><table class="w-full text-xs"><thead class="bg-gray-50 text-gray-500 sticky top-0"><tr>
-        <th class="text-left py-2 px-3">Data do achado</th><th class="text-left py-2 px-3">Data da inspeção</th><th class="text-right py-2 px-3" title="Data do achado menos data da inspeção">Dias até o achado</th><th class="text-left py-2 px-3">Placa</th><th class="text-left py-2 px-3">Inspetor</th><th class="text-left py-2 px-3">Alinhamento</th><th class="text-left py-2 px-3">Tipo</th><th class="text-left py-2 px-3">Item (N.A)</th><th class="text-left py-2 px-3">Ticket</th><th class="text-left py-2 px-3">HUB</th><th class="text-left py-2 px-3">+7 carros?</th><th class="text-left py-2 px-3">Dia</th></tr></thead>
+        <th class="text-left py-2 px-3">Data do achado</th><th class="text-left py-2 px-3">Data da inspeção</th><th class="text-right py-2 px-3" title="Data do achado menos data da inspeção">Dias até o achado</th><th class="text-left py-2 px-3">Placa</th><th class="text-left py-2 px-3">Carro</th><th class="text-left py-2 px-3">Inspetor</th><th class="text-left py-2 px-3">Alinhamento</th><th class="text-left py-2 px-3">Tipo</th><th class="text-left py-2 px-3">Item (N.A)</th><th class="text-left py-2 px-3">Ticket</th><th class="text-left py-2 px-3">HUB</th><th class="text-left py-2 px-3">+7 carros?</th><th class="text-left py-2 px-3">Dia</th></tr></thead>
         <tbody id="audLtbody"></tbody></table></div>
     </div></div>`;
   audListaLigar();
@@ -1706,9 +1712,10 @@ function audItensFiltrados(semBusca) {
   ((AUD.dados && AUD.dados.inspetores) || []).forEach(g => g.itens.forEach(it => out.push({ ...it, inspetor: g.nome })));
   out.sort((a, b) => a.dataPos < b.dataPos ? 1 : a.dataPos > b.dataPos ? -1 : (a.placa < b.placa ? -1 : 1));
   return out.filter(it => (!AUDL.insp || it.inspetor === AUDL.insp) && (!AUDL.alin || it.alin === AUDL.alin) && (!AUDL.tipo || it.tipo === AUDL.tipo)
-    && (!q || String(it.placa).toUpperCase().includes(q) || String(it.peca).toUpperCase().includes(q) || String(it.ticket || '').toUpperCase().includes(q)));
+    && (!q || String(it.placa).toUpperCase().includes(q) || String(it.peca).toUpperCase().includes(q) || String(it.ticket || '').toUpperCase().includes(q) || String(it.carro || '').toUpperCase().includes(q)));
 }
 function audGrafDesenhar() {
+  audGrafModelos();
   const box = $('audGrafBox'); if (!box) return;
   if (AUDL.chart) { AUDL.chart.destroy(); AUDL.chart = null; }
   if (!window.Chart) { $('audGrafInfo').textContent = 'Gráfico indisponível (biblioteca não carregou).'; return; }
@@ -1737,13 +1744,81 @@ function audGrafDesenhar() {
     data: { labels: top.map(x => x.nome), datasets: [
       { label: 'Vezes apontado', data: top.map(x => x.total), backgroundColor: top.map((x, i) => i === 0 ? '#002a99' : '#0047FF'), borderRadius: 4, maxBarThickness: 20 } ] },
     options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false,
-      onClick: (e, els) => { if (!els.length) return; AUDL.q = AUDL.top[els[0].index].nome; if ($('audLq')) $('audLq').value = AUDL.q; audListaDesenhar(); const t = $('audLtbody'); if (t) t.scrollIntoView({ behavior: 'smooth', block: 'center' }); },
+      onClick: (e, els) => { if (!els.length) return; const x = AUDL.top[els[0].index]; audModalPlacas(x.nome, `${x.total} vez(es) apontado em ${x.carros} carro(s)`, itens.filter(it => (String(it.peca || '').trim().toUpperCase() || '(SEM ITEM)') === x.nome)); },
       onHover: (e, els) => { e.native.target.style.cursor = els.length ? 'pointer' : 'default'; },
       layout: { padding: { right: 28 } },
       plugins: { legend: { display: false }, tooltip: { backgroundColor: '#111827', padding: 10, cornerRadius: 6, displayColors: false, callbacks: { label: c => { const x = AUDL.top[c.dataIndex]; return [`${x.total} vez(es) apontado`, `${x.carros} carro(s)`, `Alinhar Inspetor ${x.inspetor} · Resguardo ${x.resguardo}`]; } } } },
       scales: { x: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: '#F1F5F9' } }, y: { grid: { display: false }, ticks: { color: '#334155', font: { size: 11 } } } } }
   });
 }
+function audGrafModelos() {
+  const box = $('audModBox'); if (!box) return;
+  if (AUDL.chartMod) { AUDL.chartMod.destroy(); AUDL.chartMod = null; }
+  if (!window.Chart) return;
+  const itens = audItensFiltrados(true), mapa = {};
+  itens.forEach(it => {
+    const k = String(it.carro || '').trim().toUpperCase() || '(MODELO NÃO ENCONTRADO NA BD)';
+    const x = mapa[k] = mapa[k] || { nome: k, itens: 0, placas: new Set(), lista: [] };
+    x.itens++; x.placas.add(it.placa); x.lista.push(it);
+  });
+  const todos = Object.values(mapa).map(x => ({ ...x, carros: x.placas.size }))
+    .sort((a, b) => b.carros - a.carros || b.itens - a.itens || a.nome.localeCompare(b.nome, 'pt-BR'));
+  const top = todos.slice(0, 15);
+  const semModelo = mapa['(MODELO NÃO ENCONTRADO NA BD)'];
+  $('audModInfo').textContent = todos.length ? `${todos.length} modelos diferentes${todos.length > 15 ? ' · mostrando os 15 com mais carros' : ''}${semModelo ? ` · ${semModelo.placas.size} carro(s) sem modelo na BD` : ''}.` : 'Nenhum achado com esses filtros.';
+  box.style.height = Math.max(160, top.length * 30 + 70) + 'px';
+  if (!top.length) return;
+  AUDL.topMod = top;
+  const rotuloFim = { id: 'rotuloFimMod', afterDatasetsDraw(ch) {
+    const c = ch.ctx, m = ch.getDatasetMeta(0);
+    c.save(); c.font = 'bold 11px Inter, sans-serif'; c.fillStyle = temaEscuro() ? '#e5e7eb' : '#111827'; c.textBaseline = 'middle';
+    m.data.forEach((b, i) => c.fillText(`${top[i].carros} carro${top[i].carros === 1 ? '' : 's'} · ${top[i].itens} ite${top[i].itens === 1 ? 'm' : 'ns'}`, b.x + 6, b.y));
+    c.restore();
+  } };
+  AUDL.chartMod = new Chart($('chAudModelos'), {
+    type: 'bar', plugins: [rotuloFim],
+    data: { labels: top.map(x => x.nome), datasets: [{ label: 'Carros com achado', data: top.map(x => x.carros),
+      backgroundColor: top.map((x, i) => i === 0 ? '#9a3412' : '#F97316'), borderRadius: 4, maxBarThickness: 20 }] },
+    options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, layout: { padding: { right: 90 } },
+      onClick: (e, els) => { if (!els.length) return; const x = AUDL.topMod[els[0].index]; audModalPlacas(x.nome, `${x.carros} carro(s) · ${x.itens} item(ns) apontado(s)`, x.lista); },
+      onHover: (e, els) => { e.native.target.style.cursor = els.length ? 'pointer' : 'default'; },
+      plugins: { legend: { display: false }, tooltip: { backgroundColor: '#111827', padding: 10, cornerRadius: 6, displayColors: false,
+        callbacks: { label: c => { const x = AUDL.topMod[c.dataIndex]; return [`${x.carros} carro(s) com achado`, `${x.itens} item(ns) apontado(s)`]; } } } },
+      scales: { x: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: '#F1F5F9' } }, y: { grid: { display: false }, ticks: { color: '#334155', font: { size: 11 } } } } }
+  });
+}
+
+// Janela com as placas de um item ou de um modelo
+function audModalPlacas(titulo, sub, lista) {
+  const antigo = document.getElementById('modalAchadosAud');
+  if (antigo) antigo.remove();
+  const ord = lista.slice().sort((a, b) => a.dataPos < b.dataPos ? 1 : a.dataPos > b.dataPos ? -1 : (a.placa < b.placa ? -1 : 1));
+  const linhas = ord.map(it => `<tr class="border-t border-gray-100">
+      <td class="py-1.5 pr-3 whitespace-nowrap">${esc(fmtData(it.dataPos) || '–')}</td>
+      <td class="py-1.5 pr-3 font-mono font-bold text-gray-900 whitespace-nowrap">${esc(it.placa || '–')}</td>
+      <td class="py-1.5 pr-3 whitespace-nowrap text-gray-700">${esc([it.carro, it.ano].filter(Boolean).join(' ') || '–')}</td>
+      <td class="py-1.5 pr-3 font-semibold text-gray-800 whitespace-nowrap">${esc(it.inspetor || '–')}</td>
+      <td class="py-1.5 pr-3 text-gray-700">${esc(it.peca || '–')}</td>
+      <td class="py-1.5 pr-3 whitespace-nowrap">${it.alin === 'resguardo' ? 'Resguardo' : 'Inspetor'}</td>
+      <td class="py-1.5 pr-3 whitespace-nowrap text-gray-700">${esc(it.hub || '–')}</td>
+      <td class="py-1.5 whitespace-nowrap">${ticketHtml(it)}</td></tr>`).join('');
+  const m = document.createElement('div');
+  m.id = 'modalAchadosAud';
+  m.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4';
+  m.innerHTML = `<div class="bg-white rounded-xl shadow-xl w-full max-w-5xl max-h-[85vh] flex flex-col">
+      <div class="flex items-start justify-between p-4 border-b border-gray-200">
+        <div><h3 class="text-base font-bold text-gray-900">${esc(titulo)}</h3><p class="text-[11px] text-gray-500">${esc(sub)}</p></div>
+        <button type="button" class="text-gray-400 hover:text-gray-700 text-xl leading-none px-2" data-fechar>×</button>
+      </div>
+      <div class="p-4 overflow-auto"><table class="w-full text-xs"><thead class="text-gray-500 text-left"><tr>
+        <th class="pb-2 pr-3">Data do achado</th><th class="pb-2 pr-3">Placa</th><th class="pb-2 pr-3">Carro</th><th class="pb-2 pr-3">Inspetor</th><th class="pb-2 pr-3">Item (N.A)</th><th class="pb-2 pr-3">Alinhamento</th><th class="pb-2 pr-3">HUB</th><th class="pb-2">Ticket</th></tr></thead>
+        <tbody>${linhas || '<tr><td colspan="8" class="py-3 text-gray-500">Nenhum achado.</td></tr>'}</tbody></table></div>
+    </div>`;
+  m.addEventListener('click', e => { if (e.target === m || e.target.hasAttribute('data-fechar')) m.remove(); });
+  document.addEventListener('keydown', function fechaEsc(e) { if (e.key === 'Escape') { m.remove(); document.removeEventListener('keydown', fechaEsc); } });
+  document.body.appendChild(m);
+}
+
 function audListaDesenhar() {
   const tb = $('audLtbody'); if (!tb) return;
   const l = audItensFiltrados();
@@ -1753,6 +1828,7 @@ function audListaDesenhar() {
     <td class="py-1.5 px-3 whitespace-nowrap">${esc(fmtData(it.dataInsp) || '–')}</td>
     <td class="py-1.5 px-3 whitespace-nowrap text-right font-bold ${(audDias(it) || 0) > 30 ? 'text-rose-600' : 'text-gray-700'}">${audDias(it) === null ? '–' : audDias(it)}</td>
     <td class="py-1.5 px-3 font-mono font-bold text-gray-900 whitespace-nowrap">${esc(it.placa || '–')}</td>
+    <td class="py-1.5 px-3 whitespace-nowrap text-gray-700">${esc([it.carro, it.ano].filter(Boolean).join(' ') || '–')}</td>
     <td class="py-1.5 px-3 font-semibold text-gray-800 whitespace-nowrap">${esc(it.inspetor)}</td>
     <td class="py-1.5 px-3 whitespace-nowrap"><span class="px-2 py-0.5 rounded-full text-[11px] font-bold ${it.alin === 'resguardo' ? 'bg-amber-50 text-amber-700' : 'bg-blue-50 text-kavak-blue'}">${it.alin === 'resguardo' ? 'Resguardo' : 'Inspetor'}</span></td>
     <td class="py-1.5 px-3 whitespace-nowrap ${it.tipo === 'Express' ? 'text-sky-700 font-semibold' : 'text-gray-700'}">${esc(it.tipo || '–')}</td>
@@ -1761,7 +1837,7 @@ function audListaDesenhar() {
     <td class="py-1.5 px-3 whitespace-nowrap text-gray-700">${esc(it.hub || '–')}</td>
     <td class="py-1.5 px-3 whitespace-nowrap ${it.mais7 === 'Sim' ? 'text-rose-600 font-bold' : 'text-gray-500'}">${esc(it.mais7 || '–')}</td>
     <td class="py-1.5 px-3 whitespace-nowrap ${it.dia === 'Sábado' ? 'text-amber-700 font-bold' : 'text-gray-700'}">${esc(it.dia || '–')}</td></tr>`).join('')
-    : '<tr><td colspan="12" class="py-4 px-3 text-gray-500">Nenhum achado com esses filtros.</td></tr>';
+    : '<tr><td colspan="13" class="py-4 px-3 text-gray-500">Nenhum achado com esses filtros.</td></tr>';
 }
 function audListaLigar() {
   if (!$('audLq')) return;
@@ -1774,8 +1850,8 @@ function audListaLigar() {
   $('audLcsv').onclick = () => {
     const l = audItensFiltrados();
     const c = v => '"' + String(v === undefined || v === null ? '' : v).replace(/"/g, '""') + '"';
-    const linhas = [['Data do achado', 'Data da inspeção', 'Dias até o achado', 'Placa', 'Inspetor', 'Alinhamento', 'Tipo', 'Item (N.A)', 'Ticket', 'Link do ticket', 'HUB', 'Mais de 7 carros', 'Dia'].map(c).join(';')]
-      .concat(l.map(it => [fmtData(it.dataPos), fmtData(it.dataInsp), audDias(it) === null ? '' : audDias(it), it.placa, it.inspetor, it.alin === 'resguardo' ? 'Resguardo' : 'Inspetor', it.tipo, it.peca, it.ticket, it.ticketUrl, it.hub, it.mais7, it.dia].map(c).join(';')));
+    const linhas = [['Data do achado', 'Data da inspeção', 'Dias até o achado', 'Placa', 'Carro', 'Inspetor', 'Alinhamento', 'Tipo', 'Item (N.A)', 'Ticket', 'Link do ticket', 'HUB', 'Mais de 7 carros', 'Dia'].map(c).join(';')]
+      .concat(l.map(it => [fmtData(it.dataPos), fmtData(it.dataInsp), audDias(it) === null ? '' : audDias(it), it.placa, [it.carro, it.ano].filter(Boolean).join(' '), it.inspetor, it.alin === 'resguardo' ? 'Resguardo' : 'Inspetor', it.tipo, it.peca, it.ticket, it.ticketUrl, it.hub, it.mais7, it.dia].map(c).join(';')));
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob(['\ufeff' + linhas.join('\r\n')], { type: 'text/csv;charset=utf-8' }));
     a.download = 'novos-achados.csv'; document.body.appendChild(a); a.click(); a.remove();
