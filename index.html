@@ -2331,7 +2331,7 @@ function renderPrevCompras() {
 }
 
 // ---------- Tempo de inspeção por inspetor ----------
-// Fonte: api('tempoInsp') (TempoInsp.gs): planilha de tempos com chegada, início e fim de cada carro.
+// Fonte: api('tempoInsp') (TempoInsp.gs): aba SLA_INSP da planilha base, com chegada, início e fim de cada carro.
 // Linhas: [loja, inspetor, índice da data em d.datas, minutos de inspeção, minutos de fila (-1 = sem dado)]
 const TINSP = { seq: 0, dados: null, grupo: 'semana', loja: '', medida: 'mediana', ver: 'insp' };
 try { const p = JSON.parse(localStorage.getItem('escalapro_tinsp') || '{}'); ['grupo', 'loja', 'medida', 'ver'].forEach(k => { if (typeof p[k] === 'string') TINSP[k] = p[k]; }); } catch (e) {}
@@ -2353,7 +2353,8 @@ async function carregarTempoInsp(forcar) {
   if (!r || r.erro || !Array.isArray(r.linhas) || !Array.isArray(r.datas)) {
     const m = {
       acao_desconhecida: 'O Apps Script ainda não tem a ação <b>tempoInsp</b>: cole o TempoInsp.gs, troque a rotear_ e publique uma nova versão.',
-      tinsp_acesso: 'A conta que roda o EscalaPro não consegue abrir a planilha de tempos. Compartilhe a planilha com essa conta (Leitor).',
+      tinsp_acesso: 'O EscalaPro não conseguiu abrir a planilha base.',
+      tinsp_aba: 'Não achei a aba <b>SLA_INSP</b> na planilha base do EscalaPro.',
       tinsp_vazia: 'A planilha de tempos está vazia ou com as colunas fora do lugar.'
     };
     box.innerHTML = `<div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-4 text-xs">Não foi possível carregar os tempos de inspeção. ${m[r && r.erro] || 'Tente atualizar em instantes.'}</div>`;
