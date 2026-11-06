@@ -1246,7 +1246,7 @@ async function carregarInspecoes() {
   if (!MODO_LOCAL) {
     try {
       const r = await api('inspecoes', iv);
-      if (r && !r.erro && Array.isArray(r.canais) && Array.isArray(r.dias) && Array.isArray(r.inspetores)) { d = r; fonte = 'servidor'; }
+      if (r && !r.erro && Array.isArray(r.canais) && Array.isArray(r.dias) && Array.isArray(r.inspetores)) { r.inspetores = inspJuntarNomes(r.inspetores); d = r; fonte = 'servidor'; }
     } catch (e) { if (e && e.sessaoExpirada) return; }
   }
   if (seq !== INSP.seq) return;
@@ -2338,6 +2338,64 @@ function renderPrevCompras() {
   }
 }
 
+// ---------- Nome padrão dos inspetores ----------
+// O mesmo inspetor aparece de jeitos diferentes: na Fila vem o apelido do Slack ("Edson", "Bruno S"),
+// na planilha de SLA vem o nome completo ("@EDSON STEVANATO"). Aqui tudo vira o MESMO nome,
+// o que aparece no gráfico de Inspetores. Para incluir alguém: 'NOME SEM ACENTO EM MAIÚSCULA': 'Nome que aparece'.
+const INSP_APELIDOS = {
+  'EDSON STEVANATO': 'Edson', 'EDSON': 'Edson',
+  'BRUNO SANTOS': 'Bruno S', 'BRUNO S': 'Bruno S',
+  'JOAO TELES': 'João', 'JOAO': 'João',
+  'DANILO MONTEIRO': 'Danilo', 'DANILO': 'Danilo',
+  'KLEVER SILVA': 'Klever', 'KLEVER': 'Klever',
+  'JOPA': 'Jopa',
+  'BRUNO THOME': 'Bruno Thome',
+  'VAGNER MORAIS': 'Vagner', 'VAGNER': 'Vagner',
+  'ERICSON SILVA': 'Ericson', 'ERICSON': 'Ericson',
+  'BRUNO DOMINGUES': 'Bruno Domingues',
+  'JOSE ROBERTO': 'José Roberto',
+  'IRONILDO SILVA': 'Ironildo', 'IRONILDO': 'Ironildo',
+  'GERSON ALVES': 'Gerson', 'GERSON': 'Gerson',
+  'LUCAS QUEIROZ': 'Lucas Q', 'LUCAS Q': 'Lucas Q',
+  'LUCAS PAULO': 'Lucas P', 'LUCAS P': 'Lucas P',
+  'MATHEUS ICHIMURA': 'Matheus', 'MATHEUS': 'Matheus',
+  'THIAGO PRADO': 'Thiago Prado', 'THIAGO': 'Thiago',              // pessoas diferentes
+  'GABRIEL CUPIDO': 'Gabriel Cupido', 'GABRIEL': 'Gabriel',        // pessoas diferentes
+  'BRUNO ALVES TORRES': 'Bruno Alves Torres',
+  'ANDERSON GONCALVES': 'Anderson Goncalves',
+  'EDSON JR': 'Edson', 'EDSON STEVANATO JR': 'Edson'               // é o mesmo Edson
+};
+const inspChaveNome = n => String(n || '').replace(/^[@✅\s]+/, '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Za-z ]/g, ' ').replace(/\s+/g, ' ').trim().toUpperCase();
+function inspNomePadrao(n) {
+  const k = inspChaveNome(n);
+  if (!k) return '';
+  if (INSP_APELIDOS[k]) return INSP_APELIDOS[k];
+  // quem não está na lista: tira o @ e arruma as maiúsculas ("ANDERSON GONCALVES" -> "Anderson Goncalves")
+  return String(n).replace(/^[@✅\s]+/, '').replace(/[._]+/g, ' ').trim().toLowerCase().replace(/(^|\s)\S/g, x => x.toUpperCase());
+}
+// gráfico de Inspetores (Fila): junta quem virou o mesmo nome
+function inspJuntarNomes(lista) {
+  const m = {};
+  (lista || []).forEach(x => {
+    const n = inspNomePadrao(x.nome);
+    const o = m[n] = m[n] || { nome: n, total: 0, placas: [] };
+    o.total += x.total || 0;
+    o.placas = o.placas.concat(x.placas || []);
+  });
+  return Object.values(m).map(o => { o.placas.sort((a, b) => (a.d + a.h) < (b.d + b.h) ? -1 : 1); return o; }).sort((a, b) => b.total - a.total);
+}
+// Tempo de inspeção (SLA): mesmo nome do gráfico de cima; junta as linhas de quem virou o mesmo nome
+function tinspPadronizarNomes(d) {
+  if (!d || !Array.isArray(d.inspetores)) return;
+  const novos = [], idx = {}, de = d.inspetores.map(n => {
+    const p = inspNomePadrao(n);
+    if (!(p in idx)) { idx[p] = novos.length; novos.push(p); }
+    return idx[p];
+  });
+  d.linhas.forEach(l => { l[1] = de[l[1]]; });
+  d.inspetores = novos;
+}
+
 // ---------- Card "Inspeções no sistema" (planilha de SLA) ----------
 async function carregarTotalSla(iv, totalCarros) {
   const el = $('kpiSla'); if (!el || MODO_LOCAL) return;
@@ -2416,7 +2474,7 @@ function semiModal(motivo) {
   const linhas = lista.map((x, i) => `<tr class="border-t border-gray-100">
       <td class="py-1.5 pr-3 text-gray-400">${i + 1}</td><td class="py-1.5 pr-3 whitespace-nowrap">${esc(fmtData(x.d).slice(0, 5))} ${esc(x.h || '')}</td>
       <td class="py-1.5 pr-3 font-mono font-bold text-gray-900">${esc(x.p)}</td><td class="py-1.5 pr-3 text-gray-700">${esc(x.c)}</td>
-      <td class="py-1.5 pr-3 text-gray-700">${esc(x.i || '—')}</td><td class="py-1.5 text-gray-600">${esc(x.m)}</td></tr>`);
+      <td class="py-1.5 pr-3 text-gray-700">${esc(inspNomePadrao(x.i) || '—')}</td><td class="py-1.5 text-gray-600">${esc(x.m)}</td></tr>`);
   modalTabela('Chegaram sem inspeção' + (motivo ? ' · ' + esc(motivo) : ''),
     `${lista.length} carro${lista.length === 1 ? '' : 's'} · ${esc(fmtData(d.periodo.inicio))} a ${esc(fmtData(d.periodo.fim))} · horário de chegada`,
     ['#', 'Chegada', 'Placa', 'Canal', 'Inspetor (Slack)', 'Motivo provável'], linhas, 'Nenhum carro.');
@@ -2452,6 +2510,7 @@ async function carregarTempoInsp(forcar) {
     box.innerHTML = `<div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-4 text-xs">Não foi possível carregar os tempos de inspeção. ${m[r && r.erro] || 'Tente atualizar em instantes.'}</div>`;
     return;
   }
+  tinspPadronizarNomes(r);
   TINSP.dados = r;
   renderTempoInsp();
 }
