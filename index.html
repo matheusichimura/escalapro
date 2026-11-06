@@ -3347,10 +3347,18 @@ function renderQuadro() {
       <div class="${f ? 'hidden' : 'space-y-2'}">${corpo}</div></div>`;
   };
   const cardCss = k => { const c = quadroTam[k] || {}; return (c.w ? `width:${c.w};` : '') + (c.h ? `height:${c.h};` : '') + `transform:translate(${c.x || 0}px,${c.y || 0}px);`; };
-  const card = (k, tit, acao, corpo) => `<div class="qm-card w-full lg:w-[calc(50%-10px)] min-w-0 lg:min-w-[280px] bg-white rounded-2xl border border-gray-200 shadow-lg flex flex-col" data-qk="${k}" style="max-width:100%;max-height:85vh;overflow:hidden;resize:both;position:relative;${cardCss(k)}">
+  const card = (k, tit, acao, corpo) => `<div class="qm-card w-full lg:w-[calc(50%-10px)] min-w-0 lg:min-w-[280px] bg-white rounded-2xl border border-gray-200 shadow-lg flex flex-col" data-qk="${k}" style="max-width:100%;max-height:85vh;overflow:hidden;position:relative;${cardCss(k)}">
     <div class="qm-h flex items-center justify-between gap-2 px-4 py-3 border-b border-gray-100 bg-gray-50 select-none flex-shrink-0" style="cursor:grab;touch-action:none" title="Arraste aqui para mover">
       <h3 class="text-xs font-bold text-gray-700">⠿ ${tit}</h3>${acao}</div>
-    <div class="flex-1 min-h-0 overflow-auto p-4">${corpo}</div></div>`;
+    <div class="flex-1 min-h-0 overflow-auto p-4">${corpo}</div>
+    <div class="qm-borda" style="position:absolute;left:14px;right:14px;top:0;height:6px;cursor:move;touch-action:none;z-index:5" title="Arraste para mover"></div>
+    <div class="qm-borda" style="position:absolute;left:14px;right:14px;bottom:0;height:6px;cursor:move;touch-action:none;z-index:5" title="Arraste para mover"></div>
+    <div class="qm-borda" style="position:absolute;top:14px;bottom:14px;left:0;width:6px;cursor:move;touch-action:none;z-index:5" title="Arraste para mover"></div>
+    <div class="qm-borda" style="position:absolute;top:14px;bottom:14px;right:0;width:6px;cursor:move;touch-action:none;z-index:5" title="Arraste para mover"></div>
+    <div class="qm-canto" data-c="nw" style="position:absolute;left:0;top:0;width:14px;height:14px;cursor:nwse-resize;touch-action:none;z-index:6" title="Arraste para mudar o tamanho"></div>
+    <div class="qm-canto" data-c="ne" style="position:absolute;right:0;top:0;width:14px;height:14px;cursor:nesw-resize;touch-action:none;z-index:6" title="Arraste para mudar o tamanho"></div>
+    <div class="qm-canto" data-c="sw" style="position:absolute;left:0;bottom:0;width:14px;height:14px;cursor:nesw-resize;touch-action:none;z-index:6" title="Arraste para mudar o tamanho"></div>
+    <div class="qm-canto" data-c="se" style="position:absolute;right:0;bottom:0;width:14px;height:14px;cursor:nwse-resize;touch-action:none;z-index:6;background:linear-gradient(135deg,transparent 55%,rgba(150,150,150,.6) 55%)" title="Arraste para mudar o tamanho"></div></div>`;
 
   el.innerHTML = `
     <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
@@ -3377,26 +3385,51 @@ function renderQuadro() {
 
   el.querySelectorAll('.qm-card').forEach(c => {
     const k = c.dataset.qk;
-    const salvarTam = () => { const o = quadroTam[k] = quadroTam[k] || {}; if (c.style.width) o.w = c.style.width; if (c.style.height) o.h = c.style.height; persistirQuadro(); };
-    c.addEventListener('mouseup', salvarTam); c.addEventListener('touchend', salvarTam);
-    const h = c.querySelector('.qm-h');
-    h.addEventListener('pointerdown', e => {
+    const est = () => (quadroTam[k] = quadroTam[k] || {});
+    // segura o ponteiro enquanto arrasta e salva no fim
+    const pegar = (alvo, e, aoMover) => {
+      e.preventDefault();
+      alvo.setPointerCapture(e.pointerId); c.style.zIndex = 20;
+      const up = () => {
+        alvo.removeEventListener('pointermove', aoMover); alvo.removeEventListener('pointerup', up); alvo.removeEventListener('pointercancel', up);
+        persistirQuadro();
+      };
+      alvo.addEventListener('pointermove', aoMover); alvo.addEventListener('pointerup', up); alvo.addEventListener('pointercancel', up);
+    };
+    // MOVER: pelo cabeçalho ou pelas bordas. Livre, mas sem sair da tela pelos lados e sem subir por cima do título do quadro
+    const mover = (alvo, e) => {
       if (e.target.closest('button')) return;
-      const o = quadroTam[k] = quadroTam[k] || {};
+      const o = est();
       const x0 = e.clientX - (o.x || 0), y0 = e.clientY - (o.y || 0);
-      // limites: a nuvem não pode sair do quadro (nem para cima, nem para os lados)
-      const r = c.getBoundingClientRect(), q = el.getBoundingClientRect();
+      const r = c.getBoundingClientRect(), q = c.parentElement.getBoundingClientRect();   // q = área das nuvens (abaixo do título e do Reorganizar)
       const baseX = r.left - (o.x || 0), baseY = r.top - (o.y || 0);
-      const minX = q.left - baseX, maxX = q.right - baseX - Math.min(r.width, q.width), minY = q.top - baseY;
-      h.setPointerCapture(e.pointerId); c.style.zIndex = 20; h.style.cursor = 'grabbing';
-      const mv = ev => {
+      const minX = -baseX, maxX = document.documentElement.clientWidth - baseX - r.width, minY = q.top - baseY;
+      pegar(alvo, e, ev => {
         o.x = Math.round(Math.min(Math.max(ev.clientX - x0, minX), Math.max(minX, maxX)));
         o.y = Math.round(Math.max(ev.clientY - y0, minY));
         c.style.transform = `translate(${o.x}px,${o.y}px)`;
-      };
-      const up = () => { h.removeEventListener('pointermove', mv); h.removeEventListener('pointerup', up); h.style.cursor = 'grab'; persistirQuadro(); };
-      h.addEventListener('pointermove', mv); h.addEventListener('pointerup', up);
-    });
+      });
+    };
+    c.querySelectorAll('.qm-h, .qm-borda').forEach(a => a.addEventListener('pointerdown', e => mover(a, e)));
+    // TAMANHO: pelos 4 cantos
+    c.querySelectorAll('.qm-canto').forEach(a => a.addEventListener('pointerdown', e => {
+      const o = est(), canto = a.dataset.c;
+      const r = c.getBoundingClientRect(), q = c.parentElement.getBoundingClientRect();
+      const sx = e.clientX, sy = e.clientY, w0 = r.width, h0 = r.height, x0 = o.x || 0, y0 = o.y || 0;
+      const MINW = 260, MINH = 140;
+      const maxW = Math.max(MINW, canto.includes('w') ? Math.min(q.width, w0 + r.left) : q.width);
+      const maxH = Math.max(MINH, canto.includes('n') ? Math.min(window.innerHeight * 0.85, h0 + (r.top - q.top)) : window.innerHeight * 0.85);
+      pegar(a, e, ev => {
+        const dx = ev.clientX - sx, dy = ev.clientY - sy;
+        const w = Math.min(Math.max(canto.includes('w') ? w0 - dx : w0 + dx, MINW), maxW);
+        const h = Math.min(Math.max(canto.includes('n') ? h0 - dy : h0 + dy, MINH), maxH);
+        if (canto.includes('w')) o.x = Math.round(x0 + (w0 - w));   // canto esquerdo: a borda direita fica parada
+        if (canto.includes('n')) o.y = Math.round(y0 + (h0 - h));   // canto de cima: a borda de baixo fica parada
+        o.w = Math.round(w) + 'px'; o.h = Math.round(h) + 'px';
+        c.style.width = o.w; c.style.height = o.h;
+        c.style.transform = `translate(${o.x || 0}px,${o.y || 0}px)`;
+      });
+    }));
   });
   const rs = $('quadroReset');
   if (rs) rs.onclick = () => { quadroTam = {}; try { localStorage.removeItem(KEY + '_quadroCards'); } catch (e) {} renderQuadro(); };
@@ -3407,8 +3440,8 @@ function renderQuadro() {
     if (!q.width) return;   // quadro escondido: confere na próxima vez
     let mudou = false;
     el.querySelectorAll('.qm-card').forEach(c => {
-      const r = c.getBoundingClientRect(), k = c.dataset.qk;
-      if (r.top < q.top - 2 || r.left < q.left - 2 || r.right > q.right + 2 || r.width > q.width + 2) {
+      const r = c.getBoundingClientRect(), k = c.dataset.qk, area = c.parentElement.getBoundingClientRect();
+      if (r.top < area.top - 2 || r.left < -2 || r.right > document.documentElement.clientWidth + 2) {
         delete quadroTam[k]; c.style.transform = ''; c.style.width = ''; c.style.height = ''; mudou = true;
       }
     });
