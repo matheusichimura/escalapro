@@ -2342,11 +2342,11 @@ function renderPrevCompras() {
 
 // ---------- Consultar placas ----------
 // Fonte: api('consultarPlacas') (ConsultarPlacas.gs): posts do Kavaki (Raio-X da Fila) + inspeção no sistema (SLA).
-const CPL = { dados: null, ocupado: false };
+const CPL = { dados: null, ocupado: false, filtro: '' };   // filtro = selo clicado no resumo ('' = todas)
 const CPL_EMOJI = { x: '❌', heavy_multiplication_x: '✖️', rejeitado_: '🔴', rejeitado: '🔴', fluxo_cancelado: '🚫', blue_car: '🚙',
   b2b: 'B2B', flua: 'FLUA', kuna123: 'KUNA', white_check_mark: '✅', heavy_check_mark: '✔️', eyes: '👀', point_left: '👈', point_right: '👉' };
 const CPL_STATUS = {
-  DUPLICADA: ['🔁 Duplicada', 'bg-purple-100 text-purple-800'], CANCELADA: ['🚫 Cancelada', 'bg-gray-200 text-gray-800'],
+  DUPLICADA: ['🔁 Duplicada', 'bg-purple-100 text-purple-800'], RESG_DUPLICADO: ['🔁 Resguardo duplicado', 'bg-purple-100 text-purple-800'], CANCELADA: ['🚫 Cancelada', 'bg-gray-200 text-gray-800'],
   REPROVADA: ['❌ Reprovada', 'bg-rose-100 text-rose-800'], REJEITADA: ['🔴 Rejeitada', 'bg-rose-100 text-rose-800'],
   B2B: ['B2B', 'bg-blue-100 text-blue-800'], FLUA: ['FLUA', 'bg-blue-100 text-blue-800'], KUNA: ['KUNA', 'bg-blue-100 text-blue-800'],
   SEM_INSPECAO: ['⚠️ Sem inspeção no sistema', 'bg-amber-100 text-amber-800'], OK: ['✅ OK', 'bg-emerald-100 text-emerald-800'],
@@ -2394,7 +2394,7 @@ async function consultarPlacasTela() {
     $('cplInfo').textContent = 'Não foi possível consultar. ' + (m[r && r.erro] || 'Tente de novo em instantes.');
     return;
   }
-  CPL.dados = r;
+  CPL.dados = r; CPL.filtro = '';
   renderConsultaPlacas();
 }
 
@@ -2403,12 +2403,20 @@ function renderConsultaPlacas() {
   const cont = {};
   r.resultados.forEach(x => x.status.forEach(s => { cont[s] = (cont[s] || 0) + 1; }));
   const badge = s => { const c = CPL_STATUS[s] || [s, 'bg-gray-100 text-gray-700']; return `<span class="inline-block rounded px-1.5 py-0.5 text-[10px] font-bold whitespace-nowrap ${c[1]}">${c[0]}</span>`; };
-  const resumo = Object.keys(CPL_STATUS).filter(s => cont[s]).map(s => `${badge(s)} <b class="text-xs mr-2">${cont[s]}</b>`).join('');
-  const linhas = r.resultados.map(x => {
+  // selos do resumo: clicar mostra só as placas daquele selo; clicar de novo (ou em "Todas") volta tudo
+  if (CPL.filtro && !cont[CPL.filtro]) CPL.filtro = '';
+  const selo = (s, rot, n) => `<button type="button" data-cpl-f="${s}" class="inline-flex items-center gap-1 rounded-md px-1 py-0.5 mr-1 ${CPL.filtro === s ? 'ring-2 ring-kavak-blue' : 'hover:bg-gray-100'}">${rot} <b class="text-xs">${n}</b></button>`;
+  const resumo = selo('', '<span class="text-[11px] font-bold text-gray-700">Todas</span>', r.resultados.length) +
+    Object.keys(CPL_STATUS).filter(s => cont[s]).map(s => selo(s, badge(s), cont[s])).join('');
+  const lista = cplLista();
+  const linhas = lista.map(x => {
     const posts = x.posts.map(p => `<div class="whitespace-nowrap">${esc(fmtData(p.d).slice(0, 5))} ${esc(p.h)} · ${esc(p.c)}${p.lk ? ` · <a href="${esc(p.lk)}" target="_blank" rel="noopener" class="text-kavak-blue underline">Slack</a>` : ''}
         <span class="text-gray-500">· ${p.rp} resp.${p.ar ? ' · ' + p.ar + ' arq.' : ''}</span></div>`).join('') || '<span class="text-gray-400">—</span>';
     const reacoes = x.posts.map(p => `<div>${cplReacoes(p.re) || '<span class="text-gray-400">sem reação</span>'}</div>`).join('') || '—';
-    const resg = x.posts.map(p => `<div>${p.gi ? esc(p.gi) + ' · ' + esc(p.gq) + (p.gr ? ' · <b>' + esc(p.gr) + '</b>' : '') : '<span class="text-gray-400">—</span>'}</div>`).join('') || '—';
+    // #br-resguardo: cada "Inspeção iniciada" numa linha; 0 respostas = ⚠️ vazio (forte candidato a "esqueceu as fotos")
+    const resgLinha = t => { const vazio = /· 0 resp\./.test(t); return `<div class="${vazio ? 'text-amber-600 font-bold' : ''}">${esc(t)}${vazio ? ' ⚠️ vazio' : ''}</div>`; };
+    const resg = x.posts.map(p => p.gt ? p.gt.split(' | ').map(resgLinha).join('')
+      : (p.gi ? `<div>${esc(p.gi)} · ${esc(p.gq)}${p.gr ? ' · <b>' + esc(p.gr) + '</b>' : ''}</div>` : '<div class="text-gray-400">—</div>')).join('') || '—';
     const sist = x.sla.map(s => `<div class="whitespace-nowrap">${esc(fmtData(s.d).slice(0, 5))} ${cplHora(s.ini)}–${cplHora(s.fim)} · <b>${tiMin(s.dur)}</b> · ${esc(inspNomePadrao(s.i))}</div>`).join('') || '<span class="text-amber-600 font-bold">nenhuma</span>';
     return `<tr class="border-t border-gray-100 align-top">
       <td class="py-2 pr-3 font-mono font-bold text-gray-900 whitespace-nowrap">${esc(x.p)}${x.repetidaNaLista ? '<div class="text-[10px] font-normal text-gray-500">repetida na lista</div>' : ''}</td>
@@ -2423,25 +2431,31 @@ function renderConsultaPlacas() {
   $('cplInfo').textContent = `${r.resultados.length} placa(s) · posts do Slack até ${r.raioxAte ? fmtData(r.raioxAte) : '—'} (hoje ainda não entra)`;
   $('cplCopiar').classList.remove('hidden');
   $('cplResultado').innerHTML = `<div class="flex flex-wrap items-center gap-1 mb-2">${resumo}</div>
+    ${CPL.filtro ? `<p class="text-[11px] text-gray-500 mb-2">Mostrando ${lista.length} placa(s) com ${esc((CPL_STATUS[CPL.filtro] || [CPL.filtro])[0])}. O "Copiar resultado" copia só estas.</p>` : ''}
     <div class="overflow-auto max-h-[40rem] border border-gray-200 rounded-lg"><table class="w-full text-xs">
       <thead class="bg-gray-50 text-gray-600 sticky top-0 z-10"><tr>
         <th class="px-2 py-2 text-left">Placa</th><th class="px-2 py-2 text-left">Resumo</th><th class="px-2 py-2">Posts</th><th class="px-2 py-2 text-left">Posts do Kavaki</th>
         <th class="px-2 py-2 text-left">Reações</th><th class="px-2 py-2 text-left">Inspetor 🚙</th><th class="px-2 py-2 text-left">#br-resguardo</th><th class="px-2 py-2 text-left">Inspeção no sistema</th></tr></thead>
       <tbody class="[&>tr>td:first-child]:pl-2">${linhas}</tbody></table></div>`;
+  $('cplResultado').querySelectorAll('[data-cpl-f]').forEach(b => {
+    b.onclick = () => { const f = b.dataset.cplF; CPL.filtro = CPL.filtro === f ? '' : f; renderConsultaPlacas(); };
+  });
 }
+// placas que aparecem (respeitando o selo clicado)
+const cplLista = () => (CPL.dados ? CPL.dados.resultados : []).filter(x => !CPL.filtro || x.status.includes(CPL.filtro));
 
 // Copia o resultado em formato de planilha (colar no Google Sheets / Excel)
 function cplCopiar() {
   const r = CPL.dados; if (!r) return;
   const txtStatus = s => (CPL_STATUS[s] || [s])[0].replace(/^[^\wÀ-ú]+\s*/, '');
   const cab = ['Placa', 'Resumo', 'Posts', 'Datas dos posts', 'Canal', 'Reações', 'Inspetor 🚙', 'Resguardo', 'Inspeção no sistema', 'Tempo de inspeção', 'Links'];
-  const linhas = r.resultados.map(x => [
+  const linhas = cplLista().map(x => [
     x.p, x.status.map(txtStatus).join(' / '), x.posts.length,
     x.posts.map(p => fmtData(p.d).slice(0, 5) + ' ' + p.h).join(' | '),
     [...new Set(x.posts.map(p => p.c))].join(' | '),
     x.posts.map(p => p.re || '-').join(' | '),
     x.posts.map(p => inspNomePadrao(p.i) || '-').join(' | '),
-    x.posts.map(p => p.gi ? p.gi + ' ' + p.gq + (p.gr ? ' ' + p.gr : '') : '-').join(' | '),
+    x.posts.map(p => p.gt || (p.gi ? p.gi + ' ' + p.gq + (p.gr ? ' ' + p.gr : '') : '-')).join(' | '),
     x.sla.map(s => fmtData(s.d).slice(0, 5) + ' ' + cplHora(s.ini) + '-' + cplHora(s.fim) + ' ' + inspNomePadrao(s.i)).join(' | ') || 'nenhuma',
     x.sla.map(s => Math.round(s.dur)).join(' | '),
     x.posts.map(p => p.lk).filter(Boolean).join(' ')
