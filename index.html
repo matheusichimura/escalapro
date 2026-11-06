@@ -398,6 +398,8 @@ html.escuro .text-black{color:#f1f5f9}
         <div class="vista" data-vista="dias"><div class="vista-corpo"><div id="vstDias"></div></div></div>
         <div class="vista" data-vista="tipo"><div class="vista-corpo"><div id="vstTipo"></div></div></div>
         <div class="vista" data-vista="hub"><div class="vista-corpo"><div id="vstHub"></div></div></div>
+        <div class="vista" data-vista="esp"><div class="vista-corpo"><div id="espConteudo"></div></div></div>
+        <div class="vista" data-vista="mov"><div class="vista-corpo"><div id="movConteudo"></div></div></div>
       </div>
     </div>
     <div id="achConteudo" class="hidden"></div>
@@ -1176,6 +1178,7 @@ function aplicarTema(escuro) {
   try { localStorage.setItem('escalapro_tema', escuro ? 'escuro' : 'claro'); } catch (e) {}
   const b = document.getElementById('btnTema'); if (b) b.textContent = escuro ? '☀️' : '🌙';
   if (window.Chart) { temaGraficos(); Object.values(Chart.instances).forEach(c => { try { c.update(); } catch (e) {} }); }
+  if (window.__renderMov) window.__renderMov();
 }
 (function ligarBotaoTema() {
   const ligar = () => {
@@ -1234,6 +1237,8 @@ async function carregarInspecoes() {
   // carregarComprasAchados(iv);   // desabilitado: os achados já usam os carros comprados direto
   carregarAchadosAud(iv);
   carregarAchados(iv);
+  carregarEspeciais(iv);
+  if (!MOV.dados) carregarMovimento();   // movimento usa as últimas semanas, não o filtro: carrega 1 vez
 }
 
 function renderInspecoes(d, fonte) {
@@ -1910,6 +1915,224 @@ async function carregarAchados(iv) {
   if (AUD.dados) renderAchadosAud();
 }
 
+// ---------- B2B · FLUA · KUNA ----------
+// Fonte: api('especiais') no Apps Script (arquivo Especiais.gs). Lê Backup Lojas + Canais Lojas da Fila ao vivo.
+const ESP = { charts: [], seq: 0, dados: null, filtro: 'todos', busca: '' };
+const ESP_COR = { B2B: '#2a78d6', FLUA: '#eb6834', KUNA: '#0f8a6d' };
+const ESP_TIPOS = ['B2B', 'FLUA', 'KUNA'];
+
+async function carregarEspeciais(iv) {
+  const box = $('espConteudo');
+  if (!box) return;
+  ESP.charts.forEach(c => c.destroy()); ESP.charts = [];
+  if (MODO_LOCAL) { box.innerHTML = ''; return; }
+  const seq = ++ESP.seq;
+  box.innerHTML = '<p class="text-xs text-gray-500">Carregando B2B · FLUA · KUNA…</p>';
+  let r;
+  try { r = await api('especiais', iv); } catch (e) { if (e && e.sessaoExpirada) return; r = { erro: 'rede' }; }
+  if (seq !== ESP.seq) return;
+  if (!r || r.erro || !r.totais) {
+    box.innerHTML = `<div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-4 text-xs">Não foi possível carregar B2B · FLUA · KUNA. ${r && r.erro === 'acao_desconhecida' ? 'O Apps Script ainda não tem a ação <b>especiais</b>: cole o Especiais.gs, troque a rotear_ e publique uma nova versão.' : 'Tente atualizar em instantes.'}</div>`;
+    return;
+  }
+  try { await carregarChartJs(); } catch (e) { box.innerHTML = ''; return; }
+  if (seq !== ESP.seq) return;
+  ESP.dados = r;
+  renderEspeciais();
+}
+
+function renderEspeciais() {
+  const d = ESP.dados; if (!d) return;
+  ESP.charts.forEach(c => c.destroy()); ESP.charts = [];
+  const t = d.totais, total = ESP_TIPOS.reduce((s, k) => s + t[k].total, 0);
+  const comInsp = ESP_TIPOS.reduce((s, k) => s + t[k].comInsp, 0);
+  const pct = (n, b) => b ? Math.round(n / b * 100) + '%' : '—';
+  const kpi = (nome, cor, x) => `<div class="bg-white p-4 rounded-lg shadow-sm border border-gray-200" style="border-top:3px solid ${cor}">
+      <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">${nome}</p>
+      <p class="text-3xl font-extrabold text-gray-900 mt-1">${x.total}</p>
+      <p class="text-[11px] text-gray-500 mt-1">✅ ${x.comInsp} com inspetor · ⏳ ${x.total - x.comInsp} sem</p></div>`;
+  const leg = ESP_TIPOS.map(k => `<span class="inline-flex items-center gap-1 mr-3"><i class="inline-block w-2.5 h-2.5 rounded-sm" style="background:${ESP_COR[k]}"></i>${k}</span>`).join('');
+  const lojas = d.lojas.slice(0, 12).map(l => `<tr class="border-t border-gray-100"><td class="py-1.5 pr-2 text-gray-800">${esc(l.loja)}</td>
+      ${ESP_TIPOS.map(k => `<td class="py-1.5 px-2 text-right tabular-nums ${l[k] ? 'text-gray-800' : 'text-gray-300'}">${l[k]}</td>`).join('')}
+      <td class="py-1.5 pl-2 text-right font-bold tabular-nums">${l.total}</td></tr>`).join('');
+
+  $('espConteudo').innerHTML = `<div class="space-y-5">
+    <div><h2 class="sec-h">B2B · FLUA · KUNA</h2>
+      <p class="text-xs text-gray-500 mt-1">Carros com reação :b2b:, :flua: ou :kuna: no Slack (FLUA é separado pela Nota). 1 carro = 1 placa por dia.</p></div>
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div class="bg-white p-4 rounded-lg shadow-sm border border-gray-200" style="border-top:3px solid #111827">
+        <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Total especiais</p>
+        <p class="text-3xl font-extrabold text-gray-900 mt-1">${total}</p>
+        <p class="text-[11px] text-gray-500 mt-1">${pct(comInsp, total)} já com inspetor</p></div>
+      ${ESP_TIPOS.map(k => kpi(k, ESP_COR[k], t[k])).join('')}
+    </div>
+    <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
+      <h3 class="text-base font-bold text-gray-900">Carros por dia</h3>
+      <p class="text-xs text-gray-500 mb-2">${leg}</p>
+      <div class="relative w-full" style="height:260px"><canvas id="chEspDias"></canvas></div></div>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+      <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
+        <h3 class="text-base font-bold text-gray-900">Média por dia da semana</h3>
+        <p class="text-xs text-gray-500 mb-2">Carros por dia, em média, no período escolhido. ${leg}</p>
+        <div class="relative w-full" style="height:240px"><canvas id="chEspSemana"></canvas></div></div>
+      <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
+        <h3 class="text-base font-bold text-gray-900">De onde vieram</h3>
+        <p class="text-xs text-gray-500 mb-2">Local de chegada que aparece na mensagem do Slack.</p>
+        ${d.lojas.length ? `<table class="w-full text-xs"><thead><tr class="text-gray-500"><th class="text-left font-semibold pb-1">Local</th>${ESP_TIPOS.map(k => `<th class="text-right font-semibold px-2 pb-1">${k}</th>`).join('')}<th class="text-right font-semibold pl-2 pb-1">Total</th></tr></thead><tbody>${lojas}</tbody></table>` : '<p class="text-xs text-gray-500">Nenhum carro especial no período.</p>'}
+      </div>
+    </div>
+    <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
+      <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+        <div><h3 class="text-base font-bold text-gray-900">Placas</h3><p class="text-xs text-gray-500" id="espContagem"></p></div>
+        <div class="flex flex-wrap items-center gap-2">
+          ${['todos', ...ESP_TIPOS].map(k => `<button type="button" data-esp-f="${k}" class="px-3 py-1.5 rounded-full text-xs font-bold border">${k === 'todos' ? 'Todos' : k}</button>`).join('')}
+          <input id="espBusca" type="search" placeholder="Buscar placa, local ou inspetor" class="border border-gray-300 rounded-md px-2 py-1.5 text-xs w-56">
+        </div>
+      </div>
+      <div class="overflow-x-auto max-h-[420px] overflow-y-auto"><table class="w-full text-xs"><thead class="sticky top-0 bg-white"><tr class="text-gray-500 border-b border-gray-200">
+        <th class="text-left font-semibold py-1.5 pr-2">Data</th><th class="text-left font-semibold py-1.5 pr-2">Placa</th><th class="text-left font-semibold py-1.5 pr-2">Tipo</th>
+        <th class="text-left font-semibold py-1.5 pr-2">Local</th><th class="text-left font-semibold py-1.5">Inspetor</th></tr></thead><tbody id="espLista"></tbody></table></div>
+    </div></div>`;
+
+  const tooltip = { backgroundColor: '#111827', padding: 10, cornerRadius: 6 };
+  const ds = (rot, k, vals) => ({ label: k, data: vals, backgroundColor: ESP_COR[k], borderRadius: 4, borderSkipped: false, borderColor: temaEscuro() ? '#0f172a' : '#fff', borderWidth: { top: 2 } });
+  const rotDia = iso => { const s = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'][new Date(iso + 'T12:00:00').getDay()]; return d.dias.length <= 31 ? [iso.slice(8, 10), s] : iso.slice(8, 10) + '/' + iso.slice(5, 7); };
+  const empilhado = (id, labels, series, titulo) => ESP.charts.push(new Chart($(id), {
+    type: 'bar',
+    data: { labels, datasets: ESP_TIPOS.map(k => ds(labels, k, series(k))) },
+    options: { responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { ...tooltip, mode: 'index', intersect: false, callbacks: { title: titulo, footer: it => 'Total: ' + Math.round(it.reduce((s, x) => s + x.parsed.y, 0) * 10) / 10 } } },
+      scales: { x: { stacked: true, grid: { display: false }, ticks: { color: '#334155', autoSkip: true, maxRotation: 0 } }, y: { stacked: true, beginAtZero: true, grid: { color: '#F1F5F9' } } } }
+  }));
+  empilhado('chEspDias', d.dias.map(x => rotDia(x.iso)), k => d.dias.map(x => x[k]), it => fmtData(d.dias[it[0].dataIndex].iso));
+  empilhado('chEspSemana', d.semana.map(x => x.dia), k => d.semana.map(x => x[k]), it => { const x = d.semana[it[0].dataIndex]; return x.dia + ' · média de ' + x.dias + ' dia(s)'; });
+
+  $('espConteudo').querySelectorAll('[data-esp-f]').forEach(b => b.addEventListener('click', () => { ESP.filtro = b.dataset.espF; espLista(); }));
+  $('espBusca').value = ESP.busca;
+  $('espBusca').addEventListener('input', e => { ESP.busca = e.target.value; espLista(); });
+  espLista();
+}
+
+function espLista() {
+  const d = ESP.dados; if (!d) return;
+  const q = ESP.busca.trim().toUpperCase();
+  const itens = d.lista.filter(x => (ESP.filtro === 'todos' || x.t === ESP.filtro) &&
+    (!q || (x.p + ' ' + x.l + ' ' + x.i).toUpperCase().includes(q)));
+  $('espConteudo').querySelectorAll('[data-esp-f]').forEach(b => {
+    const on = b.dataset.espF === ESP.filtro, cor = ESP_COR[b.dataset.espF] || '#111827';
+    b.style.background = on ? cor : ''; b.style.color = on ? '#fff' : ''; b.style.borderColor = on ? cor : '#d1d5db';
+  });
+  $('espContagem').textContent = `${itens.length} placa${itens.length === 1 ? '' : 's'}${ESP.filtro !== 'todos' ? ' · ' + ESP.filtro : ''}`;
+  $('espLista').innerHTML = itens.slice(0, 500).map(x => `<tr class="border-t border-gray-100">
+      <td class="py-1.5 pr-2 text-gray-500 whitespace-nowrap">${esc(fmtData(x.d).slice(0, 5))} ${esc(x.h || '')}</td>
+      <td class="py-1.5 pr-2 font-mono font-bold text-gray-900">${esc(x.p)}</td>
+      <td class="py-1.5 pr-2"><span class="px-2 py-0.5 rounded-full text-[10px] font-bold text-white" style="background:${ESP_COR[x.t]}">${x.t}</span></td>
+      <td class="py-1.5 pr-2 text-gray-700">${esc(x.l || '—')}</td>
+      <td class="py-1.5 ${x.i ? 'text-gray-800' : 'text-amber-600 font-semibold'}">${x.i ? esc(x.i) : '⏳ sem inspetor'}</td></tr>`).join('') ||
+    '<tr><td colspan="5" class="py-4 text-center text-gray-500">Nenhuma placa.</td></tr>';
+}
+
+// ---------- Movimento das lojas por dia da semana ----------
+// Fonte: api('movimento') no Apps Script (Especiais.gs). Usa as últimas N semanas completas (até ontem), não o filtro de período.
+const MOV = { charts: [], seq: 0, dados: null, semanas: 8 };
+try { MOV.semanas = Number(localStorage.getItem('escalapro_mov_semanas')) || 8; } catch (e) {}
+window.__renderMov = () => { if (MOV.dados) renderMovimento(); };   // redesenha o mapa de calor ao trocar o tema
+
+async function carregarMovimento() {
+  const box = $('movConteudo');
+  if (!box) return;
+  MOV.charts.forEach(c => c.destroy()); MOV.charts = [];
+  if (MODO_LOCAL) { box.innerHTML = ''; return; }
+  const seq = ++MOV.seq;
+  box.innerHTML = '<p class="text-xs text-gray-500">Carregando movimento das lojas…</p>';
+  let r;
+  try { r = await api('movimento', { semanas: MOV.semanas }); } catch (e) { if (e && e.sessaoExpirada) return; r = { erro: 'rede' }; }
+  if (seq !== MOV.seq) return;
+  if (!r || r.erro || !Array.isArray(r.lojas)) {
+    box.innerHTML = `<div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-4 text-xs">Não foi possível carregar o movimento. ${r && r.erro === 'acao_desconhecida' ? 'O Apps Script ainda não tem a ação <b>movimento</b>: cole o Especiais.gs, troque a rotear_ e publique uma nova versão.' : 'Tente atualizar em instantes.'}</div>`;
+    return;
+  }
+  try { await carregarChartJs(); } catch (e) { box.innerHTML = ''; return; }
+  if (seq !== MOV.seq) return;
+  MOV.dados = r;
+  renderMovimento();
+}
+
+function renderMovimento() {
+  const d = MOV.dados; if (!d) return;
+  MOV.charts.forEach(c => c.destroy()); MOV.charts = [];
+  const DIAS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+  const fmt = v => v === null || v === undefined ? '—' : (Math.round(v * 10) / 10).toString().replace('.', ',');
+  const maxCel = Math.max(1, ...d.lojas.flatMap(l => l.media.map(v => v || 0)));
+  const prevMax = Math.max(0, ...d.proxima.map(x => x.previsto || 0));
+  // Escala sequencial de azul (claro -> escuro) para o mapa de calor
+  const escuro = temaEscuro();
+  const RAMPA = escuro ? ['#172133', '#1a2f4f', '#1e3f6c', '#235189', '#2a64a8', '#3a7fd0', '#6aa2e6'] : ['#eef4fd', '#cfe0f8', '#a6c6f1', '#76a7e7', '#4a88dd', '#2a6fc6', '#1b569f'];
+  const celula = v => { if (v === null) return 'background:transparent;color:#9ca3af'; const i = Math.min(RAMPA.length - 1, Math.round(v / maxCel * (RAMPA.length - 1))); return `background:${RAMPA[i]};color:${escuro ? (i >= 5 ? '#0b1220' : '#e2e8f0') : (i >= 4 ? '#fff' : '#0f172a')}`; };
+  const tend = x => x === null ? '<span class="text-gray-400">—</span>' : x >= 5 ? `<span class="text-emerald-700 font-bold">▲ +${x}%</span>` : x <= -5 ? `<span class="text-red-600 font-bold">▼ ${x}%</span>` : `<span class="text-gray-500">≈ ${x > 0 ? '+' : ''}${x}%</span>`;
+  const linhas = d.lojas.map(l => `<tr class="border-t border-gray-100"><td class="py-1.5 pr-3 font-semibold text-gray-800 whitespace-nowrap">${esc(l.nome)}</td>
+      ${l.media.map((v, w) => `<td class="py-1 px-0.5"><div class="rounded text-center py-1 font-bold tabular-nums" style="${celula(v)}" title="${DIAS[w]}: média ${fmt(v)} · máximo ${l.max[w]}">${fmt(v)}</div></td>`).join('')}
+      <td class="py-1.5 pl-3 text-right whitespace-nowrap">${tend(l.tendencia)}</td></tr>`).join('');
+  const op = d.diasComOperacao || [];
+
+  $('movConteudo').innerHTML = `<div class="space-y-5">
+    <div class="flex flex-wrap items-end justify-between gap-3">
+      <div><h2 class="sec-h">Movimento das lojas por dia da semana</h2>
+        <p class="text-xs text-gray-500 mt-1">Média de carros por dia, de ${fmtData(d.inicio)} a ${fmtData(d.fim)} (só dias completos e com operação). B2B · FLUA · KUNA ficam no bloco deles.</p></div>
+      <label class="text-xs text-gray-600 font-semibold">Base:
+        <select id="movSemanas" class="ml-1 border border-gray-300 rounded-md px-2 py-1.5 text-xs">${[4, 8, 12, 26].map(n => `<option value="${n}" ${n === d.semanas ? 'selected' : ''}>últimas ${n} semanas</option>`).join('')}</select></label>
+    </div>
+    <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
+      <h3 class="text-base font-bold text-gray-900">Previsão da próxima semana</h3>
+      <p class="text-xs text-gray-500 mb-3">Média do mesmo dia da semana nas últimas ${d.semanas} semanas. O dia mais forte fica em azul.</p>
+      <div class="grid grid-cols-7 gap-2">${d.proxima.map(x => `<div class="rounded-lg text-center py-2 ${x.previsto && x.previsto === prevMax ? 'bg-kavak-blue text-white' : 'bg-gray-100 text-gray-800'}">
+        <div class="text-[10px] font-bold opacity-80">${x.dia} ${esc(fmtData(x.iso).slice(0, 5))}</div><div class="text-xl font-extrabold">${x.previsto === null ? '—' : '~' + Math.round(x.previsto)}</div><div class="text-[10px] opacity-70">carros</div></div>`).join('')}</div>
+    </div>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+      <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
+        <h3 class="text-base font-bold text-gray-900">Total por dia da semana</h3>
+        <p class="text-xs text-gray-500 mb-3">Todas as lojas e o online juntos. Passe o mouse para ver de quantos dias é a média.</p>
+        <div class="relative w-full" style="height:240px"><canvas id="chMovSemana"></canvas></div></div>
+      <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
+        <h3 class="text-base font-bold text-gray-900">Horário de chegada dos carros</h3>
+        <p class="text-xs text-gray-500 mb-2">Média de carros por hora. Ajuda a ver quando reforçar a escala.</p>
+        <p class="text-[11px] text-gray-500 mb-2"><span class="inline-flex items-center gap-1 mr-3"><i class="inline-block w-3 h-0.5" style="background:#2a78d6"></i>Seg a Sex</span><span class="inline-flex items-center gap-1 mr-3"><i class="inline-block w-3 h-0.5" style="background:#eb6834"></i>Sábado</span><span class="inline-flex items-center gap-1"><i class="inline-block w-3 h-0.5" style="background:#0f8a6d"></i>Domingo</span></p>
+        <div class="relative w-full" style="height:220px"><canvas id="chMovHoras"></canvas></div></div>
+    </div>
+    <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
+      <h3 class="text-base font-bold text-gray-900">Média de carros por loja e dia da semana</h3>
+      <p class="text-xs text-gray-500 mb-3">Quanto mais escuro, mais movimento. Tendência = 2ª metade do período comparada com a 1ª (▲ subindo, ▼ caindo).</p>
+      <div class="overflow-x-auto"><table class="w-full text-xs"><thead><tr class="text-gray-500">
+        <th class="text-left font-semibold pb-1">Loja</th>${DIAS.map((s, w) => `<th class="font-semibold pb-1 text-center" title="${op[w] || 0} dia(s) com operação">${s}</th>`).join('')}<th class="text-right font-semibold pb-1 pl-3">Tendência</th></tr></thead>
+        <tbody>${linhas}</tbody></table></div>
+    </div></div>`;
+
+  $('movSemanas').addEventListener('change', e => {
+    MOV.semanas = Number(e.target.value) || 8;
+    try { localStorage.setItem('escalapro_mov_semanas', String(MOV.semanas)); } catch (x) {}
+    carregarMovimento();
+  });
+
+  const tooltip = { backgroundColor: '#111827', padding: 10, cornerRadius: 6, displayColors: false };
+  const maxT = Math.max(0, ...d.mediaTotal.map(v => v || 0));
+  MOV.charts.push(new Chart($('chMovSemana'), {
+    type: 'bar',
+    data: { labels: DIAS, datasets: [{ data: d.mediaTotal, backgroundColor: d.mediaTotal.map(v => v && v === maxT ? '#1b569f' : '#2a78d6'), borderRadius: 5, borderSkipped: false, maxBarThickness: 40 }] },
+    options: { responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { ...tooltip, callbacks: { label: c => `${fmt(c.parsed.y)} carros em média`, footer: it => `média de ${op[it[0].dataIndex] || 0} dia(s)` } } },
+      scales: { x: { grid: { display: false }, ticks: { color: '#334155' } }, y: { beginAtZero: true, grid: { color: '#F1F5F9' } } } }
+  }));
+  const H = Array.from({ length: 16 }, (_, i) => (i + 6) + 'h');
+  const linha = (rot, k, cor) => d.porHora && d.porHora[k] ? { label: rot, data: d.porHora[k], borderColor: cor, backgroundColor: cor, borderWidth: 2, pointRadius: 0, pointHoverRadius: 5, tension: 0.3 } : null;
+  MOV.charts.push(new Chart($('chMovHoras'), {
+    type: 'line',
+    data: { labels: H, datasets: [linha('Seg a Sex', 'util', '#2a78d6'), linha('Sábado', 'sab', '#eb6834'), linha('Domingo', 'dom', '#0f8a6d')].filter(Boolean) },
+    options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { display: false }, tooltip: { ...tooltip, displayColors: true, callbacks: { label: c => `${c.dataset.label}: ${fmt(c.parsed.y)} carros` } } },
+      scales: { x: { grid: { display: false }, ticks: { color: '#334155', maxRotation: 0, autoSkip: true } }, y: { beginAtZero: true, grid: { color: '#F1F5F9' } } } }
+  }));
+}
+
 // ---------- Vistas personalizáveis da aba Inspeções ----------
 // Cada bloco da aba é uma "vista": dá para ocultar, arrastar, redimensionar e apresentar em tela cheia.
 // O arranjo fica salvo neste navegador (por usuário).
@@ -1922,7 +2145,9 @@ const VST = {
     { id: 'ftq',  titulo: 'Online × Alinhar FTQ', c: 12, sup: true },
     { id: 'dias', titulo: 'Gráficos por dia', c: 12, sup: true },
     { id: 'tipo', titulo: 'Express × Regular', c: 6, sup: true },
-    { id: 'hub',  titulo: 'Achados por HUB', c: 6, sup: true }
+    { id: 'hub',  titulo: 'Achados por HUB', c: 6, sup: true },
+    { id: 'esp',  titulo: 'B2B · FLUA · KUNA', c: 12 },
+    { id: 'mov',  titulo: 'Movimento por dia da semana', c: 12 }
   ],
   SPANS: [3, 4, 6, 8, 12]
 };
