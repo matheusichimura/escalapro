@@ -416,6 +416,7 @@ html.escuro .text-black{color:#f1f5f9}
         <div class="vista" data-vista="pcmp"><div class="vista-corpo"><div id="pcmpConteudo"></div></div></div>
         <div class="vista" data-vista="tinsp"><div class="vista-corpo"><div id="tinspConteudo"></div></div></div>
         <div class="vista" data-vista="semi"><div class="vista-corpo"><div id="semiConteudo"></div></div></div>
+        <div class="vista" data-vista="cpl"><div class="vista-corpo"><div id="cplConteudo"></div></div></div>
       </div>
     </div>
     <div id="achConteudo" class="hidden"></div>
@@ -1259,6 +1260,7 @@ async function carregarInspecoes() {
   carregarAchados(iv);
   carregarEspeciais(iv);
   carregarSemInsp(iv);
+  if (ehSupervisor()) montarConsultarPlacas();
   carregarTotalSla(iv, d.canais.reduce((t, c) => t + c.total, 0));
   if (!MOV.dados) carregarMovimento();   // movimento usa as últimas semanas, não o filtro: carrega 1 vez
   if (!PCMP.dados) carregarPrevCompras();
@@ -1355,12 +1357,6 @@ function renderInspecoes(d, fonte) {
   cvTop.onmousemove = e => { cvTop.style.cursor = linhaDe(e) >= 0 ? 'pointer' : 'default'; };
 }
 
-// Popups abrem dentro da tela cheia (modo apresentação) e por cima de tudo
-function anexarModal(m) {
-  m.style.zIndex = 90;
-  (document.fullscreenElement || document.body).appendChild(m);
-}
-
 function abrirPlacasInspetor(x, periodo) {
   const antigo = document.getElementById('modalPlacasInsp');
   if (antigo) antigo.remove();
@@ -1389,7 +1385,7 @@ function abrirPlacasInspetor(x, periodo) {
     </div>`;
   m.addEventListener('click', e => { if (e.target === m || e.target.hasAttribute('data-fechar')) m.remove(); });
   document.addEventListener('keydown', function fechaEsc(e) { if (e.key === 'Escape') { m.remove(); document.removeEventListener('keydown', fechaEsc); } });
-  anexarModal(m);
+  document.body.appendChild(m);
 }
 $('inspAtualizar').addEventListener('click', carregarInspecoes);
 $('inspFiltro').addEventListener('change', () => {
@@ -1517,7 +1513,7 @@ function modalTabela(titulo, sub, cab, linhas, vazio) {
     </div>`;
   m.addEventListener('click', e => { if (e.target === m || e.target.hasAttribute('data-fechar')) m.remove(); });
   document.addEventListener('keydown', function fechaEsc(e) { if (e.key === 'Escape') { m.remove(); document.removeEventListener('keydown', fechaEsc); } });
-  anexarModal(m);
+  document.body.appendChild(m);
 }
 function cmpModalComprados(d, loja) {
   const per = d.periodo ? fmtData(d.periodo.inicio) + ' a ' + fmtData(d.periodo.fim) : '';
@@ -1902,7 +1898,7 @@ function audModalPlacas(titulo, sub, lista) {
     </div>`;
   m.addEventListener('click', e => { if (e.target === m || e.target.hasAttribute('data-fechar')) m.remove(); });
   document.addEventListener('keydown', function fechaEsc(e) { if (e.key === 'Escape') { m.remove(); document.removeEventListener('keydown', fechaEsc); } });
-  anexarModal(m);
+  document.body.appendChild(m);
 }
 
 function audListaDesenhar() {
@@ -1974,7 +1970,7 @@ function abrirAchadosInspetor(g, periodo) {
     </div>`;
   m.addEventListener('click', e => { if (e.target === m || e.target.hasAttribute('data-fechar')) m.remove(); });
   document.addEventListener('keydown', function fechaEsc(e) { if (e.key === 'Escape') { m.remove(); document.removeEventListener('keydown', fechaEsc); } });
-  anexarModal(m);
+  document.body.appendChild(m);
 }
 
 // ---------- Novos Achados: erros reais (ALINHAR Inspetor) cruzados com as inspeções ----------
@@ -2344,6 +2340,117 @@ function renderPrevCompras() {
   }
 }
 
+// ---------- Consultar placas ----------
+// Fonte: api('consultarPlacas') (ConsultarPlacas.gs): posts do Kavaki (Raio-X da Fila) + inspeção no sistema (SLA).
+const CPL = { dados: null, ocupado: false };
+const CPL_EMOJI = { x: '❌', heavy_multiplication_x: '✖️', rejeitado_: '🔴', rejeitado: '🔴', fluxo_cancelado: '🚫', blue_car: '🚙',
+  b2b: 'B2B', flua: 'FLUA', kuna123: 'KUNA', white_check_mark: '✅', heavy_check_mark: '✔️', eyes: '👀', point_left: '👈', point_right: '👉' };
+const CPL_STATUS = {
+  DUPLICADA: ['🔁 Duplicada', 'bg-purple-100 text-purple-800'], CANCELADA: ['🚫 Cancelada', 'bg-gray-200 text-gray-800'],
+  REPROVADA: ['❌ Reprovada', 'bg-rose-100 text-rose-800'], REJEITADA: ['🔴 Rejeitada', 'bg-rose-100 text-rose-800'],
+  B2B: ['B2B', 'bg-blue-100 text-blue-800'], FLUA: ['FLUA', 'bg-blue-100 text-blue-800'], KUNA: ['KUNA', 'bg-blue-100 text-blue-800'],
+  SEM_INSPECAO: ['⚠️ Sem inspeção no sistema', 'bg-amber-100 text-amber-800'], OK: ['✅ OK', 'bg-emerald-100 text-emerald-800'],
+  NAO_ENCONTRADA: ['❓ Não encontrada', 'bg-gray-100 text-gray-600']
+};
+const cplReacoes = txt => String(txt || '').split(' ').filter(Boolean).reduce((out, t) => {
+  if (/^x\d+$/.test(t) && out.length) { out[out.length - 1] += '×' + t.slice(1); return out; }
+  out.push(CPL_EMOJI[t] || ':' + t + ':'); return out;
+}, []).join(' ');
+const cplHora = m => m === undefined || m === null || m < 0 ? '—' : String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
+
+function montarConsultarPlacas() {
+  const box = $('cplConteudo'); if (!box || box.dataset.pronto) return;
+  box.dataset.pronto = '1';
+  box.innerHTML = `<div class="space-y-3">
+    <h2 class="text-xl font-extrabold text-gray-900">🔎 Consultar placas</h2>
+    <p class="text-[11px] text-gray-500">Cole as placas (uma por linha, ou copiadas de uma planilha: o que não for placa é ignorado). Mostra os posts do Kavaki, as reações, o #br-resguardo e a inspeção no sistema. Até ${1000} placas por vez.</p>
+    <textarea id="cplTexto" rows="5" class="w-full border border-gray-300 rounded-md p-2 text-xs font-mono bg-white" placeholder="ABC1D23&#10;XYZ9E87&#10;..."></textarea>
+    <div class="flex flex-wrap items-center gap-2">
+      <button id="cplBtn" class="bg-kavak-blue text-white rounded-md px-4 py-1.5 text-xs font-bold hover:opacity-90">Consultar</button>
+      <button id="cplCopiar" class="border border-gray-300 rounded-md px-3 py-1.5 text-xs font-bold hover:bg-gray-50 hidden">Copiar resultado</button>
+      <button id="cplLimpar" class="border border-gray-300 rounded-md px-3 py-1.5 text-xs font-bold hover:bg-gray-50">Limpar</button>
+      <span id="cplInfo" class="text-xs text-gray-500"></span>
+    </div>
+    <div id="cplResultado"></div></div>`;
+  $('cplBtn').onclick = consultarPlacasTela;
+  $('cplLimpar').onclick = () => { $('cplTexto').value = ''; $('cplResultado').innerHTML = ''; $('cplInfo').textContent = ''; $('cplCopiar').classList.add('hidden'); CPL.dados = null; };
+  $('cplCopiar').onclick = cplCopiar;
+}
+
+async function consultarPlacasTela() {
+  if (CPL.ocupado) return;
+  const placas = ($('cplTexto').value.toUpperCase().match(/[A-Z]{3}-?[0-9][A-Z0-9][0-9]{2}/g) || []).map(p => p.replace('-', ''));
+  if (!placas.length) { $('cplInfo').textContent = 'Nenhuma placa encontrada no texto.'; return; }
+  if (MODO_LOCAL) { $('cplInfo').textContent = 'Disponível só no site publicado.'; return; }
+  CPL.ocupado = true; $('cplBtn').disabled = true;
+  $('cplInfo').textContent = `Consultando ${placas.length} placa(s)…`;
+  let r;
+  try { r = await api('consultarPlacas', { placas }); } catch (e) { r = { erro: 'rede' }; }
+  CPL.ocupado = false; $('cplBtn').disabled = false;
+  if (!r || r.erro || !Array.isArray(r.resultados)) {
+    const m = { acao_desconhecida: 'O Apps Script ainda não tem a ação consultarPlacas: cole o ConsultarPlacas.gs, troque a rotear_ e publique uma nova versão.',
+      raiox_sem_aba: 'A aba "Raio-X Posts" ainda não existe na Fila: rode gerarRaioXOutubro e gerarRaioXNovembro lá.', muitas: 'Máximo de 1000 placas por vez.',
+      permissao: 'Só supervisor pode consultar.' };
+    $('cplInfo').textContent = 'Não foi possível consultar. ' + (m[r && r.erro] || 'Tente de novo em instantes.');
+    return;
+  }
+  CPL.dados = r;
+  renderConsultaPlacas();
+}
+
+function renderConsultaPlacas() {
+  const r = CPL.dados; if (!r) return;
+  const cont = {};
+  r.resultados.forEach(x => x.status.forEach(s => { cont[s] = (cont[s] || 0) + 1; }));
+  const badge = s => { const c = CPL_STATUS[s] || [s, 'bg-gray-100 text-gray-700']; return `<span class="inline-block rounded px-1.5 py-0.5 text-[10px] font-bold whitespace-nowrap ${c[1]}">${c[0]}</span>`; };
+  const resumo = Object.keys(CPL_STATUS).filter(s => cont[s]).map(s => `${badge(s)} <b class="text-xs mr-2">${cont[s]}</b>`).join('');
+  const linhas = r.resultados.map(x => {
+    const posts = x.posts.map(p => `<div class="whitespace-nowrap">${esc(fmtData(p.d).slice(0, 5))} ${esc(p.h)} · ${esc(p.c)}${p.lk ? ` · <a href="${esc(p.lk)}" target="_blank" rel="noopener" class="text-kavak-blue underline">Slack</a>` : ''}
+        <span class="text-gray-500">· ${p.rp} resp.${p.ar ? ' · ' + p.ar + ' arq.' : ''}</span></div>`).join('') || '<span class="text-gray-400">—</span>';
+    const reacoes = x.posts.map(p => `<div>${cplReacoes(p.re) || '<span class="text-gray-400">sem reação</span>'}</div>`).join('') || '—';
+    const resg = x.posts.map(p => `<div>${p.gi ? esc(p.gi) + ' · ' + esc(p.gq) + (p.gr ? ' · <b>' + esc(p.gr) + '</b>' : '') : '<span class="text-gray-400">—</span>'}</div>`).join('') || '—';
+    const sist = x.sla.map(s => `<div class="whitespace-nowrap">${esc(fmtData(s.d).slice(0, 5))} ${cplHora(s.ini)}–${cplHora(s.fim)} · <b>${tiMin(s.dur)}</b> · ${esc(inspNomePadrao(s.i))}</div>`).join('') || '<span class="text-amber-600 font-bold">nenhuma</span>';
+    return `<tr class="border-t border-gray-100 align-top">
+      <td class="py-2 pr-3 font-mono font-bold text-gray-900 whitespace-nowrap">${esc(x.p)}${x.repetidaNaLista ? '<div class="text-[10px] font-normal text-gray-500">repetida na lista</div>' : ''}</td>
+      <td class="py-2 pr-3"><div class="flex flex-wrap gap-1">${x.status.map(badge).join('')}</div></td>
+      <td class="py-2 pr-3 text-center tabular-nums">${x.posts.length}</td>
+      <td class="py-2 pr-3 text-[11px] space-y-1">${posts}</td>
+      <td class="py-2 pr-3 text-[11px] space-y-1">${reacoes}</td>
+      <td class="py-2 pr-3 text-[11px] space-y-1">${x.posts.map(p => `<div>${esc(inspNomePadrao(p.i) || '—')}</div>`).join('') || '—'}</td>
+      <td class="py-2 pr-3 text-[11px] space-y-1">${resg}</td>
+      <td class="py-2 text-[11px] space-y-1">${sist}</td></tr>`;
+  }).join('');
+  $('cplInfo').textContent = `${r.resultados.length} placa(s) · posts do Slack até ${r.raioxAte ? fmtData(r.raioxAte) : '—'} (hoje ainda não entra)`;
+  $('cplCopiar').classList.remove('hidden');
+  $('cplResultado').innerHTML = `<div class="flex flex-wrap items-center gap-1 mb-2">${resumo}</div>
+    <div class="overflow-auto max-h-[40rem] border border-gray-200 rounded-lg"><table class="w-full text-xs">
+      <thead class="bg-gray-50 text-gray-600 sticky top-0 z-10"><tr>
+        <th class="px-2 py-2 text-left">Placa</th><th class="px-2 py-2 text-left">Resumo</th><th class="px-2 py-2">Posts</th><th class="px-2 py-2 text-left">Posts do Kavaki</th>
+        <th class="px-2 py-2 text-left">Reações</th><th class="px-2 py-2 text-left">Inspetor 🚙</th><th class="px-2 py-2 text-left">#br-resguardo</th><th class="px-2 py-2 text-left">Inspeção no sistema</th></tr></thead>
+      <tbody class="[&>tr>td:first-child]:pl-2">${linhas}</tbody></table></div>`;
+}
+
+// Copia o resultado em formato de planilha (colar no Google Sheets / Excel)
+function cplCopiar() {
+  const r = CPL.dados; if (!r) return;
+  const txtStatus = s => (CPL_STATUS[s] || [s])[0].replace(/^[^\wÀ-ú]+\s*/, '');
+  const cab = ['Placa', 'Resumo', 'Posts', 'Datas dos posts', 'Canal', 'Reações', 'Inspetor 🚙', 'Resguardo', 'Inspeção no sistema', 'Tempo de inspeção', 'Links'];
+  const linhas = r.resultados.map(x => [
+    x.p, x.status.map(txtStatus).join(' / '), x.posts.length,
+    x.posts.map(p => fmtData(p.d).slice(0, 5) + ' ' + p.h).join(' | '),
+    [...new Set(x.posts.map(p => p.c))].join(' | '),
+    x.posts.map(p => p.re || '-').join(' | '),
+    x.posts.map(p => inspNomePadrao(p.i) || '-').join(' | '),
+    x.posts.map(p => p.gi ? p.gi + ' ' + p.gq + (p.gr ? ' ' + p.gr : '') : '-').join(' | '),
+    x.sla.map(s => fmtData(s.d).slice(0, 5) + ' ' + cplHora(s.ini) + '-' + cplHora(s.fim) + ' ' + inspNomePadrao(s.i)).join(' | ') || 'nenhuma',
+    x.sla.map(s => Math.round(s.dur)).join(' | '),
+    x.posts.map(p => p.lk).filter(Boolean).join(' ')
+  ].map(v => String(v).replace(/\t|\n/g, ' ')).join('\t'));
+  const txt = [cab.join('\t')].concat(linhas).join('\n');
+  const ok = () => { $('cplInfo').textContent = 'Copiado! Cole na planilha (Ctrl+V).'; };
+  if (navigator.clipboard) navigator.clipboard.writeText(txt).then(ok, () => prompt('Copie:', txt)); else prompt('Copie:', txt);
+}
+
 // ---------- Nome padrão dos inspetores ----------
 // O mesmo inspetor aparece de jeitos diferentes: na Fila vem o apelido do Slack ("Edson", "Bruno S"),
 // na planilha de SLA vem o nome completo ("@EDSON STEVANATO"). Aqui tudo vira o MESMO nome,
@@ -2663,7 +2770,8 @@ const VST = {
     { id: 'mov',  titulo: 'Movimento por dia da semana', c: 12 },
     { id: 'pcmp', titulo: 'Previsão de compras', c: 12 },
     { id: 'tinsp', titulo: 'Tempo de inspeção por inspetor', c: 12, sup: true },
-    { id: 'semi', titulo: 'Chegaram sem inspeção', c: 12 }
+    { id: 'semi', titulo: 'Chegaram sem inspeção', c: 12 },
+    { id: 'cpl', titulo: 'Consultar placas', c: 12, sup: true }
   ],
   SPANS: [3, 4, 6, 8, 12]
 };
@@ -2909,9 +3017,7 @@ function vistasIniciar() {
   $('vstZoomMais').addEventListener('click', () => { VST.zoom = Math.min(1.8, +(VST.zoom + 0.1).toFixed(2)); vistasAplicar(); });
   $('vstZoomMenos').addEventListener('click', () => { VST.zoom = Math.max(0.6, +(VST.zoom - 0.1).toFixed(2)); vistasAplicar(); });
   document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && VST.apres) vistasApresentar(false); });
-  document.addEventListener('keydown', e => {
-    if (e.key === 'Escape' && VST.apres && !document.querySelector('#modalTabela,#modalPlacasInsp,#modalAchadosAud')) vistasApresentar(false);
-  });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && VST.apres) vistasApresentar(false); });
 }
 
 // ----- Vistas novas (alimentadas pelos novos achados da Auditoria + inspeções da fila) -----
