@@ -2485,7 +2485,17 @@ function semiModal(motivo) {
 // Linhas: [loja, inspetor, índice da data em d.datas, minutos de inspeção, minutos de fila (-1 = sem dado)]
 const TINSP = { seq: 0, dados: null, grupo: 'semana', loja: '', medida: 'mediana', ver: 'insp' };
 try { const p = JSON.parse(localStorage.getItem('escalapro_tinsp') || '{}'); ['grupo', 'loja', 'medida', 'ver'].forEach(k => { if (typeof p[k] === 'string') TINSP[k] = p[k]; }); } catch (e) {}
-const TINSP_LIM_INSP = 120;   // inspeção acima de 2h = fim esquecido: fica fora da conta
+// Regra do tempo de inspeção:
+//   lojas físicas ............ conta de 10 a 60 min (abaixo de 10 ou acima de 1h fica fora)
+//   Online / B2B / KUNA / FLUA  conta de 0 a 60 min (carro fácil, abaixo de 10 min é normal)
+const TINSP_MIN_LOJA = 10, TINSP_MAX_INSP = 60;
+const TINSP_RAPIDAS = ['PARCEIRO', 'ONLINE', 'B2B', 'KUNA', 'FLUA'];
+const tinspEhRapida = (l, d) => TINSP_RAPIDAS.includes(String(d.lojas[l[0]] || '').trim().toUpperCase());
+function tinspContaInsp(l, d) {   // esta inspeção entra na conta do tempo?
+  const x = l[3];
+  if (!(x >= 0) || x > TINSP_MAX_INSP) return false;
+  return tinspEhRapida(l, d) || x >= TINSP_MIN_LOJA;
+}
 const TINSP_LIM_FILA = 480;   // fila acima de 8h = carro que dormiu na loja: fica fora da conta
 const tiMed = a => { if (!a.length) return null; const s = a.slice().sort((x, y) => x - y), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
 const tiMedia = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
@@ -2517,7 +2527,8 @@ async function carregarTempoInsp(forcar) {
 
 function renderTempoInsp() {
   const d = TINSP.dados, box = $('tinspConteudo'); if (!d || !box) return;
-  const g = TINSP.grupo, ehFila = TINSP.ver === 'fila', campo = ehFila ? 4 : 3, LIM = ehFila ? TINSP_LIM_FILA : TINSP_LIM_INSP;
+  const g = TINSP.grupo, ehFila = TINSP.ver === 'fila', campo = ehFila ? 4 : 3;
+  const conta = l => ehFila ? (l[4] >= 0 && l[4] <= TINSP_LIM_FILA) : tinspContaInsp(l, d);
   const calc = TINSP.medida === 'media' ? tiMedia : tiMed;
   const chave = iso => g === 'dia' ? iso : g === 'mes' ? iso.slice(0, 7) : tiSegunda(iso);
   const rotulo = k => {
@@ -2534,16 +2545,19 @@ function renderTempoInsp() {
 
   // agrupa por inspetor e por período
   const porI = {}, total = { n: 0, vals: [], per: {} };
-  let fora = 0;
+  let fora = 0, foraCurto = 0, foraLongo = 0;
   linhas.forEach(l => {
     const k = chD[l[2]]; if (!noPeriodo.has(k)) return;
-    const o = porI[l[1]] = porI[l[1]] || { n: 0, vals: [], per: {}, lojas: {} };
+    const o = porI[l[1]] = porI[l[1]] || { n: 0, vals: [], per: {}, lojas: {}, rapidas: 0 };
     const p = o.per[k] = o.per[k] || { n: 0, vals: [] }, tp = total.per[k] = total.per[k] || { n: 0, vals: [] };
     o.n++; p.n++; total.n++; tp.n++;
     o.lojas[l[0]] = (o.lojas[l[0]] || 0) + 1;
     const x = l[campo];
-    if (x >= 0 && x <= LIM) { o.vals.push(x); p.vals.push(x); total.vals.push(x); tp.vals.push(x); }
-    else if (x > LIM) fora++;
+    if (!ehFila && l[3] >= 0 && l[3] < TINSP_MIN_LOJA) o.rapidas++;   // quantas abaixo de 10 min (contando ou não)
+    if (conta(l)) { o.vals.push(x); p.vals.push(x); total.vals.push(x); tp.vals.push(x); }
+    else if (ehFila) { if (x > TINSP_LIM_FILA) fora++; }
+    else if (x > TINSP_MAX_INSP) foraLongo++;
+    else if (x >= 0) foraCurto++;
   });
   const tempoDe = i => { const v = calc(porI[i].vals); return v === null ? -1 : v; };
   const poucos = i => porI[i].vals.length < 5 ? 1 : 0;   // quem tem menos de 5 carros vai para o fim
@@ -2565,7 +2579,7 @@ function renderTempoInsp() {
   const corpo = ids.map(i => { const o = porI[i]; return `<tr class="border-t border-gray-100">
       <td class="sticky left-0 bg-white px-3 py-1.5 whitespace-nowrap"><div class="font-semibold text-gray-800">${esc(d.inspetores[i])}</div><div class="text-[10px] text-gray-500">${esc(lojaPrincipal(o))}</div></td>
       ${cols.map(k => celula(o.per[k], i, k)).join('')}
-      <td class="px-3 py-1.5 text-center tabular-nums border-l border-gray-200 hover:ring-2 hover:ring-inset hover:ring-blue-400" ${clica(i, '')} title="Clique para ver as placas"><div class="font-bold text-kavak-blue">${tiMin(calc(o.vals))}</div><div class="text-[10px] text-gray-500">${o.n} carros</div></td></tr>`; }).join('');
+      <td class="px-3 py-1.5 text-center tabular-nums border-l border-gray-200 hover:ring-2 hover:ring-inset hover:ring-blue-400" ${clica(i, '')} title="Clique para ver as placas"><div class="font-bold text-kavak-blue">${tiMin(calc(o.vals))}</div><div class="text-[10px] text-gray-500">${o.n} carros</div>${!ehFila && o.rapidas ? `<div class="text-[10px] text-amber-600">${o.rapidas} abaixo de 10 min</div>` : ''}</td></tr>`; }).join('');
   const linhaTotal = `<tr class="border-t-2 border-gray-300 bg-gray-50"><td class="sticky left-0 bg-gray-50 px-3 py-1.5 font-bold text-gray-900">Todos</td>
       ${cols.map(k => { const p = total.per[k]; return `<td class="px-2 py-1.5 text-center tabular-nums hover:ring-2 hover:ring-inset hover:ring-blue-400" ${clica('', k)} title="Clique para ver as placas"><div class="font-bold">${p && p.vals.length ? tiMin(calc(p.vals)) : '—'}</div><div class="text-[10px] text-gray-500">${p ? p.n : 0} carros</div></td>`; }).join('')}
       <td class="px-3 py-1.5 text-center tabular-nums border-l border-gray-200 hover:ring-2 hover:ring-inset hover:ring-blue-400" ${clica('', '')} title="Clique para ver as placas"><div class="font-bold text-kavak-blue">${tiMin(calc(total.vals))}</div><div class="text-[10px] text-gray-500">${total.n} carros</div></td></tr>`;
@@ -2582,12 +2596,14 @@ function renderTempoInsp() {
     </div>
     <p class="text-[11px] text-gray-500">${ehFila
       ? '<b>Tempo de fila</b> = quanto o carro esperou na loja até a inspeção começar. <b>Não é tempo do inspetor</b>.'
-      : '<b>Tempo de inspeção</b> = quanto tempo o inspetor leva em cada carro, do início ao fim. Não conta o tempo que o carro esperou antes.'}
+      : '<b>Tempo de inspeção</b> = quanto tempo o inspetor leva em cada carro, do início ao fim. Conta de <b>10 a 60 min</b> nas lojas físicas; no <b>Online, B2B, KUNA e FLUA</b>, de 0 a 60 min.'}
       Embaixo, quantos carros entraram na conta. Números apagados = menos de 5 carros (pouco para confiar).</p>
     ${ids.length ? `<div class="overflow-auto max-h-[36rem] border border-gray-200 rounded-lg"><table class="w-full text-xs">
       <thead class="bg-gray-50 text-gray-600 sticky top-0 z-10"><tr><th class="sticky left-0 bg-gray-50 px-3 py-2 text-left font-bold">Inspetor</th>${cab}<th class="px-3 py-2 text-center font-bold border-l border-gray-200">No período</th></tr></thead>
       <tbody>${corpo}${linhaTotal}</tbody></table></div>` : '<p class="text-xs text-gray-500">Sem inspeções para esse filtro.</p>'}
-    <p class="text-[11px] text-gray-500">${fora ? `${fora} ${ehFila ? 'carro(s) com fila acima de 8h (dormiram na loja)' : 'inspeção(ões) acima de 2h (fim esquecido)'} ficaram fora da conta. ` : ''}${TINSP.medida === 'mediana' ? 'Mediana = o tempo do meio: um caso exagerado não puxa o número. ' : ''}Planilha lida às ${esc(d.lidoEm || '')}.</p>
+    <p class="text-[11px] text-gray-500">${ehFila
+      ? (fora ? `${fora} carro(s) com fila acima de 8h (dormiram na loja) ficaram fora da conta. ` : '')
+      : (foraCurto || foraLongo ? `Fora da conta: ${foraCurto} abaixo de 10 min (lojas físicas) e ${foraLongo} acima de 1 hora. ` : '')}${TINSP.medida === 'mediana' ? 'Mediana = o tempo do meio: um caso exagerado não puxa o número. ' : ''}Planilha lida às ${esc(d.lidoEm || '')}.</p>
   </div>`;
 
   const salvar = () => { try { localStorage.setItem('escalapro_tinsp', JSON.stringify({ grupo: TINSP.grupo, loja: TINSP.loja, medida: TINSP.medida, ver: TINSP.ver })); } catch (e) {} };
@@ -2606,7 +2622,7 @@ function tinspDetalhe(ii, k) {
       (k === '' ? x.noPeriodo.has(x.chD[l[2]]) : x.chD[l[2]] === k))
     .sort((a, b) => d.datas[a[2]].localeCompare(d.datas[b[2]]) || ((a[7] ?? 0) - (b[7] ?? 0)));
   const todosInsp = ii === '';
-  const linhas = lista.map((l, n) => { const fora = l[3] > TINSP_LIM_INSP; return `<tr class="border-t border-gray-100 ${fora ? 'opacity-50' : ''}">
+  const linhas = lista.map((l, n) => { const fora = !tinspContaInsp(l, d); return `<tr class="border-t border-gray-100 ${fora ? 'opacity-50' : ''}">
       <td class="py-1.5 pr-3 text-gray-400">${n + 1}</td>
       <td class="py-1.5 pr-3 whitespace-nowrap">${esc(fmtData(d.datas[l[2]]).slice(0, 5))}</td>
       <td class="py-1.5 pr-3 font-mono font-bold text-gray-900">${esc(l[5] || '—')}</td>
