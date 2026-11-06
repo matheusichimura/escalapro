@@ -82,6 +82,9 @@ button:disabled{cursor:not-allowed}
 .btn-outline-kavak:hover { background-color: #ebf0ff; }
 .text-kavak-blue { color: #0047FF; }
 .bg-kavak-blue { background-color: #0047FF; }
+.qm-tog{flex:none;width:22px;height:22px;border-radius:6px;border:1px solid #d1d5db;background:#fff;color:#374151;font-weight:800;font-size:14px;line-height:18px;text-align:center}
+.qm-tog:hover{background:#f3f4f6}
+html.escuro .qm-tog{background:#1e293b;border-color:#334155;color:#e2e8f0}
 /* ===== Modo escuro (botão 🌙 no topo). Só na tela: impressão/PDF continua claro ===== */
 @media screen {
 html.escuro{color-scheme:dark}
@@ -2084,9 +2087,9 @@ function renderMovimento() {
     </div>
     <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
       <h3 class="text-base font-bold text-gray-900">Previsão da próxima semana</h3>
-      <p class="text-xs text-gray-500 mb-3">Média do mesmo dia da semana nas últimas ${d.semanas} semanas. O dia mais forte fica em azul.</p>
+      <p class="text-xs text-gray-500 mb-3">Média do mesmo dia da semana nas últimas ${d.semanas} semanas. O dia mais forte fica em azul.${d.primeiroDia && d.primeiroDia > d.inicio ? ` <b class="text-amber-700">O histórico começa em ${fmtData(d.primeiroDia)}</b>: ainda tem poucos dias de cada; a previsão melhora a cada semana.` : ''}</p>
       <div class="grid grid-cols-7 gap-2">${d.proxima.map(x => `<div class="rounded-lg text-center py-2 ${x.previsto && x.previsto === prevMax ? 'bg-kavak-blue text-white' : 'bg-gray-100 text-gray-800'}">
-        <div class="text-[10px] font-bold opacity-80">${x.dia} ${esc(fmtData(x.iso).slice(0, 5))}</div><div class="text-xl font-extrabold">${x.previsto === null ? '—' : '~' + Math.round(x.previsto)}</div><div class="text-[10px] opacity-70">carros</div></div>`).join('')}</div>
+        <div class="text-[10px] font-bold opacity-80">${x.dia} ${esc(fmtData(x.iso).slice(0, 5))}</div><div class="text-xl font-extrabold">${x.previsto === null ? '—' : '~' + Math.round(x.previsto)}</div><div class="text-[10px] opacity-70">${x.base !== undefined && x.base < 3 ? '⚠️ base de ' + x.base + ' dia' + (x.base === 1 ? '' : 's') : 'carros'}</div></div>`).join('')}</div>
     </div>
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
       <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
@@ -2715,6 +2718,8 @@ function renderLojas() {
 // ---------- Loja vazia: cobertura por inspetor parceiro / volante ----------
 const NOMES_MES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 let quadroMesVis = hoje().slice(0, 7);
+let quadroFechados = {};   // seções e volantes minimizados no quadro (salvo neste navegador)
+try { quadroFechados = JSON.parse(localStorage.getItem('escalapro_quadro_fechados') || '{}') || {}; } catch (e) { quadroFechados = {}; }
 let quadroTam = {};   // { esq:{w,h,x,y}, dir:{...} } posição e tamanho das 2 nuvens do quadro
 try {
   const t = JSON.parse(localStorage.getItem(KEY + '_quadroCards'));
@@ -2991,13 +2996,14 @@ function renderQuadro() {
     return p.join(' · ');
   };
   const blocoVolantes = agLista.length
-    ? agLista.map(v => `<div class="border border-emerald-200 bg-emerald-50 rounded-md p-3 text-xs">
-          <div class="font-bold text-gray-900">🧭 ${esc(v.nome)} <span class="font-normal text-gray-500">· ${v.total === 1 ? '1 dia' : v.total + ' dias'} no mês · ${new Set(v.rs.map(r => r.loja)).size} ${new Set(v.rs.map(r => r.loja)).size === 1 ? 'loja' : 'lojas'}</span></div>
-          <div class="mt-1.5 space-y-1.5">${v.rs.map(r => `<div data-act="irLoja" data-loja="${esc(r.loja)}" class="cursor-pointer bg-white border border-emerald-100 rounded px-2.5 py-1.5">
+    ? agLista.map(v => { const kv = 'vol:' + v.nome.trim().toLowerCase(), fv = !!quadroFechados[kv]; return `<div class="border border-emerald-200 bg-emerald-50 rounded-md p-3 text-xs">
+          <div class="flex items-start justify-between gap-2"><div class="font-bold text-gray-900">🧭 ${esc(v.nome)} <span class="font-normal text-gray-500">(${v.rs.length}) · ${v.total === 1 ? '1 dia' : v.total + ' dias'} no mês · ${new Set(v.rs.map(r => r.loja)).size} ${new Set(v.rs.map(r => r.loja)).size === 1 ? 'loja' : 'lojas'}</span></div>
+          <button type="button" data-act="qmSec" data-sec="${esc(kv)}" class="qm-tog" title="${fv ? 'Mostrar' : 'Minimizar'}" aria-label="${fv ? 'Mostrar' : 'Minimizar'} ${esc(v.nome)}">${fv ? '+' : '−'}</button></div>
+          <div class="mt-1.5 space-y-1.5 ${fv ? 'hidden' : ''}">${v.rs.map(r => `<div data-act="irLoja" data-loja="${esc(r.loja)}" class="cursor-pointer bg-white border border-emerald-100 rounded px-2.5 py-1.5">
             <div class="font-bold text-gray-800">📍 ${esc(r.loja)} <span class="font-normal text-gray-700">· ${r.dias === 1 ? fmtDiaSemana(r.ini) : fmtDiaSemana(r.ini) + ' a ' + fmtDiaSemana(r.fim) + ' (' + r.dias + ' dias)'}</span></div>
             <div class="text-gray-500 mt-0.5">${textoVol(r)}</div>
           </div>`).join('')}</div>
-        </div>`).join('')
+        </div>`; }).join('')
     : `<p class="text-xs text-gray-500">${passado ? 'Mês encerrado.' : '✅ Nenhum volante precisa cobrir loja neste mês.'}</p>`;
 
   // Automático: pessoas escaladas por mais de 6 dias seguidos (sem folga). Inspetor parceiro (PJ) não entra,
@@ -3078,6 +3084,14 @@ function renderQuadro() {
       }).join('')
     : '<p class="text-xs text-gray-500">Nenhum aviso publicado para este mês.</p>';
 
+  // Seção minimizável: título (quantidade) + botão − / +
+  const secao = (id, titulo, n, corpo, primeira) => {
+    const f = !!quadroFechados['sec:' + id];
+    return `<div class="space-y-2 ${primeira ? '' : 'pt-3'}"><div class="flex items-center justify-between gap-2">
+      <h3 class="text-[11px] font-bold uppercase tracking-wider text-gray-500">${titulo} <span class="${n ? 'text-gray-900' : 'text-gray-400'}">(${n})</span></h3>
+      <button type="button" data-act="qmSec" data-sec="sec:${id}" class="qm-tog" title="${f ? 'Mostrar' : 'Minimizar'}" aria-label="${f ? 'Mostrar' : 'Minimizar'} ${titulo}">${f ? '+' : '−'}</button></div>
+      <div class="${f ? 'hidden' : 'space-y-2'}">${corpo}</div></div>`;
+  };
   const cardCss = k => { const c = quadroTam[k] || {}; return (c.w ? `width:${c.w};` : '') + (c.h ? `height:${c.h};` : '') + `transform:translate(${c.x || 0}px,${c.y || 0}px);`; };
   const card = (k, tit, acao, corpo) => `<div class="qm-card w-full lg:w-[calc(50%-10px)] min-w-0 lg:min-w-[280px] bg-white rounded-2xl border border-gray-200 shadow-lg flex flex-col" data-qk="${k}" style="max-width:100%;max-height:85vh;overflow:hidden;resize:both;position:relative;${cardCss(k)}">
     <div class="qm-h flex items-center justify-between gap-2 px-4 py-3 border-b border-gray-100 bg-gray-50 select-none flex-shrink-0" style="cursor:grab;touch-action:none" title="Arraste aqui para mover">
@@ -3098,13 +3112,13 @@ function renderQuadro() {
       </div>
     </div>
     <div class="flex flex-wrap gap-5 items-start">
-      ${card('esq', '📌 Avisos', edita ? '<button data-act="quadroAdd" class="btn-kavak px-3 py-1.5 text-xs">+ Novo aviso</button>' : '', `<div class="space-y-2">${blocoAvisos}</div>`)}
-      ${card('dir', '🏪 Lojas e Equipe', '', `<div class="space-y-2"><h3 class="text-[11px] font-bold uppercase tracking-wider text-gray-500">Lojas vazias previstas</h3>${blocoVazias}</div>
-        <div class="space-y-2 pt-3"><h3 class="text-[11px] font-bold uppercase tracking-wider text-gray-500">Pra onde o volante vai</h3>${blocoVolantes}</div>
-        <div class="space-y-2 pt-3"><h3 class="text-[11px] font-bold uppercase tracking-wider text-gray-500">Sem folga (mais de 6 dias seguidos)</h3>${blocoSeguidos}</div>
-        <div class="space-y-2 pt-3"><h3 class="text-[11px] font-bold uppercase tracking-wider text-gray-500">Feriados no mês</h3>${blocoFeriados}</div>
-        <div class="space-y-2 pt-3"><h3 class="text-[11px] font-bold uppercase tracking-wider text-gray-500">Férias no mês</h3>${blocoFerias}</div>
-        <div class="space-y-2 pt-3"><h3 class="text-[11px] font-bold uppercase tracking-wider text-gray-500">Afastados no mês</h3>${blocoAfast}</div>`)}
+      ${card('esq', '📌 Avisos', edita ? '<button data-act="quadroAdd" class="btn-kavak px-3 py-1.5 text-xs">+ Novo aviso</button>' : '', secao('avisos', 'Avisos do mês', avisos.length, blocoAvisos, true))}
+      ${card('dir', '🏪 Lojas e Equipe', '', secao('vazias', 'Lojas vazias previstas', lojasVaz.length, blocoVazias, true) +
+        secao('volante', 'Pra onde o volante vai', agLista.reduce((s, v) => s + v.rs.length, 0), blocoVolantes) +
+        secao('seguidos', 'Sem folga (mais de 6 dias seguidos)', seguidos.length, blocoSeguidos) +
+        secao('feriados', 'Feriados no mês', fers.length, blocoFeriados) +
+        secao('ferias', 'Férias no mês', ferias.length, blocoFerias) +
+        secao('afast', 'Afastados no mês', afast.length, blocoAfast))}
     </div>`;
 
   el.querySelectorAll('.qm-card').forEach(c => {
@@ -3644,6 +3658,11 @@ document.addEventListener('click', e => {
     const [a, m] = quadroMesVis.split('-').map(Number);
     const nd = new Date(a, m - 1 + (+btn.dataset.d), 1);
     quadroMesVis = nd.getFullYear() + '-' + String(nd.getMonth() + 1).padStart(2, '0');
+    renderQuadro();
+  } else if (act === 'qmSec') {
+    const k = btn.dataset.sec;
+    if (quadroFechados[k]) delete quadroFechados[k]; else quadroFechados[k] = true;
+    try { localStorage.setItem('escalapro_quadro_fechados', JSON.stringify(quadroFechados)); } catch (e) {}
     renderQuadro();
   } else if (act === 'quadroAdd') {
     novoAviso();
