@@ -2400,21 +2400,22 @@ function renderTempoInsp() {
   const todos = []; ids.forEach(i => cols.forEach(k => { const p = porI[i].per[k]; if (p && p.vals.length) todos.push(calc(p.vals)); }));
   const mn = Math.min(...todos), mx = Math.max(...todos);
   const fundo = v => { if (v === null || !isFinite(mn) || mx === mn) return ''; const t = (v - mn) / (mx - mn); return `background:rgba(37,99,235,${(0.06 + 0.34 * t).toFixed(2)})`; };
-  const celula = p => {
+  const clica = (i, k) => `data-ti-i="${i}" data-ti-k="${k}" style="cursor:pointer"`;   // clique abre placas e horários
+  const celula = (p, i, k) => {
     if (!p) return '<td class="px-2 py-1.5 text-center text-gray-300">·</td>';
     const v = p.vals.length ? calc(p.vals) : null, pouco = p.n < 5;
-    return `<td class="px-2 py-1.5 text-center tabular-nums ${pouco ? 'opacity-50' : ''}" style="${fundo(v)}" title="${p.n} carro(s)${pouco ? ' · poucos carros, número pouco confiável' : ''}">
-      <div class="font-bold text-gray-900">${tiMin(v)}</div><div class="text-[10px] text-gray-500">${p.n} carro${p.n === 1 ? '' : 's'}</div></td>`;
+    return `<td class="px-2 py-1.5 text-center tabular-nums hover:ring-2 hover:ring-inset hover:ring-blue-400 ${pouco ? 'opacity-50' : ''}" ${clica(i, k)} title="Clique para ver as placas · ${p.n} carro(s)${pouco ? ' · poucos carros, número pouco confiável' : ''}"><div style="${fundo(v)}" class="-mx-2 -my-1.5 px-2 py-1.5">
+      <div class="font-bold text-gray-900">${tiMin(v)}</div><div class="text-[10px] text-gray-500">${p.n} carro${p.n === 1 ? '' : 's'}</div></div></td>`;
   };
   const lojaPrincipal = o => { const k = Object.keys(o.lojas).sort((a, b) => o.lojas[b] - o.lojas[a])[0]; return k === undefined ? '' : d.lojas[k]; };
   const cab = cols.map(k => { const r = rotulo(k); return `<th class="px-2 py-2 text-center font-bold whitespace-nowrap">${Array.isArray(r) ? r[0] + '<div class="text-[10px] font-normal">' + r[1] + '</div>' : r}</th>`; }).join('');
   const corpo = ids.map(i => { const o = porI[i]; return `<tr class="border-t border-gray-100">
       <td class="sticky left-0 bg-white px-3 py-1.5 whitespace-nowrap"><div class="font-semibold text-gray-800">${esc(d.inspetores[i])}</div><div class="text-[10px] text-gray-500">${esc(lojaPrincipal(o))}</div></td>
-      ${cols.map(k => celula(o.per[k])).join('')}
-      <td class="px-3 py-1.5 text-center tabular-nums border-l border-gray-200"><div class="font-bold text-kavak-blue">${tiMin(calc(o.vals))}</div><div class="text-[10px] text-gray-500">${o.n} carros</div></td></tr>`; }).join('');
+      ${cols.map(k => celula(o.per[k], i, k)).join('')}
+      <td class="px-3 py-1.5 text-center tabular-nums border-l border-gray-200 hover:ring-2 hover:ring-inset hover:ring-blue-400" ${clica(i, '')} title="Clique para ver as placas"><div class="font-bold text-kavak-blue">${tiMin(calc(o.vals))}</div><div class="text-[10px] text-gray-500">${o.n} carros</div></td></tr>`; }).join('');
   const linhaTotal = `<tr class="border-t-2 border-gray-300 bg-gray-50"><td class="sticky left-0 bg-gray-50 px-3 py-1.5 font-bold text-gray-900">Todos</td>
-      ${cols.map(k => { const p = total.per[k]; return `<td class="px-2 py-1.5 text-center tabular-nums"><div class="font-bold">${p && p.vals.length ? tiMin(calc(p.vals)) : '—'}</div><div class="text-[10px] text-gray-500">${p ? p.n : 0} carros</div></td>`; }).join('')}
-      <td class="px-3 py-1.5 text-center tabular-nums border-l border-gray-200"><div class="font-bold text-kavak-blue">${tiMin(calc(total.vals))}</div><div class="text-[10px] text-gray-500">${total.n} carros</div></td></tr>`;
+      ${cols.map(k => { const p = total.per[k]; return `<td class="px-2 py-1.5 text-center tabular-nums hover:ring-2 hover:ring-inset hover:ring-blue-400" ${clica('', k)} title="Clique para ver as placas"><div class="font-bold">${p && p.vals.length ? tiMin(calc(p.vals)) : '—'}</div><div class="text-[10px] text-gray-500">${p ? p.n : 0} carros</div></td>`; }).join('')}
+      <td class="px-3 py-1.5 text-center tabular-nums border-l border-gray-200 hover:ring-2 hover:ring-inset hover:ring-blue-400" ${clica('', '')} title="Clique para ver as placas"><div class="font-bold text-kavak-blue">${tiMin(calc(total.vals))}</div><div class="text-[10px] text-gray-500">${total.n} carros</div></td></tr>`;
   const sel = (id, opcoes, atual) => `<select id="${id}" class="border border-gray-300 rounded-md px-2 py-1.5 text-xs bg-white">${opcoes.map(([v, t]) => `<option value="${esc(v)}" ${v === atual ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select>`;
 
   box.innerHTML = `<div class="space-y-3">
@@ -2439,6 +2440,34 @@ function renderTempoInsp() {
   [['tinspGrupo', 'grupo'], ['tinspLoja', 'loja'], ['tinspVer', 'ver'], ['tinspMedida', 'medida']].forEach(([id, k]) =>
     $(id).addEventListener('change', e => { TINSP[k] = e.target.value; salvar(); renderTempoInsp(); }));
   $('tinspAtualizar').onclick = () => carregarTempoInsp(true);
+  TINSP.ctx = { chD, noPeriodo, rotulo };
+  box.querySelectorAll('[data-ti-k]').forEach(td => { td.onclick = () => tinspDetalhe(td.dataset.tiI, td.dataset.tiK); });
+}
+
+// Clique numa célula: lista as placas com dia, horários (Brasília) e tempos
+function tinspDetalhe(ii, k) {
+  const d = TINSP.dados, x = TINSP.ctx; if (!d || !x) return;
+  const hh = m => m === undefined || m === null || m < 0 ? '—' : String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
+  const lista = d.linhas.filter(l => (!TINSP.loja || d.lojas[l[0]] === TINSP.loja) && (ii === '' || String(l[1]) === ii) &&
+      (k === '' ? x.noPeriodo.has(x.chD[l[2]]) : x.chD[l[2]] === k))
+    .sort((a, b) => d.datas[a[2]].localeCompare(d.datas[b[2]]) || ((a[7] ?? 0) - (b[7] ?? 0)));
+  const todosInsp = ii === '';
+  const linhas = lista.map((l, n) => { const fora = l[3] > TINSP_LIM_INSP; return `<tr class="border-t border-gray-100 ${fora ? 'opacity-50' : ''}">
+      <td class="py-1.5 pr-3 text-gray-400">${n + 1}</td>
+      <td class="py-1.5 pr-3 whitespace-nowrap">${esc(fmtData(d.datas[l[2]]).slice(0, 5))}</td>
+      <td class="py-1.5 pr-3 font-mono font-bold text-gray-900">${esc(l[5] || '—')}</td>
+      ${todosInsp ? `<td class="py-1.5 pr-3 text-gray-800 whitespace-nowrap">${esc(d.inspetores[l[1]])}</td>` : ''}
+      <td class="py-1.5 pr-3 text-gray-700 whitespace-nowrap">${esc(d.lojas[l[0]])}</td>
+      <td class="py-1.5 pr-3 tabular-nums">${hh(l[6])}</td><td class="py-1.5 pr-3 tabular-nums">${hh(l[7])}</td><td class="py-1.5 pr-3 tabular-nums">${hh(l[8])}</td>
+      <td class="py-1.5 pr-3 font-bold tabular-nums whitespace-nowrap">${tiMin(l[3])}${fora ? ' <span class="text-[10px] font-normal text-rose-600">fora da conta</span>' : ''}</td>
+      <td class="py-1.5 tabular-nums whitespace-nowrap">${l[4] >= 0 ? tiMin(l[4]) : '—'}</td></tr>`; });
+  const r = k ? x.rotulo(k) : null;
+  const per = k ? (Array.isArray(r) ? r.join(' ') : r) : 'período todo';
+  const semHorario = lista.length && lista[0].length < 9;
+  modalTabela(esc(todosInsp ? 'Todos os inspetores' : d.inspetores[+ii]) + ' · ' + esc(per),
+    `${lista.length} carro${lista.length === 1 ? '' : 's'}${TINSP.loja ? ' · ' + esc(TINSP.loja) : ''} · horários de Brasília · Inspeção = início → fim · Fila = chegada → início` +
+      (semHorario ? ' · <b>publique o TempoInsp.gs novo para ver placas e horários</b>' : ''),
+    ['#', 'Dia', 'Placa', ...(todosInsp ? ['Inspetor'] : []), 'Loja', 'Chegada', 'Início', 'Fim', 'Inspeção', 'Fila'], linhas, 'Nenhum carro.');
 }
 
 // ---------- Vistas personalizáveis da aba Inspeções ----------
