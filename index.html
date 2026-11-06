@@ -55,6 +55,16 @@ button:disabled{cursor:not-allowed}
 @media(min-width:1024px){.vista{grid-column:span var(--c,12)}}
 .vista .mt-5{margin-top:0!important}
 .vista-barra,.vista-resize{display:none}
+.vista-tog{position:absolute;top:2px;right:2px;z-index:3;width:24px;height:24px;border-radius:6px;border:1px solid #d1d5db;background:#fff;color:#374151;font-weight:800;font-size:15px;line-height:20px;text-align:center;opacity:.55}
+.vista-tog:hover,.vista-min .vista-tog{opacity:1}
+.vista-rot{display:none}
+.vista-corpo{padding-right:30px}
+.vst-apres .vista-corpo,.vista-min .vista-corpo{padding-right:0}
+.vista-min .vista-corpo{display:none}
+.vista-min .vista-rot{display:flex;align-items:center;gap:.5rem;background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:.6rem .9rem;padding-right:2.5rem;font-weight:800;color:#111827;font-size:14px;border-left:4px solid #0047FF;cursor:pointer}
+.vst-edit .vista-tog,.vst-apres .vista-tog{display:none}
+html.escuro .vista-tog{background:#1e293b;border-color:#334155;color:#e2e8f0}
+html.escuro .vista-min .vista-rot{background:#111827;border-color:#1f2937;color:#f1f5f9}
 .vst-edit .vista{outline:2px dashed #93b4ff;outline-offset:4px;border-radius:10px}
 .vst-edit .vista.drop-on{outline:3px solid #0047FF}
 .vst-edit .vista-barra{display:flex;align-items:center;gap:.5rem;background:#ebf0ff;color:#0036cc;border-radius:8px;padding:.3rem .6rem;font-size:11px;margin-bottom:.5rem}
@@ -346,7 +356,7 @@ html.escuro .text-black{color:#f1f5f9}
   <section id="aba-inspecoes" class="space-y-5 hidden">
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div>
-        <h2 class="text-lg font-bold text-gray-900">Dashboard Executivo de Inspeções</h2>
+        <h2 class="text-lg font-bold text-gray-900">Dashboard de Inspeção</h2>
         <p id="inspPeriodo" class="text-sm font-semibold text-kavak-blue"></p>
       </div>
       <div class="flex flex-wrap items-center gap-2 nao-imprimir">
@@ -386,7 +396,7 @@ html.escuro .text-black{color:#f1f5f9}
         <button type="button" id="vstBtnApresentar" title="Tela cheia para reunião" class="vst-nao-apres btn-kavak px-3 py-2 text-xs">Modo apresentação</button>
       </div>
       <div class="vst-apres-titulo items-center justify-between gap-3 mb-4 nao-imprimir">
-        <div><h2 class="text-xl font-bold text-gray-900">Dashboard Executivo de Inspeções</h2><p id="vstApresPeriodo" class="text-sm text-gray-500"></p></div>
+        <div><h2 class="text-xl font-bold text-gray-900">Dashboard de Inspeção</h2><p id="vstApresPeriodo" class="text-sm text-gray-500"></p></div>
         <div class="flex items-center gap-2">
           <button type="button" id="vstZoomMenos" class="bg-white border border-gray-300 text-gray-700 w-9 h-9 rounded-md text-sm font-bold" title="Diminuir">A−</button>
           <button type="button" id="vstZoomMais" class="bg-white border border-gray-300 text-gray-700 w-9 h-9 rounded-md text-sm font-bold" title="Aumentar">A+</button>
@@ -1405,12 +1415,12 @@ function renderCompras(d) {
   if (!d.histInicio) aviso = 'Ainda não há compras na BD. Cole a BD de inspeções na aba <b>Compras</b> da planilha Base do Site Escalapro e recarregue em 2 minutos.';
   else if (d.periodo && d.histInicio > d.periodo.inicio) aviso = `A BD de compras começa em <b>${fmtData(d.histInicio)}</b>. Carros inspecionados antes disso não têm como aparecer como comprados.`;
 
-  const kpi = (tt, n, sub) => `<div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
-    <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">${esc(tt)}</p>
+  const kpi = (tt, n, sub, acao) => `<div ${acao ? `data-cmp="${acao}" title="Clique para ver as placas"` : ''} class="bg-white p-5 rounded-lg shadow-sm border border-gray-200 ${acao ? 'cursor-pointer hover:border-kavak-blue' : ''}">
+    <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">${esc(tt)}${acao ? ' <span class="text-kavak-blue normal-case tracking-normal">· ver placas ›</span>' : ''}</p>
     <div class="mt-2"><span class="text-3xl font-extrabold text-gray-900">${n}</span></div>
     <p class="text-[11px] text-gray-500 mt-2">${sub}</p></div>`;
 
-  const linhas = canais.map(c => `<tr class="border-t border-gray-100">
+  const linhas = canais.map(c => `<tr data-cmp-loja="${esc(c.nome)}" title="Clique para ver os comprados" class="border-t border-gray-100 cursor-pointer hover:bg-blue-50">
       <td class="py-2 pr-3 font-semibold text-gray-800">${esc(c.nome)}</td>
       <td class="py-2 px-3 text-right">${c.inspecoes}</td>
       <td class="py-2 px-3 text-right font-bold text-green-700">${c.compras}</td>
@@ -1425,9 +1435,9 @@ function renderCompras(d) {
     ${aviso ? `<div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-3 text-xs">${aviso}</div>` : ''}
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
       ${kpi('Carros inspecionados', t.inspecoes, 'todos os canais, 1 vez por placa')}
-      ${kpi('Comprados', t.compras, 'desses carros inspecionados')}
+      ${kpi('Comprados', t.compras, 'desses carros inspecionados', 'comprados')}
       ${kpi('Conversão', cmpPct(t.compras, t.inspecoes), 'comprados ÷ carros inspecionados')}
-      ${kpi('Comprados sem registro no Slack', d.semSlack || 0, 'estão na BD do período, mas não no Slack')}
+      ${kpi('Comprados sem registro no Slack', d.semSlack || 0, 'estão na BD do período, mas não no Slack', 'semslack')}
     </div>
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
       <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
@@ -1437,7 +1447,7 @@ function renderCompras(d) {
       </div>
       <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200 overflow-x-auto">
         <h3 class="text-base font-bold text-gray-900">Conversão por loja / canal</h3>
-        <p class="text-xs text-gray-500 mb-3">Comprados ÷ carros inspecionados no período</p>
+        <p class="text-xs text-gray-500 mb-3">Comprados ÷ carros inspecionados no período. Clique numa loja para ver as placas compradas.</p>
         <table class="w-full text-xs">
           <thead><tr class="text-[11px] text-gray-400 uppercase tracking-wider">
             <th class="text-left font-bold pb-2">Loja / canal</th><th class="text-right font-bold pb-2 px-3">Carros</th>
@@ -1453,6 +1463,9 @@ function renderCompras(d) {
     </div>
   </div>`;
 
+  $('cmpConteudo').querySelectorAll('[data-cmp]').forEach(x => x.addEventListener('click', () => x.dataset.cmp === 'semslack' ? cmpModalSemSlack(d) : cmpModalComprados(d, '')));
+  $('cmpConteudo').querySelectorAll('[data-cmp-loja]').forEach(x => x.addEventListener('click', () => cmpModalComprados(d, x.dataset.cmpLoja)));
+
   if (!canais.length) return;
   const tooltip = { backgroundColor: '#111827', padding: 10, cornerRadius: 6, callbacks: { footer: it => 'Conversão: ' + cmpPct(canais[it[0].dataIndex].compras, canais[it[0].dataIndex].inspecoes) } };
   CMP.charts.push(new Chart($('chCmpLojas'), {
@@ -1465,6 +1478,49 @@ function renderCompras(d) {
       plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, usePointStyle: true } }, tooltip },
       scales: { x: { grid: { color: '#F1F5F9' }, beginAtZero: true, ticks: { precision: 0 } }, y: { grid: { display: false }, ticks: { color: '#334155' } } } }
   }));
+}
+
+
+// Janela com uma tabela de placas (usada nos comprados e nos "sem registro no Slack")
+function modalTabela(titulo, sub, cab, linhas, vazio) {
+  const antigo = document.getElementById('modalTabela'); if (antigo) antigo.remove();
+  const m = document.createElement('div');
+  m.id = 'modalTabela';
+  m.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4';
+  m.innerHTML = `<div class="bg-white rounded-xl shadow-xl w-full max-w-3xl max-h-[85vh] flex flex-col">
+      <div class="flex items-start justify-between p-4 border-b border-gray-200">
+        <div><h3 class="text-base font-bold text-gray-900">${titulo}</h3><p class="text-[11px] text-gray-500">${sub}</p></div>
+        <button type="button" class="text-gray-400 hover:text-gray-700 text-xl leading-none px-2" data-fechar>×</button></div>
+      <div class="p-4 overflow-auto">${linhas.length ? `<table class="w-full text-xs"><thead><tr class="text-gray-500 border-b border-gray-200">${cab.map(c => `<th class="text-left font-semibold py-1.5 pr-3">${c}</th>`).join('')}</tr></thead><tbody>${linhas.join('')}</tbody></table>` : `<p class="text-xs text-gray-500">${vazio || 'Nenhuma placa.'}</p>`}</div>
+    </div>`;
+  m.addEventListener('click', e => { if (e.target === m || e.target.hasAttribute('data-fechar')) m.remove(); });
+  document.addEventListener('keydown', function fechaEsc(e) { if (e.key === 'Escape') { m.remove(); document.removeEventListener('keydown', fechaEsc); } });
+  document.body.appendChild(m);
+}
+function cmpModalComprados(d, loja) {
+  const per = d.periodo ? fmtData(d.periodo.inicio) + ' a ' + fmtData(d.periodo.fim) : '';
+  if (!Array.isArray(d.comprados)) { modalTabela('Comprados', per, [], [], 'O Apps Script ainda não manda a lista de placas. Cole o ComprasInsp.gs novo e publique uma nova versão.'); return; }
+  const lista = d.comprados.filter(x => !loja || x.c === loja);
+  const linhas = lista.map((x, i) => `<tr class="border-t border-gray-100">
+      <td class="py-1.5 pr-3 text-gray-400">${i + 1}</td><td class="py-1.5 pr-3 font-mono font-bold text-gray-900">${esc(x.p)}</td>
+      <td class="py-1.5 pr-3 text-gray-700">${esc(x.m || '—')}</td><td class="py-1.5 pr-3 text-gray-700">${esc(x.c)}</td>
+      <td class="py-1.5 pr-3 text-gray-500 whitespace-nowrap">${esc(fmtData(x.d).slice(0, 5))} ${esc(x.h || '')}</td><td class="py-1.5 text-gray-800">${esc(x.i || '—')}</td></tr>`);
+  modalTabela('💰 Comprados' + (loja ? ' · ' + esc(loja) : ''), `${lista.length} carro${lista.length === 1 ? '' : 's'} · inspecionados em ${per}`,
+    ['#', 'Placa', 'Carro', 'Loja / canal', 'Inspeção', 'Inspetor'], linhas);
+}
+function cmpModalSemSlack(d) {
+  const per = d.periodo ? fmtData(d.periodo.inicio) + ' a ' + fmtData(d.periodo.fim) : '';
+  if (!Array.isArray(d.semSlackLista)) { modalTabela('Comprados sem registro no Slack', per, [], [], 'O Apps Script ainda não manda a lista de placas. Cole o ComprasInsp.gs novo e publique uma nova versão.'); return; }
+  const COR = { B2B: '#2a78d6', FLUA: '#eb6834', KUNA: '#0f8a6d', OUTRA_DATA: '#6b7280', NAO_ACHADO: '#b91c1c' };
+  const ROT = { B2B: 'B2B', FLUA: 'FLUA', KUNA: 'KUNA', OUTRA_DATA: 'Outra data', NAO_ACHADO: 'Não achado' };
+  const cont = {}; d.semSlackLista.forEach(x => { cont[x.t] = (cont[x.t] || 0) + 1; });
+  const resumo = Object.keys(cont).map(k => `${ROT[k] || k}: ${cont[k]}`).join(' · ');
+  const linhas = d.semSlackLista.map(x => `<tr class="border-t border-gray-100">
+      <td class="py-1.5 pr-3 font-mono font-bold text-gray-900">${esc(x.p)}</td><td class="py-1.5 pr-3 text-gray-700">${esc(x.m || '—')}</td>
+      <td class="py-1.5 pr-3 text-gray-700">${esc(x.l || '—')}</td><td class="py-1.5 pr-3 text-gray-500">${esc(fmtData(x.d).slice(0, 5))}</td>
+      <td class="py-1.5"><span class="px-2 py-0.5 rounded-full text-[10px] font-bold text-white" style="background:${COR[x.t] || '#6b7280'}">${ROT[x.t] || esc(x.t)}</span> <span class="text-gray-600">${esc(x.motivo)}</span></td></tr>`);
+  modalTabela('Comprados sem registro no Slack', `${d.semSlackLista.length} carro(s) comprados na BD em ${per} que não aparecem nas inspeções do Slack nesse período${resumo ? ' · ' + resumo : ''}`,
+    ['Placa', 'Carro', 'Local na BD', 'Data BD', 'Motivo provável'], linhas);
 }
 
 // ---------- Comprados x novos achados x inspetor ----------
@@ -2067,7 +2123,7 @@ function renderMovimento() {
   const DIAS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
   const fmt = v => v === null || v === undefined ? '—' : (Math.round(v * 10) / 10).toString().replace('.', ',');
   const maxCel = Math.max(1, ...d.lojas.flatMap(l => l.media.map(v => v || 0)));
-  const prevMax = Math.max(0, ...d.proxima.map(x => x.previsto || 0));
+  const prevMax = Math.max(0, ...d.proxima.map(x => x.lojas || 0));
   // Escala sequencial de azul (claro -> escuro) para o mapa de calor
   const escuro = temaEscuro();
   const RAMPA = escuro ? ['#172133', '#1a2f4f', '#1e3f6c', '#235189', '#2a64a8', '#3a7fd0', '#6aa2e6'] : ['#eef4fd', '#cfe0f8', '#a6c6f1', '#76a7e7', '#4a88dd', '#2a6fc6', '#1b569f'];
@@ -2077,30 +2133,49 @@ function renderMovimento() {
       ${l.media.map((v, w) => `<td class="py-1 px-0.5"><div class="rounded text-center py-1 font-bold tabular-nums" style="${celula(v)}" title="${DIAS[w]}: média ${fmt(v)} · máximo ${l.max[w]}">${fmt(v)}</div></td>`).join('')}
       <td class="py-1.5 pl-3 text-right whitespace-nowrap">${tend(l.tendencia)}</td></tr>`).join('');
   const op = d.diasComOperacao || [];
+  const comp = d.comparacao || [];
+  const cmpSem = comp.length ? `<div class="grid grid-cols-2 lg:grid-cols-4 gap-2">${comp.map(c => {
+      const dif = c.nComp && c.real ? Math.round((c.previsto / c.real - 1) * 100) : null;
+      return `<div class="rounded-lg border border-gray-200 p-3"><div class="text-[11px] font-bold text-gray-500">${esc(fmtData(c.inicio).slice(0, 5))} a ${esc(fmtData(c.fim).slice(0, 5))}</div>
+        ${c.nComp ? `<div class="text-sm mt-1"><b>${c.previsto}</b> previstos · <b>${c.real}</b> reais</div>
+        <div class="text-[11px] mt-0.5 ${c.erroMedio !== null && c.erroMedio <= 15 ? 'text-emerald-700' : 'text-amber-700'} font-bold">erro médio ${c.erroMedio}% por dia${dif !== null ? ' · ' + (dif > 0 ? 'previu ' + dif + '% a mais' : dif < 0 ? 'previu ' + Math.abs(dif) + '% a menos' : 'acertou o total') : ''}</div>
+        <div class="text-[10px] text-gray-400">${c.nComp} de 7 dias comparados</div>`
+        : '<div class="text-xs text-gray-400 mt-1">Sem histórico suficiente para prever essa semana.</div>'}</div>`;
+    }).join('')}</div>` : '';
 
   $('movConteudo').innerHTML = `<div class="space-y-5">
     <div class="flex flex-wrap items-end justify-between gap-3">
       <div><h2 class="sec-h">Movimento das lojas por dia da semana</h2>
-        <p class="text-xs text-gray-500 mt-1">Média de carros por dia, de ${fmtData(d.inicio)} a ${fmtData(d.fim)} (só dias completos e com operação). B2B · FLUA · KUNA ficam no bloco deles.</p></div>
+        <p class="text-xs text-gray-500 mt-1">Média de carros por dia, de ${fmtData(d.inicio)} a ${fmtData(d.fim)} (só dias completos e com operação). B2B · FLUA · KUNA não entram: são fluxo à parte, não clientes que vão à loja ou agendam.</p></div>
       <label class="text-xs text-gray-600 font-semibold">Base:
         <select id="movSemanas" class="ml-1 border border-gray-300 rounded-md px-2 py-1.5 text-xs">${[4, 8, 12, 26].map(n => `<option value="${n}" ${n === d.semanas ? 'selected' : ''}>últimas ${n} semanas</option>`).join('')}</select></label>
     </div>
     <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
       <h3 class="text-base font-bold text-gray-900">Previsão da próxima semana</h3>
-      <p class="text-xs text-gray-500 mb-3">Média do mesmo dia da semana nas últimas ${d.semanas} semanas. O dia mais forte fica em azul.${d.primeiroDia && d.primeiroDia > d.inicio ? ` <b class="text-amber-700">O histórico começa em ${fmtData(d.primeiroDia)}</b>: ainda tem poucos dias de cada; a previsão melhora a cada semana.` : ''}</p>
-      <div class="grid grid-cols-7 gap-2">${d.proxima.map(x => `<div class="rounded-lg text-center py-2 ${x.previsto && x.previsto === prevMax ? 'bg-kavak-blue text-white' : 'bg-gray-100 text-gray-800'}">
-        <div class="text-[10px] font-bold opacity-80">${x.dia} ${esc(fmtData(x.iso).slice(0, 5))}</div><div class="text-xl font-extrabold">${x.previsto === null ? '—' : '~' + Math.round(x.previsto)}</div><div class="text-[10px] opacity-70">${x.base !== undefined && x.base < 3 ? '⚠️ base de ' + x.base + ' dia' + (x.base === 1 ? '' : 's') : 'carros'}</div></div>`).join('')}</div>
+      <p class="text-xs text-gray-500 mb-3">Média do mesmo dia da semana nas últimas ${d.semanas} semanas. Número grande = lojas físicas; embaixo, o Online. O dia mais forte das lojas fica em azul.${d.primeiroDia && d.primeiroDia > d.inicio ? ` <b class="text-amber-700">O histórico começa em ${fmtData(d.primeiroDia)}</b>: ainda tem poucos dias de cada; a previsão melhora a cada semana.` : ''}</p>
+      <div class="grid grid-cols-7 gap-2">${d.proxima.map(x => `<div class="rounded-lg text-center py-2 ${x.lojas && x.lojas === prevMax ? 'bg-kavak-blue text-white' : 'bg-gray-100 text-gray-800'}">
+        <div class="text-[10px] font-bold opacity-80">${x.dia} ${esc(fmtData(x.iso).slice(0, 5))}</div><div class="text-xl font-extrabold">${x.lojas === null ? '—' : '~' + Math.round(x.lojas)}</div><div class="text-[10px] opacity-80">lojas</div>
+        <div class="text-[11px] font-bold mt-1 opacity-90">🌐 ${x.online === null ? '—' : '~' + Math.round(x.online)} online</div>
+        <div class="text-[10px] opacity-70">${x.base < 3 ? '⚠️ base de ' + x.base + ' dia' + (x.base === 1 ? '' : 's') : ''}</div></div>`).join('')}</div>
     </div>
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
       <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
-        <h3 class="text-base font-bold text-gray-900">Total por dia da semana</h3>
-        <p class="text-xs text-gray-500 mb-3">Todas as lojas e o online juntos. Passe o mouse para ver de quantos dias é a média.</p>
+        <h3 class="text-base font-bold text-gray-900">Média por dia da semana</h3>
+        <p class="text-xs text-gray-500 mb-2">Lojas físicas e Online separados. Passe o mouse para ver de quantos dias é a média.</p>
+        <p class="text-[11px] text-gray-500 mb-2"><span class="inline-flex items-center gap-1 mr-3"><i class="inline-block w-2.5 h-2.5 rounded-sm" style="background:#2a78d6"></i>Lojas físicas</span><span class="inline-flex items-center gap-1"><i class="inline-block w-2.5 h-2.5 rounded-sm" style="background:#a3a29b"></i>Online</span></p>
         <div class="relative w-full" style="height:240px"><canvas id="chMovSemana"></canvas></div></div>
       <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
         <h3 class="text-base font-bold text-gray-900">Horário de chegada dos carros</h3>
-        <p class="text-xs text-gray-500 mb-2">Média de carros por hora. Ajuda a ver quando reforçar a escala.</p>
+        <p class="text-xs text-gray-500 mb-2">Média de carros por hora nas lojas físicas. Ajuda a ver quando reforçar a escala.</p>
         <p class="text-[11px] text-gray-500 mb-2"><span class="inline-flex items-center gap-1 mr-3"><i class="inline-block w-3 h-0.5" style="background:#2a78d6"></i>Seg a Sex</span><span class="inline-flex items-center gap-1 mr-3"><i class="inline-block w-3 h-0.5" style="background:#eb6834"></i>Sábado</span><span class="inline-flex items-center gap-1"><i class="inline-block w-3 h-0.5" style="background:#0f8a6d"></i>Domingo</span></p>
         <div class="relative w-full" style="height:220px"><canvas id="chMovHoras"></canvas></div></div>
+    </div>
+    <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
+      <h3 class="text-base font-bold text-gray-900">Previsão × o que aconteceu (lojas físicas)</h3>
+      <p class="text-xs text-gray-500 mb-3">Nas últimas 4 semanas: a previsão de cada dia foi refeita com as ${d.semanas} semanas anteriores a ela, como se fosse feita na época. Erro médio = quanto a previsão errou, em média, por dia.</p>
+      ${cmpSem}
+      <div class="relative w-full mt-3" style="height:230px"><canvas id="chMovComp"></canvas></div>
+      <p class="text-[11px] text-gray-500 mt-2"><span class="inline-flex items-center gap-1 mr-3"><i class="inline-block w-2.5 h-2.5 rounded-sm" style="background:#2a78d6"></i>Real</span><span class="inline-flex items-center gap-1"><i class="inline-block w-3 h-0.5" style="background:#eb6834"></i>Previsto</span> · dias sem histórico suficiente ficam sem previsão.</p>
     </div>
     <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
       <h3 class="text-base font-bold text-gray-900">Média de carros por loja e dia da semana</h3>
@@ -2117,12 +2192,13 @@ function renderMovimento() {
   });
 
   const tooltip = { backgroundColor: '#111827', padding: 10, cornerRadius: 6, displayColors: false };
-  const maxT = Math.max(0, ...d.mediaTotal.map(v => v || 0));
   MOV.charts.push(new Chart($('chMovSemana'), {
     type: 'bar',
-    data: { labels: DIAS, datasets: [{ data: d.mediaTotal, backgroundColor: d.mediaTotal.map(v => v && v === maxT ? '#1b569f' : '#2a78d6'), borderRadius: 5, borderSkipped: false, maxBarThickness: 40 }] },
-    options: { responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: false }, tooltip: { ...tooltip, callbacks: { label: c => `${fmt(c.parsed.y)} carros em média`, footer: it => `média de ${op[it[0].dataIndex] || 0} dia(s)` } } },
+    data: { labels: DIAS, datasets: [
+      { label: 'Lojas físicas', data: d.mediaLojas, backgroundColor: '#2a78d6', borderRadius: 5, borderSkipped: false, maxBarThickness: 28 },
+      { label: 'Online', data: d.mediaOnline, backgroundColor: '#a3a29b', borderRadius: 5, borderSkipped: false, maxBarThickness: 28 }] },
+    options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { display: false }, tooltip: { ...tooltip, displayColors: true, callbacks: { label: c => `${c.dataset.label}: ${fmt(c.parsed.y)} carros em média`, footer: it => `média de ${op[it[0].dataIndex] || 0} dia(s)` } } },
       scales: { x: { grid: { display: false }, ticks: { color: '#334155' } }, y: { beginAtZero: true, grid: { color: '#F1F5F9' } } } }
   }));
   const H = Array.from({ length: 16 }, (_, i) => (i + 6) + 'h');
@@ -2134,6 +2210,19 @@ function renderMovimento() {
       plugins: { legend: { display: false }, tooltip: { ...tooltip, displayColors: true, callbacks: { label: c => `${c.dataset.label}: ${fmt(c.parsed.y)} carros` } } },
       scales: { x: { grid: { display: false }, ticks: { color: '#334155', maxRotation: 0, autoSkip: true } }, y: { beginAtZero: true, grid: { color: '#F1F5F9' } } } }
   }));
+  if (comp.length) {
+    const dd = comp.flatMap(c => c.dias);
+    MOV.charts.push(new Chart($('chMovComp'), {
+      data: { labels: dd.map(x => [x.iso.slice(8, 10), x.dia]), datasets: [
+        { type: 'line', label: 'Previsto', data: dd.map(x => x.previsto), borderColor: '#eb6834', backgroundColor: '#eb6834', borderWidth: 2, pointRadius: 3, spanGaps: false, tension: 0.2 },
+        { type: 'bar', label: 'Real', data: dd.map(x => x.real), backgroundColor: '#2a78d6', borderRadius: 4, borderSkipped: false, maxBarThickness: 18 }] },
+      options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+        plugins: { legend: { display: false }, tooltip: { ...tooltip, displayColors: true,
+          callbacks: { title: it => fmtData(dd[it[0].dataIndex].iso), label: c => `${c.dataset.label}: ${c.parsed.y === null ? '—' : fmt(c.parsed.y)} carros`,
+            footer: it => { const x = dd[it[0].dataIndex]; return x.previsto !== null && x.real !== null ? `Diferença: ${x.real - Math.round(x.previsto) > 0 ? '+' : ''}${x.real - Math.round(x.previsto)} carros` : ''; } } } },
+        scales: { x: { grid: { display: false }, ticks: { color: '#334155', maxRotation: 0, autoSkip: true, font: { size: 10 } } }, y: { beginAtZero: true, grid: { color: '#F1F5F9' } } } }
+    }));
+  }
 }
 
 // ---------- Vistas personalizáveis da aba Inspeções ----------
@@ -2142,11 +2231,11 @@ function renderMovimento() {
 const VST = {
   charts: [], edit: false, apres: false, zoom: 1, estado: null, pronto: false, arrasta: null,
   defs: [
-    { id: 'exec', titulo: 'Dashboard executivo', c: 12 },
+    { id: 'exec', titulo: 'Dashboard Inspeção', c: 12 },
     { id: 'cmp',  titulo: 'Inspeções × Compras', c: 12 },
     { id: 'aud',  titulo: 'Novos achados por inspetor', c: 12, sup: true },
     { id: 'ftq',  titulo: 'Online × Alinhar FTQ', c: 12, sup: true },
-    { id: 'dias', titulo: 'Gráficos por dia', c: 12, sup: true },
+    { id: 'dias', titulo: 'Novos achados por dia', c: 12, sup: true },
     { id: 'tipo', titulo: 'Express × Regular', c: 6, sup: true },
     { id: 'hub',  titulo: 'Achados por HUB', c: 6, sup: true },
     { id: 'esp',  titulo: 'B2B · FLUA · KUNA', c: 12 },
@@ -2166,7 +2255,7 @@ function vstLer() {
   const ids = VST.defs.map(d => d.id);
   const ordem = (e && Array.isArray(e.ordem) ? e.ordem.filter(i => ids.includes(i)) : []);
   ids.forEach(i => { if (!ordem.includes(i)) ordem.push(i); });
-  return { ordem, ocultas: (e && e.ocultas) || {}, tam: (e && e.tam) || {} };
+  return { ordem, ocultas: (e && e.ocultas) || {}, tam: (e && e.tam) || {}, min: (e && e.min) || {} };
 }
 function vstGravar() { try { localStorage.setItem(vstChave(), JSON.stringify(VST.estado)); } catch (x) {} }
 
@@ -2179,6 +2268,10 @@ function vistasAplicar() {
     const t = VST.estado.tam[def.id] || {};
     el.style.display = vstDisponivel(def) && !VST.estado.ocultas[def.id] ? '' : 'none';
     el.style.setProperty('--c', t.c || def.c);
+    const min = !!VST.estado.min[def.id] && !VST.apres;
+    el.classList.toggle('vista-min', min);
+    const tg = el.querySelector('.vista-tog');
+    if (tg) { tg.textContent = min ? '+' : '−'; tg.title = min ? 'Mostrar o bloco' : 'Minimizar o bloco'; }
     const corpo = el.querySelector('.vista-corpo');
     corpo.style.height = t.h ? t.h + 'px' : '';
     corpo.style.overflow = t.h ? 'auto' : '';
@@ -2240,10 +2333,23 @@ function vistasIniciar() {
     const rz = document.createElement('div');
     rz.className = 'vista-resize'; rz.title = 'Arraste para redimensionar (duplo clique: altura automática)';
     el.insertBefore(barra, el.firstChild); el.appendChild(rz);
+    const tog = document.createElement('button');
+    tog.type = 'button'; tog.className = 'vista-tog'; tog.dataset.vstMin = def.id; tog.textContent = '−';
+    const rot = document.createElement('div');
+    rot.className = 'vista-rot'; rot.dataset.vstMin = def.id; rot.textContent = def.titulo;
+    el.insertBefore(rot, barra.nextSibling); el.appendChild(tog);
   });
 
   const grid = $('vistasGrid');
   grid.addEventListener('click', e => {
+    const m = e.target.closest('[data-vst-min]');
+    if (m) {
+      const id = m.dataset.vstMin;
+      if (VST.estado.min[id]) delete VST.estado.min[id]; else VST.estado.min[id] = true;
+      vstGravar(); vistasAplicar();
+      if (!VST.estado.min[id] && window.Chart) Object.values(Chart.instances).forEach(c => { try { c.resize(); } catch (x) {} });
+      return;
+    }
     const b = e.target.closest('[data-v]'); if (!b) return;
     const el = b.closest('.vista'), id = el.dataset.vista, v = b.dataset.v;
     if (v === 'sobe') return vstMover(id, -1);
@@ -2419,7 +2525,7 @@ function renderVistasExtras() {
   const isos = [...new Set([...Object.keys(porDia), ...Object.keys(inspDia)])].sort();
   const rot = iso => fmtData(iso).slice(0, 5) + ' (' + VST_DOW[vstDow(iso)].slice(0, 3) + ')';
   const nota = fora ? `<p class="text-[11px] text-amber-700 mb-3">⚠️ ${fora} achado(s) são de inspeções feitas fora deste período (ou sem data da inspeção) e não entram nestes gráficos.</p>` : '';
-  $('vstDias').innerHTML = nota + `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:1.25rem">
+  $('vstDias').innerHTML = '<h2 class="sec-h mb-4">Novos achados por dia</h2>' + nota + `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:1.25rem">
     ${card(insp ? 'Taxa de novos achados por dia da semana' : 'Novos achados por dia da semana',
       insp ? 'Novos achados ÷ inspeções feitas no mesmo dia da semana (pela data da inspeção)' : 'Inspeções do período indisponíveis: mostrando só a quantidade de achados', cv('chVstSemana', 280))}
     ${card('Novos achados × inspeções por dia', 'Barras = novos achados · linha = inspeções do dia', cv('chVstDias', 280))}</div>`;
