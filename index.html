@@ -414,6 +414,7 @@ html.escuro .text-black{color:#f1f5f9}
         <div class="vista" data-vista="esp"><div class="vista-corpo"><div id="espConteudo"></div></div></div>
         <div class="vista" data-vista="mov"><div class="vista-corpo"><div id="movConteudo"></div></div></div>
         <div class="vista" data-vista="pcmp"><div class="vista-corpo"><div id="pcmpConteudo"></div></div></div>
+        <div class="vista" data-vista="tinsp"><div class="vista-corpo"><div id="tinspConteudo"></div></div></div>
       </div>
     </div>
     <div id="achConteudo" class="hidden"></div>
@@ -1258,6 +1259,7 @@ async function carregarInspecoes() {
   carregarEspeciais(iv);
   if (!MOV.dados) carregarMovimento();   // movimento usa as últimas semanas, não o filtro: carrega 1 vez
   if (!PCMP.dados) carregarPrevCompras();
+  if (!TINSP.dados) carregarTempoInsp();   // planilha de tempos: carrega 1 vez (botão Atualizar recarrega)
 }
 
 function renderInspecoes(d, fonte) {
@@ -2328,6 +2330,116 @@ function renderPrevCompras() {
   }
 }
 
+// ---------- Tempo de inspeção por inspetor ----------
+// Fonte: api('tempoInsp') (TempoInsp.gs): planilha de tempos com chegada, início e fim de cada carro.
+// Linhas: [loja, inspetor, índice da data em d.datas, minutos de inspeção, minutos de fila (-1 = sem dado)]
+const TINSP = { seq: 0, dados: null, grupo: 'semana', loja: '', medida: 'mediana', ver: 'insp' };
+try { const p = JSON.parse(localStorage.getItem('escalapro_tinsp') || '{}'); ['grupo', 'loja', 'medida', 'ver'].forEach(k => { if (typeof p[k] === 'string') TINSP[k] = p[k]; }); } catch (e) {}
+const TINSP_LIM_INSP = 120;   // inspeção acima de 2h = fim esquecido: fica fora da conta
+const TINSP_LIM_FILA = 480;   // fila acima de 8h = carro que dormiu na loja: fica fora da conta
+const tiMed = a => { if (!a.length) return null; const s = a.slice().sort((x, y) => x - y), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+const tiMedia = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
+const tiSegunda = iso => { const d = new Date(iso + 'T12:00:00'); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.toISOString().slice(0, 10); };
+const tiMin = v => v === null || v === undefined ? '—' : v < 60 ? (Math.round(v * 10) / 10).toString().replace('.', ',') : Math.floor(v / 60) + 'h' + String(Math.round(v % 60)).padStart(2, '0');
+
+async function carregarTempoInsp(forcar) {
+  const box = $('tinspConteudo'); if (!box) return;
+  if (MODO_LOCAL || !ehSupervisor()) { box.innerHTML = ''; return; }
+  const seq = ++TINSP.seq;
+  box.innerHTML = '<p class="text-xs text-gray-500">Carregando tempos de inspeção…</p>';
+  let r;
+  try { r = await api('tempoInsp', { forcar: !!forcar }); } catch (e) { if (e && e.sessaoExpirada) return; r = { erro: 'rede' }; }
+  if (seq !== TINSP.seq) return;
+  if (!r || r.erro || !Array.isArray(r.linhas) || !Array.isArray(r.datas)) {
+    const m = {
+      acao_desconhecida: 'O Apps Script ainda não tem a ação <b>tempoInsp</b>: cole o TempoInsp.gs, troque a rotear_ e publique uma nova versão.',
+      tinsp_acesso: 'A conta que roda o EscalaPro não consegue abrir a planilha de tempos. Compartilhe a planilha com essa conta (Leitor).',
+      tinsp_vazia: 'A planilha de tempos está vazia ou com as colunas fora do lugar.'
+    };
+    box.innerHTML = `<div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-4 text-xs">Não foi possível carregar os tempos de inspeção. ${m[r && r.erro] || 'Tente atualizar em instantes.'}</div>`;
+    return;
+  }
+  TINSP.dados = r;
+  renderTempoInsp();
+}
+
+function renderTempoInsp() {
+  const d = TINSP.dados, box = $('tinspConteudo'); if (!d || !box) return;
+  const g = TINSP.grupo, ehFila = TINSP.ver === 'fila', campo = ehFila ? 4 : 3, LIM = ehFila ? TINSP_LIM_FILA : TINSP_LIM_INSP;
+  const calc = TINSP.medida === 'media' ? tiMedia : tiMed;
+  const chave = iso => g === 'dia' ? iso : g === 'mes' ? iso.slice(0, 7) : tiSegunda(iso);
+  const rotulo = k => {
+    if (g === 'mes') { const [a, m] = k.split('-'); return NOMES_MES[+m - 1].slice(0, 3) + '/' + a.slice(2); }
+    const dd = k.slice(8, 10) + '/' + k.slice(5, 7);
+    if (g === 'semana') return 'Sem ' + dd;
+    return [dd, ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'][new Date(k + 'T12:00:00').getDay()]];
+  };
+  if (TINSP.loja && !d.lojas.includes(TINSP.loja)) TINSP.loja = '';
+  const chD = d.datas.map(chave);   // período de cada data (calcula 1 vez por data)
+  const linhas = d.linhas.filter(l => !TINSP.loja || d.lojas[l[0]] === TINSP.loja);
+  const cols = [...new Set(linhas.map(l => chD[l[2]]))].sort().slice(-({ dia: 14, semana: 10, mes: 6 }[g]));
+  const noPeriodo = new Set(cols);
+
+  // agrupa por inspetor e por período
+  const porI = {}, total = { n: 0, vals: [], per: {} };
+  let fora = 0;
+  linhas.forEach(l => {
+    const k = chD[l[2]]; if (!noPeriodo.has(k)) return;
+    const o = porI[l[1]] = porI[l[1]] || { n: 0, vals: [], per: {}, lojas: {} };
+    const p = o.per[k] = o.per[k] || { n: 0, vals: [] }, tp = total.per[k] = total.per[k] || { n: 0, vals: [] };
+    o.n++; p.n++; total.n++; tp.n++;
+    o.lojas[l[0]] = (o.lojas[l[0]] || 0) + 1;
+    const x = l[campo];
+    if (x >= 0 && x <= LIM) { o.vals.push(x); p.vals.push(x); total.vals.push(x); tp.vals.push(x); }
+    else if (x > LIM) fora++;
+  });
+  const ids = Object.keys(porI).sort((a, b) => porI[b].n - porI[a].n);
+
+  // cor: só intensidade (mais escuro = mais tempo), sem julgar bom ou ruim
+  const todos = []; ids.forEach(i => cols.forEach(k => { const p = porI[i].per[k]; if (p && p.vals.length) todos.push(calc(p.vals)); }));
+  const mn = Math.min(...todos), mx = Math.max(...todos);
+  const fundo = v => { if (v === null || !isFinite(mn) || mx === mn) return ''; const t = (v - mn) / (mx - mn); return `background:rgba(37,99,235,${(0.06 + 0.34 * t).toFixed(2)})`; };
+  const celula = p => {
+    if (!p) return '<td class="px-2 py-1.5 text-center text-gray-300">·</td>';
+    const v = p.vals.length ? calc(p.vals) : null, pouco = p.n < 5;
+    return `<td class="px-2 py-1.5 text-center tabular-nums ${pouco ? 'opacity-50' : ''}" style="${fundo(v)}" title="${p.n} carro(s)${pouco ? ' · poucos carros, número pouco confiável' : ''}">
+      <div class="font-bold text-gray-900">${tiMin(v)}</div><div class="text-[10px] text-gray-500">${p.n}</div></td>`;
+  };
+  const lojaPrincipal = o => { const k = Object.keys(o.lojas).sort((a, b) => o.lojas[b] - o.lojas[a])[0]; return k === undefined ? '' : d.lojas[k]; };
+  const cab = cols.map(k => { const r = rotulo(k); return `<th class="px-2 py-2 text-center font-bold whitespace-nowrap">${Array.isArray(r) ? r[0] + '<div class="text-[10px] font-normal">' + r[1] + '</div>' : r}</th>`; }).join('');
+  const corpo = ids.map(i => { const o = porI[i]; return `<tr class="border-t border-gray-100">
+      <td class="sticky left-0 bg-white px-3 py-1.5 whitespace-nowrap"><div class="font-semibold text-gray-800">${esc(d.inspetores[i])}</div><div class="text-[10px] text-gray-500">${esc(lojaPrincipal(o))}</div></td>
+      ${cols.map(k => celula(o.per[k])).join('')}
+      <td class="px-3 py-1.5 text-center tabular-nums border-l border-gray-200"><div class="font-bold text-kavak-blue">${tiMin(calc(o.vals))}</div><div class="text-[10px] text-gray-500">${o.n} carros</div></td></tr>`; }).join('');
+  const linhaTotal = `<tr class="border-t-2 border-gray-300 bg-gray-50"><td class="sticky left-0 bg-gray-50 px-3 py-1.5 font-bold text-gray-900">Todos</td>
+      ${cols.map(k => { const p = total.per[k]; return `<td class="px-2 py-1.5 text-center tabular-nums"><div class="font-bold">${p && p.vals.length ? tiMin(calc(p.vals)) : '—'}</div><div class="text-[10px] text-gray-500">${p ? p.n : 0}</div></td>`; }).join('')}
+      <td class="px-3 py-1.5 text-center tabular-nums border-l border-gray-200"><div class="font-bold text-kavak-blue">${tiMin(calc(total.vals))}</div><div class="text-[10px] text-gray-500">${total.n} carros</div></td></tr>`;
+  const sel = (id, opcoes, atual) => `<select id="${id}" class="border border-gray-300 rounded-md px-2 py-1.5 text-xs bg-white">${opcoes.map(([v, t]) => `<option value="${esc(v)}" ${v === atual ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select>`;
+
+  box.innerHTML = `<div class="space-y-3">
+    <div class="flex flex-wrap items-center gap-2">
+      ${sel('tinspGrupo', [['dia', 'Por dia'], ['semana', 'Por semana'], ['mes', 'Por mês']], g)}
+      ${sel('tinspLoja', [['', 'Todas as lojas'], ...d.lojas.slice().sort().map(l => [l, l])], TINSP.loja)}
+      ${sel('tinspVer', [['insp', 'Tempo de inspeção'], ['fila', 'Tempo de fila']], TINSP.ver)}
+      ${sel('tinspMedida', [['mediana', 'Mediana'], ['media', 'Média']], TINSP.medida)}
+      <button id="tinspAtualizar" class="border border-gray-300 rounded-md px-2.5 py-1.5 text-xs font-bold hover:bg-gray-50">Atualizar</button>
+    </div>
+    <p class="text-[11px] text-gray-500">${ehFila
+      ? '<b>Tempo de fila</b> = da chegada do carro até o início da inspeção. Mostra a espera na loja; <b>não é tempo do inspetor</b>.'
+      : '<b>Tempo de inspeção</b> = do início ao fim da inspeção. Não inclui a fila (o tempo parado antes de começar).'}
+      Em minutos (acima de 60, em horas). Embaixo de cada número, a quantidade de carros. Números apagados = menos de 5 carros.</p>
+    ${ids.length ? `<div class="overflow-auto max-h-[36rem] border border-gray-200 rounded-lg"><table class="w-full text-xs">
+      <thead class="bg-gray-50 text-gray-600 sticky top-0 z-10"><tr><th class="sticky left-0 bg-gray-50 px-3 py-2 text-left font-bold">Inspetor</th>${cab}<th class="px-3 py-2 text-center font-bold border-l border-gray-200">No período</th></tr></thead>
+      <tbody>${corpo}${linhaTotal}</tbody></table></div>` : '<p class="text-xs text-gray-500">Sem inspeções para esse filtro.</p>'}
+    <p class="text-[11px] text-gray-500">${fora ? `${fora} ${ehFila ? 'carro(s) com fila acima de 8h (dormiram na loja)' : 'inspeção(ões) acima de 2h (fim esquecido)'} ficaram fora da conta. ` : ''}${TINSP.medida === 'mediana' ? 'Mediana = o tempo do meio: um caso exagerado não puxa o número. ' : ''}Planilha lida às ${esc(d.lidoEm || '')}.</p>
+  </div>`;
+
+  const salvar = () => { try { localStorage.setItem('escalapro_tinsp', JSON.stringify({ grupo: TINSP.grupo, loja: TINSP.loja, medida: TINSP.medida, ver: TINSP.ver })); } catch (e) {} };
+  [['tinspGrupo', 'grupo'], ['tinspLoja', 'loja'], ['tinspVer', 'ver'], ['tinspMedida', 'medida']].forEach(([id, k]) =>
+    $(id).addEventListener('change', e => { TINSP[k] = e.target.value; salvar(); renderTempoInsp(); }));
+  $('tinspAtualizar').onclick = () => carregarTempoInsp(true);
+}
+
 // ---------- Vistas personalizáveis da aba Inspeções ----------
 // Cada bloco da aba é uma "vista": dá para ocultar, arrastar, redimensionar e apresentar em tela cheia.
 // O arranjo fica salvo neste navegador (por usuário).
@@ -2343,7 +2455,8 @@ const VST = {
     { id: 'hub',  titulo: 'Achados por HUB', c: 6, sup: true },
     { id: 'esp',  titulo: 'B2B · FLUA · KUNA', c: 12 },
     { id: 'mov',  titulo: 'Movimento por dia da semana', c: 12 },
-    { id: 'pcmp', titulo: 'Previsão de compras', c: 12 }
+    { id: 'pcmp', titulo: 'Previsão de compras', c: 12 },
+    { id: 'tinsp', titulo: 'Tempo de inspeção por inspetor', c: 12, sup: true }
   ],
   SPANS: [3, 4, 6, 8, 12]
 };
