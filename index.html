@@ -2346,6 +2346,7 @@ const CPL = { dados: null, ocupado: false, filtro: '' };   // filtro = selo clic
 const CPL_EMOJI = { x: '❌', heavy_multiplication_x: '✖️', rejeitado_: '🔴', rejeitado: '🔴', fluxo_cancelado: '🚫', blue_car: '🚙',
   b2b: 'B2B', flua: 'FLUA', kuna123: 'KUNA', white_check_mark: '✅', heavy_check_mark: '✔️', eyes: '👀', point_left: '👈', point_right: '👉' };
 const CPL_STATUS = {
+  RESG_SEM_FOTOS: ['📷 Resguardo sem fotos', 'bg-orange-100 text-orange-800'], PLACA_PARECIDA: ['🔤 Possível placa errada', 'bg-yellow-100 text-yellow-800'],
   DUPLICADA: ['🔁 Duplicada', 'bg-purple-100 text-purple-800'], RESG_DUPLICADO: ['🔁 Resguardo duplicado', 'bg-purple-100 text-purple-800'], CANCELADA: ['🚫 Cancelada', 'bg-gray-200 text-gray-800'],
   REPROVADA: ['❌ Reprovada', 'bg-rose-100 text-rose-800'], REJEITADA: ['🔴 Rejeitada', 'bg-rose-100 text-rose-800'],
   B2B: ['B2B', 'bg-blue-100 text-blue-800'], FLUA: ['FLUA', 'bg-blue-100 text-blue-800'], KUNA: ['KUNA', 'bg-blue-100 text-blue-800'],
@@ -2363,7 +2364,7 @@ function montarConsultarPlacas() {
   box.dataset.pronto = '1';
   box.innerHTML = `<div class="space-y-3">
     <h2 class="text-xl font-extrabold text-gray-900">🔎 Consultar placas</h2>
-    <p class="text-[11px] text-gray-500">Cole as placas (uma por linha, ou copiadas de uma planilha: o que não for placa é ignorado). Mostra os posts do Kavaki, as reações, o #br-resguardo e a inspeção no sistema. Até ${1000} placas por vez.</p>
+    <p class="text-[11px] text-gray-500">Cole as placas (uma por linha, ou copiadas de uma planilha: o que não for placa é ignorado). Mostra os posts do Kavaki, o #br-resguardo e a inspeção no sistema. Placa antiga e Mercosul são a mesma (FRF2806 = FRF2I06). <b>📷 Resguardo sem fotos</b> = não foi rejeitada nem cancelada e nenhum resguardo tem resposta. Até ${1000} placas por vez.</p>
     <textarea id="cplTexto" rows="5" class="w-full border border-gray-300 rounded-md p-2 text-xs font-mono bg-white" placeholder="ABC1D23&#10;XYZ9E87&#10;..."></textarea>
     <div class="flex flex-wrap items-center gap-2">
       <button id="cplBtn" class="bg-kavak-blue text-white rounded-md px-4 py-1.5 text-xs font-bold hover:opacity-90">Consultar</button>
@@ -2412,18 +2413,16 @@ function renderConsultaPlacas() {
   const linhas = lista.map(x => {
     const posts = x.posts.map(p => `<div class="whitespace-nowrap">${esc(fmtData(p.d).slice(0, 5))} ${esc(p.h)} · ${esc(p.c)}${p.lk ? ` · <a href="${esc(p.lk)}" target="_blank" rel="noopener" class="text-kavak-blue underline">Slack</a>` : ''}
         <span class="text-gray-500">· ${p.rp} resp.${p.ar ? ' · ' + p.ar + ' arq.' : ''}</span></div>`).join('') || '<span class="text-gray-400">—</span>';
-    const reacoes = x.posts.map(p => `<div>${cplReacoes(p.re) || '<span class="text-gray-400">sem reação</span>'}</div>`).join('') || '—';
     // #br-resguardo: cada "Inspeção iniciada" numa linha; 0 respostas = ⚠️ vazio (forte candidato a "esqueceu as fotos")
     const resgLinha = t => { const vazio = /· 0 resp\./.test(t); return `<div class="${vazio ? 'text-amber-600 font-bold' : ''}">${esc(t)}${vazio ? ' ⚠️ vazio' : ''}</div>`; };
     const resg = x.posts.map(p => p.gt ? p.gt.split(' | ').map(resgLinha).join('')
       : (p.gi ? `<div>${esc(p.gi)} · ${esc(p.gq)}${p.gr ? ' · <b>' + esc(p.gr) + '</b>' : ''}</div>` : '<div class="text-gray-400">—</div>')).join('') || '—';
     const sist = x.sla.map(s => `<div class="whitespace-nowrap">${esc(fmtData(s.d).slice(0, 5))} ${cplHora(s.ini)}–${cplHora(s.fim)} · <b>${tiMin(s.dur)}</b> · ${esc(inspNomePadrao(s.i))}</div>`).join('') || '<span class="text-amber-600 font-bold">nenhuma</span>';
     return `<tr class="border-t border-gray-100 align-top">
-      <td class="py-2 pr-3 font-mono font-bold text-gray-900 whitespace-nowrap">${esc(x.p)}${x.repetidaNaLista ? '<div class="text-[10px] font-normal text-gray-500">repetida na lista</div>' : ''}</td>
+      <td class="py-2 pr-3 whitespace-nowrap">${cplPlacaCelula(x)}</td>
       <td class="py-2 pr-3"><div class="flex flex-wrap gap-1">${x.status.map(badge).join('')}</div></td>
       <td class="py-2 pr-3 text-center tabular-nums">${x.posts.length}</td>
       <td class="py-2 pr-3 text-[11px] space-y-1">${posts}</td>
-      <td class="py-2 pr-3 text-[11px] space-y-1">${reacoes}</td>
       <td class="py-2 pr-3 text-[11px] space-y-1">${x.posts.map(p => `<div>${esc(inspNomePadrao(p.i) || '—')}</div>`).join('') || '—'}</td>
       <td class="py-2 pr-3 text-[11px] space-y-1">${resg}</td>
       <td class="py-2 text-[11px] space-y-1">${sist}</td></tr>`;
@@ -2435,11 +2434,25 @@ function renderConsultaPlacas() {
     <div class="overflow-auto max-h-[40rem] border border-gray-200 rounded-lg"><table class="w-full text-xs">
       <thead class="bg-gray-50 text-gray-600 sticky top-0 z-10"><tr>
         <th class="px-2 py-2 text-left">Placa</th><th class="px-2 py-2 text-left">Resumo</th><th class="px-2 py-2">Posts</th><th class="px-2 py-2 text-left">Posts do Kavaki</th>
-        <th class="px-2 py-2 text-left">Reações</th><th class="px-2 py-2 text-left">Inspetor 🚙</th><th class="px-2 py-2 text-left">#br-resguardo</th><th class="px-2 py-2 text-left">Inspeção no sistema</th></tr></thead>
+        <th class="px-2 py-2 text-left">Inspetor 🚙</th><th class="px-2 py-2 text-left">#br-resguardo</th><th class="px-2 py-2 text-left">Inspeção no sistema</th></tr></thead>
       <tbody class="[&>tr>td:first-child]:pl-2">${linhas}</tbody></table></div>`;
+  $('cplResultado').querySelectorAll('[data-cpl-copiar]').forEach(b => {
+    b.onclick = () => { const t = b.dataset.cplCopiar; const ok = () => { $('cplInfo').textContent = t + ' copiada: cole na busca do Slack.'; };
+      if (navigator.clipboard) navigator.clipboard.writeText(t).then(ok, () => prompt('Copie:', t)); else prompt('Copie:', t); };
+  });
   $('cplResultado').querySelectorAll('[data-cpl-f]').forEach(b => {
     b.onclick = () => { const f = b.dataset.cplF; CPL.filtro = CPL.filtro === f ? '' : f; renderConsultaPlacas(); };
   });
+}
+// Célula da placa: clicar abre o post no Slack (ou copia a placa, se não tiver post); mostra o outro formato e placas parecidas
+function cplPlacaCelula(x) {
+  const lk = (x.posts.find(p => p.lk) || {}).lk;
+  const placa = lk
+    ? `<a href="${esc(lk)}" target="_blank" rel="noopener" class="font-mono font-bold text-kavak-blue underline" title="Abrir o post no Slack">${esc(x.p)}</a>`
+    : `<button type="button" data-cpl-copiar="${esc(x.p)}" class="font-mono font-bold text-gray-900 underline decoration-dotted" title="Copiar a placa para buscar no Slack">${esc(x.p)}</button>`;
+  const alt = x.alt ? `<div class="text-[10px] text-gray-500">= ${esc(x.alt)}</div>` : '';
+  const sug = (x.sug || []).map(g => `<div class="text-[10px] text-yellow-700 font-bold">${g.onde === 'sistema' ? 'Sistema registrou como' : 'Você quis dizer'} ${esc(g.p)}? <span class="font-normal">(${esc(fmtData(g.d).slice(0, 5))})</span></div>`).join('');
+  return placa + alt + sug + (x.repetidaNaLista ? '<div class="text-[10px] text-gray-500">repetida na lista</div>' : '');
 }
 // placas que aparecem (respeitando o selo clicado)
 const cplLista = () => (CPL.dados ? CPL.dados.resultados : []).filter(x => !CPL.filtro || x.status.includes(CPL.filtro));
@@ -2448,16 +2461,16 @@ const cplLista = () => (CPL.dados ? CPL.dados.resultados : []).filter(x => !CPL.
 function cplCopiar() {
   const r = CPL.dados; if (!r) return;
   const txtStatus = s => (CPL_STATUS[s] || [s])[0].replace(/^[^\wÀ-ú]+\s*/, '');
-  const cab = ['Placa', 'Resumo', 'Posts', 'Datas dos posts', 'Canal', 'Reações', 'Inspetor 🚙', 'Resguardo', 'Inspeção no sistema', 'Tempo de inspeção', 'Links'];
+  const cab = ['Placa', 'Resumo', 'Posts', 'Datas dos posts', 'Canal', 'Inspetor 🚙', 'Resguardo', 'Inspeção no sistema', 'Tempo de inspeção', 'Placa parecida', 'Links'];
   const linhas = cplLista().map(x => [
     x.p, x.status.map(txtStatus).join(' / '), x.posts.length,
     x.posts.map(p => fmtData(p.d).slice(0, 5) + ' ' + p.h).join(' | '),
     [...new Set(x.posts.map(p => p.c))].join(' | '),
-    x.posts.map(p => p.re || '-').join(' | '),
     x.posts.map(p => inspNomePadrao(p.i) || '-').join(' | '),
     x.posts.map(p => p.gt || (p.gi ? p.gi + ' ' + p.gq + (p.gr ? ' ' + p.gr : '') : '-')).join(' | '),
     x.sla.map(s => fmtData(s.d).slice(0, 5) + ' ' + cplHora(s.ini) + '-' + cplHora(s.fim) + ' ' + inspNomePadrao(s.i)).join(' | ') || 'nenhuma',
     x.sla.map(s => Math.round(s.dur)).join(' | '),
+    (x.sug || []).map(g => g.p + (g.onde === 'sistema' ? ' (sistema)' : ' (Slack)')).join(' | '),
     x.posts.map(p => p.lk).filter(Boolean).join(' ')
   ].map(v => String(v).replace(/\t|\n/g, ' ')).join('\t'));
   const txt = [cab.join('\t')].concat(linhas).join('\n');
