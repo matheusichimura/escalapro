@@ -1355,6 +1355,12 @@ function renderInspecoes(d, fonte) {
   cvTop.onmousemove = e => { cvTop.style.cursor = linhaDe(e) >= 0 ? 'pointer' : 'default'; };
 }
 
+// Popups abrem dentro da tela cheia (modo apresentação) e por cima de tudo
+function anexarModal(m) {
+  m.style.zIndex = 90;
+  (document.fullscreenElement || document.body).appendChild(m);
+}
+
 function abrirPlacasInspetor(x, periodo) {
   const antigo = document.getElementById('modalPlacasInsp');
   if (antigo) antigo.remove();
@@ -1383,7 +1389,7 @@ function abrirPlacasInspetor(x, periodo) {
     </div>`;
   m.addEventListener('click', e => { if (e.target === m || e.target.hasAttribute('data-fechar')) m.remove(); });
   document.addEventListener('keydown', function fechaEsc(e) { if (e.key === 'Escape') { m.remove(); document.removeEventListener('keydown', fechaEsc); } });
-  document.body.appendChild(m);
+  anexarModal(m);
 }
 $('inspAtualizar').addEventListener('click', carregarInspecoes);
 $('inspFiltro').addEventListener('change', () => {
@@ -1511,7 +1517,7 @@ function modalTabela(titulo, sub, cab, linhas, vazio) {
     </div>`;
   m.addEventListener('click', e => { if (e.target === m || e.target.hasAttribute('data-fechar')) m.remove(); });
   document.addEventListener('keydown', function fechaEsc(e) { if (e.key === 'Escape') { m.remove(); document.removeEventListener('keydown', fechaEsc); } });
-  document.body.appendChild(m);
+  anexarModal(m);
 }
 function cmpModalComprados(d, loja) {
   const per = d.periodo ? fmtData(d.periodo.inicio) + ' a ' + fmtData(d.periodo.fim) : '';
@@ -1896,7 +1902,7 @@ function audModalPlacas(titulo, sub, lista) {
     </div>`;
   m.addEventListener('click', e => { if (e.target === m || e.target.hasAttribute('data-fechar')) m.remove(); });
   document.addEventListener('keydown', function fechaEsc(e) { if (e.key === 'Escape') { m.remove(); document.removeEventListener('keydown', fechaEsc); } });
-  document.body.appendChild(m);
+  anexarModal(m);
 }
 
 function audListaDesenhar() {
@@ -1968,7 +1974,7 @@ function abrirAchadosInspetor(g, periodo) {
     </div>`;
   m.addEventListener('click', e => { if (e.target === m || e.target.hasAttribute('data-fechar')) m.remove(); });
   document.addEventListener('keydown', function fechaEsc(e) { if (e.key === 'Escape') { m.remove(); document.removeEventListener('keydown', fechaEsc); } });
-  document.body.appendChild(m);
+  anexarModal(m);
 }
 
 // ---------- Novos Achados: erros reais (ALINHAR Inspetor) cruzados com as inspeções ----------
@@ -2903,7 +2909,9 @@ function vistasIniciar() {
   $('vstZoomMais').addEventListener('click', () => { VST.zoom = Math.min(1.8, +(VST.zoom + 0.1).toFixed(2)); vistasAplicar(); });
   $('vstZoomMenos').addEventListener('click', () => { VST.zoom = Math.max(0.6, +(VST.zoom - 0.1).toFixed(2)); vistasAplicar(); });
   document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && VST.apres) vistasApresentar(false); });
-  document.addEventListener('keydown', e => { if (e.key === 'Escape' && VST.apres) vistasApresentar(false); });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && VST.apres && !document.querySelector('#modalTabela,#modalPlacasInsp,#modalAchadosAud')) vistasApresentar(false);
+  });
 }
 
 // ----- Vistas novas (alimentadas pelos novos achados da Auditoria + inspeções da fila) -----
