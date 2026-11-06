@@ -55,16 +55,16 @@ button:disabled{cursor:not-allowed}
 @media(min-width:1024px){.vista{grid-column:span var(--c,12)}}
 .vista .mt-5{margin-top:0!important}
 .vista-barra,.vista-resize{display:none}
-.vista-tog{position:absolute;top:2px;right:2px;z-index:3;width:24px;height:24px;border-radius:6px;border:1px solid #d1d5db;background:#fff;color:#374151;font-weight:800;font-size:15px;line-height:20px;text-align:center;opacity:.55}
-.vista-tog:hover,.vista-min .vista-tog{opacity:1}
-.vista-rot{display:none}
-.vista-corpo{padding-right:30px}
-.vst-apres .vista-corpo,.vista-min .vista-corpo{padding-right:0}
-.vista-min .vista-corpo{display:none}
-.vista-min .vista-rot{display:flex;align-items:center;gap:.5rem;background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:.6rem .9rem;padding-right:2.5rem;font-weight:800;color:#111827;font-size:14px;border-left:4px solid #0047FF;cursor:pointer}
-.vst-edit .vista-tog,.vst-apres .vista-tog{display:none}
-html.escuro .vista-tog{background:#1e293b;border-color:#334155;color:#e2e8f0}
-html.escuro .vista-min .vista-rot{background:#111827;border-color:#1f2937;color:#f1f5f9}
+.qd{position:relative}
+.qd-ctl{position:absolute;top:6px;right:6px;display:flex;gap:4px;z-index:4;opacity:.35;transition:opacity .15s}
+.qd:hover .qd-ctl,.qd-min .qd-ctl{opacity:1}
+.qd-ctl button{width:22px;height:22px;border-radius:6px;border:1px solid #d1d5db;background:#fff;color:#374151;font-weight:800;font-size:13px;line-height:18px;text-align:center}
+.qd-ctl button:hover{background:#f3f4f6}
+.qd-ctl button[data-qd-del]:hover{background:#fee2e2;color:#b91c1c;border-color:#fca5a5}
+.qd-min{max-height:58px!important;overflow:hidden!important}
+.qd-oculto{display:none!important}
+.vst-apres .qd-ctl{display:none}
+html.escuro .qd-ctl button{background:#1e293b;border-color:#334155;color:#e2e8f0}
 .vst-edit .vista{outline:2px dashed #93b4ff;outline-offset:4px;border-radius:10px}
 .vst-edit .vista.drop-on{outline:3px solid #0047FF}
 .vst-edit .vista-barra{display:flex;align-items:center;gap:.5rem;background:#ebf0ff;color:#0036cc;border-radius:8px;padding:.3rem .6rem;font-size:11px;margin-bottom:.5rem}
@@ -413,6 +413,7 @@ html.escuro .text-black{color:#f1f5f9}
         <div class="vista" data-vista="hub"><div class="vista-corpo"><div id="vstHub"></div></div></div>
         <div class="vista" data-vista="esp"><div class="vista-corpo"><div id="espConteudo"></div></div></div>
         <div class="vista" data-vista="mov"><div class="vista-corpo"><div id="movConteudo"></div></div></div>
+        <div class="vista" data-vista="pcmp"><div class="vista-corpo"><div id="pcmpConteudo"></div></div></div>
       </div>
     </div>
     <div id="achConteudo" class="hidden"></div>
@@ -1252,6 +1253,7 @@ async function carregarInspecoes() {
   carregarAchados(iv);
   carregarEspeciais(iv);
   if (!MOV.dados) carregarMovimento();   // movimento usa as últimas semanas, não o filtro: carrega 1 vez
+  if (!PCMP.dados) carregarPrevCompras();
 }
 
 function renderInspecoes(d, fonte) {
@@ -2123,7 +2125,8 @@ function renderMovimento() {
   const DIAS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
   const fmt = v => v === null || v === undefined ? '—' : (Math.round(v * 10) / 10).toString().replace('.', ',');
   const maxCel = Math.max(1, ...d.lojas.flatMap(l => l.media.map(v => v || 0)));
-  const prevMax = Math.max(0, ...d.proxima.map(x => x.lojas || 0));
+  const totDia = x => x.total !== undefined ? x.total : (x.lojas === null && x.online === null ? null : (x.lojas || 0) + (x.online || 0));
+  const prevMax = Math.max(0, ...d.proxima.map(x => totDia(x) || 0));
   // Escala sequencial de azul (claro -> escuro) para o mapa de calor
   const escuro = temaEscuro();
   const RAMPA = escuro ? ['#172133', '#1a2f4f', '#1e3f6c', '#235189', '#2a64a8', '#3a7fd0', '#6aa2e6'] : ['#eef4fd', '#cfe0f8', '#a6c6f1', '#76a7e7', '#4a88dd', '#2a6fc6', '#1b569f'];
@@ -2146,23 +2149,20 @@ function renderMovimento() {
   $('movConteudo').innerHTML = `<div class="space-y-5">
     <div class="flex flex-wrap items-end justify-between gap-3">
       <div><h2 class="sec-h">Movimento das lojas por dia da semana</h2>
-        <p class="text-xs text-gray-500 mt-1">Média de carros por dia, de ${fmtData(d.inicio)} a ${fmtData(d.fim)} (só dias completos e com operação). B2B · FLUA · KUNA não entram: são fluxo à parte, não clientes que vão à loja ou agendam.</p></div>
+        <p class="text-xs text-gray-500 mt-1">Média de carros por dia, de ${fmtData(d.inicio)} a ${fmtData(d.fim)} (só dias completos e com operação).</p></div>
       <label class="text-xs text-gray-600 font-semibold">Base:
         <select id="movSemanas" class="ml-1 border border-gray-300 rounded-md px-2 py-1.5 text-xs">${[4, 8, 12, 26].map(n => `<option value="${n}" ${n === d.semanas ? 'selected' : ''}>últimas ${n} semanas</option>`).join('')}</select></label>
     </div>
     <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
       <h3 class="text-base font-bold text-gray-900">Previsão da próxima semana</h3>
-      <p class="text-xs text-gray-500 mb-3">Média do mesmo dia da semana nas últimas ${d.semanas} semanas. Número grande = lojas físicas; embaixo, o Online. O dia mais forte das lojas fica em azul.${d.primeiroDia && d.primeiroDia > d.inicio ? ` <b class="text-amber-700">O histórico começa em ${fmtData(d.primeiroDia)}</b>: ainda tem poucos dias de cada; a previsão melhora a cada semana.` : ''}</p>
-      <div class="grid grid-cols-7 gap-2">${d.proxima.map(x => `<div class="rounded-lg text-center py-2 ${x.lojas && x.lojas === prevMax ? 'bg-kavak-blue text-white' : 'bg-gray-100 text-gray-800'}">
-        <div class="text-[10px] font-bold opacity-80">${x.dia} ${esc(fmtData(x.iso).slice(0, 5))}</div><div class="text-xl font-extrabold">${x.lojas === null ? '—' : '~' + Math.round(x.lojas)}</div><div class="text-[10px] opacity-80">lojas</div>
-        <div class="text-[11px] font-bold mt-1 opacity-90">🌐 ${x.online === null ? '—' : '~' + Math.round(x.online)} online</div>
-        <div class="text-[10px] opacity-70">${x.base < 3 ? '⚠️ base de ' + x.base + ' dia' + (x.base === 1 ? '' : 's') : ''}</div></div>`).join('')}</div>
+      <p class="text-xs text-gray-500 mb-3">Média do mesmo dia da semana nas últimas ${d.semanas} semanas. Total de carros (lojas + online). O dia mais forte fica em azul.${d.primeiroDia && d.primeiroDia > d.inicio ? ` <b class="text-amber-700">O histórico começa em ${fmtData(d.primeiroDia)}</b>: ainda tem poucos dias de cada; a previsão melhora a cada semana.` : ''}</p>
+      <div class="grid grid-cols-7 gap-2">${d.proxima.map(x => { const t = totDia(x); return `<div class="rounded-lg text-center py-2 ${t && t === prevMax ? 'bg-kavak-blue text-white' : 'bg-gray-100 text-gray-800'}">
+        <div class="text-[10px] font-bold opacity-80">${x.dia} ${esc(fmtData(x.iso).slice(0, 5))}</div><div class="text-xl font-extrabold">${t === null ? '—' : '~' + Math.round(t)}</div><div class="text-[10px] opacity-70">${x.base < 3 ? '⚠️ base de ' + x.base + ' dia' + (x.base === 1 ? '' : 's') : 'carros'}</div></div>`; }).join('')}</div>
     </div>
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
       <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
         <h3 class="text-base font-bold text-gray-900">Média por dia da semana</h3>
-        <p class="text-xs text-gray-500 mb-2">Lojas físicas e Online separados. Passe o mouse para ver de quantos dias é a média.</p>
-        <p class="text-[11px] text-gray-500 mb-2"><span class="inline-flex items-center gap-1 mr-3"><i class="inline-block w-2.5 h-2.5 rounded-sm" style="background:#2a78d6"></i>Lojas físicas</span><span class="inline-flex items-center gap-1"><i class="inline-block w-2.5 h-2.5 rounded-sm" style="background:#a3a29b"></i>Online</span></p>
+        <p class="text-xs text-gray-500 mb-3">Total de carros por dia (lojas + online). Passe o mouse para ver de quantos dias é a média.</p>
         <div class="relative w-full" style="height:240px"><canvas id="chMovSemana"></canvas></div></div>
       <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
         <h3 class="text-base font-bold text-gray-900">Horário de chegada dos carros</h3>
@@ -2171,7 +2171,7 @@ function renderMovimento() {
         <div class="relative w-full" style="height:220px"><canvas id="chMovHoras"></canvas></div></div>
     </div>
     <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
-      <h3 class="text-base font-bold text-gray-900">Previsão × o que aconteceu (lojas físicas)</h3>
+      <h3 class="text-base font-bold text-gray-900">Previsão × o que aconteceu</h3>
       <p class="text-xs text-gray-500 mb-3">Nas últimas 4 semanas: a previsão de cada dia foi refeita com as ${d.semanas} semanas anteriores a ela, como se fosse feita na época. Erro médio = quanto a previsão errou, em média, por dia.</p>
       ${cmpSem}
       <div class="relative w-full mt-3" style="height:230px"><canvas id="chMovComp"></canvas></div>
@@ -2194,9 +2194,8 @@ function renderMovimento() {
   const tooltip = { backgroundColor: '#111827', padding: 10, cornerRadius: 6, displayColors: false };
   MOV.charts.push(new Chart($('chMovSemana'), {
     type: 'bar',
-    data: { labels: DIAS, datasets: [
-      { label: 'Lojas físicas', data: d.mediaLojas, backgroundColor: '#2a78d6', borderRadius: 5, borderSkipped: false, maxBarThickness: 28 },
-      { label: 'Online', data: d.mediaOnline, backgroundColor: '#a3a29b', borderRadius: 5, borderSkipped: false, maxBarThickness: 28 }] },
+    data: { labels: DIAS, datasets: [(() => { const mt = d.mediaTotal || d.proxima.map(totDia), mx = Math.max(0, ...mt.map(v => v || 0));
+      return { label: 'Carros', data: mt, backgroundColor: mt.map(v => v && v === mx ? '#1b569f' : '#2a78d6'), borderRadius: 5, borderSkipped: false, maxBarThickness: 40 }; })()] },
     options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
       plugins: { legend: { display: false }, tooltip: { ...tooltip, displayColors: true, callbacks: { label: c => `${c.dataset.label}: ${fmt(c.parsed.y)} carros em média`, footer: it => `média de ${op[it[0].dataIndex] || 0} dia(s)` } } },
       scales: { x: { grid: { display: false }, ticks: { color: '#334155' } }, y: { beginAtZero: true, grid: { color: '#F1F5F9' } } } }
@@ -2225,6 +2224,106 @@ function renderMovimento() {
   }
 }
 
+
+// ---------- Previsão de compras ----------
+// Fonte: api('prevCompras') (Especiais.gs). Comprados da BD do Pedro (sem B2B) por dia da semana nas últimas N semanas.
+const PCMP = { charts: [], seq: 0, dados: null, semanas: 8 };
+try { PCMP.semanas = Number(localStorage.getItem('escalapro_pcmp_semanas')) || 8; } catch (e) {}
+
+async function carregarPrevCompras() {
+  const box = $('pcmpConteudo'); if (!box) return;
+  PCMP.charts.forEach(c => c.destroy()); PCMP.charts = [];
+  if (MODO_LOCAL) { box.innerHTML = ''; return; }
+  const seq = ++PCMP.seq;
+  box.innerHTML = '<p class="text-xs text-gray-500">Carregando previsão de compras…</p>';
+  let r;
+  try { r = await api('prevCompras', { semanas: PCMP.semanas }); } catch (e) { if (e && e.sessaoExpirada) return; r = { erro: 'rede' }; }
+  if (seq !== PCMP.seq) return;
+  if (!r || r.erro || !Array.isArray(r.proxima)) {
+    const m = { acao_desconhecida: 'O Apps Script ainda não tem a ação <b>prevCompras</b>: cole o Especiais.gs novo, troque a rotear_ e publique uma nova versão.', compras_aba: 'Falta a BD na aba de compras da planilha Base do Site Escalapro.' };
+    box.innerHTML = `<div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-4 text-xs">Não foi possível carregar a previsão de compras. ${m[r && r.erro] || 'Tente atualizar em instantes.'}</div>`;
+    return;
+  }
+  try { await carregarChartJs(); } catch (e) { box.innerHTML = ''; return; }
+  if (seq !== PCMP.seq) return;
+  PCMP.dados = r;
+  renderPrevCompras();
+}
+
+function renderPrevCompras() {
+  const d = PCMP.dados; if (!d) return;
+  PCMP.charts.forEach(c => c.destroy()); PCMP.charts = [];
+  const VERDE = '#16A34A', VERDE2 = '#0f7a37';
+  const fmt = v => v === null || v === undefined ? '—' : (Math.round(v * 10) / 10).toString().replace('.', ',');
+  const mx = Math.max(0, ...d.proxima.map(x => x.previsto || 0));
+  const comp = d.comparacao || [];
+  const tooltip = { backgroundColor: '#111827', padding: 10, cornerRadius: 6 };
+  const lojas = d.lojas.map(l => `<tr class="border-t border-gray-100"><td class="py-1.5 pr-3 font-semibold text-gray-800">${esc(l.nome)}</td>
+      <td class="py-1.5 px-3 text-right tabular-nums">${l.inspecoes}</td><td class="py-1.5 px-3 text-right font-bold text-green-700 tabular-nums">${l.compras}</td>
+      <td class="py-1.5 px-3 text-right tabular-nums">~${fmt(l.porSemana)}</td><td class="py-1.5 pl-3 text-right font-bold text-kavak-blue tabular-nums">${l.conv === null ? '—' : fmt(l.conv) + '%'}</td></tr>`).join('');
+
+  $('pcmpConteudo').innerHTML = `<div class="space-y-5">
+    <div class="flex flex-wrap items-end justify-between gap-3">
+      <div><h2 class="sec-h">Previsão de compras</h2>
+        <p class="text-xs text-gray-500 mt-1">Carros comprados (BD, sem B2B) por dia da inspeção, de ${fmtData(d.inicio)} a ${fmtData(d.fim)}. A BD atrasa 1 a 2 dias, por isso a base para 3 dias antes de hoje.</p></div>
+      <label class="text-xs text-gray-600 font-semibold">Base:
+        <select id="pcmpSemanas" class="ml-1 border border-gray-300 rounded-md px-2 py-1.5 text-xs">${[4, 8, 12, 26].map(n => `<option value="${n}" ${n === d.semanas ? 'selected' : ''}>últimas ${n} semanas</option>`).join('')}</select></label>
+    </div>
+    <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
+      <h3 class="text-base font-bold text-gray-900">Compras previstas na próxima semana</h3>
+      <p class="text-xs text-gray-500 mb-3">Média do mesmo dia da semana nas últimas ${d.semanas} semanas · total previsto: <b>~${d.semana} carros</b>.</p>
+      <div class="grid grid-cols-7 gap-2">${d.proxima.map(x => `<div class="rounded-lg text-center py-2 ${x.previsto && x.previsto === mx ? 'text-white' : 'bg-gray-100 text-gray-800'}" style="${x.previsto && x.previsto === mx ? 'background:' + VERDE : ''}">
+        <div class="text-[10px] font-bold opacity-80">${x.dia} ${esc(fmtData(x.iso).slice(0, 5))}</div><div class="text-xl font-extrabold">${x.previsto === null ? '—' : '~' + Math.round(x.previsto)}</div>
+        <div class="text-[10px] opacity-70">${x.base < 3 ? '⚠️ base de ' + x.base + ' dia' + (x.base === 1 ? '' : 's') : 'compras'}</div></div>`).join('')}</div>
+    </div>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+      <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
+        <h3 class="text-base font-bold text-gray-900">Média de compras por dia da semana</h3>
+        <p class="text-xs text-gray-500 mb-3">Pela data da inspeção do carro comprado.</p>
+        <div class="relative w-full" style="height:230px"><canvas id="chPcmpSemana"></canvas></div></div>
+      <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200 overflow-x-auto">
+        <h3 class="text-base font-bold text-gray-900">Compras por loja</h3>
+        <p class="text-xs text-gray-500 mb-3">Nas últimas ${d.semanas} semanas. Conversão = compras ÷ carros inspecionados na loja.</p>
+        <table class="w-full text-xs"><thead><tr class="text-[11px] text-gray-400 uppercase tracking-wider"><th class="text-left font-bold pb-2">Loja</th><th class="text-right font-bold pb-2 px-3">Inspeções</th><th class="text-right font-bold pb-2 px-3">Compras</th><th class="text-right font-bold pb-2 px-3">Por semana</th><th class="text-right font-bold pb-2 pl-3">Conv.</th></tr></thead><tbody>${lojas}</tbody></table></div>
+    </div>
+    <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
+      <h3 class="text-base font-bold text-gray-900">Previsão × compras reais</h3>
+      <p class="text-xs text-gray-500 mb-3">Últimas 4 semanas: a previsão de cada dia foi refeita com as ${d.semanas} semanas anteriores, como se fosse feita na época.</p>
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-2">${comp.map(c => { const dif = c.nComp && c.real ? Math.round((c.previsto / c.real - 1) * 100) : null;
+        return `<div class="rounded-lg border border-gray-200 p-3"><div class="text-[11px] font-bold text-gray-500">${esc(fmtData(c.inicio).slice(0, 5))} a ${esc(fmtData(c.fim).slice(0, 5))}</div>
+        ${c.nComp ? `<div class="text-sm mt-1"><b>${c.previsto}</b> previstas · <b>${c.real}</b> reais</div><div class="text-[11px] font-bold mt-0.5 ${dif !== null && Math.abs(dif) <= 15 ? 'text-emerald-700' : 'text-amber-700'}">${dif === null ? '' : dif > 0 ? 'previu ' + dif + '% a mais' : dif < 0 ? 'previu ' + Math.abs(dif) + '% a menos' : 'acertou'}</div><div class="text-[10px] text-gray-400">${c.nComp} de 7 dias comparados</div>`
+          : '<div class="text-xs text-gray-400 mt-1">Sem histórico suficiente para prever essa semana.</div>'}</div>`; }).join('')}</div>
+      <div class="relative w-full mt-3" style="height:220px"><canvas id="chPcmpComp"></canvas></div>
+      <p class="text-[11px] text-gray-500 mt-2"><span class="inline-flex items-center gap-1 mr-3"><i class="inline-block w-2.5 h-2.5 rounded-sm" style="background:${VERDE}"></i>Real</span><span class="inline-flex items-center gap-1"><i class="inline-block w-3 h-0.5" style="background:#eb6834"></i>Previsto</span></p>
+    </div></div>`;
+
+  $('pcmpSemanas').addEventListener('change', e => {
+    PCMP.semanas = Number(e.target.value) || 8;
+    try { localStorage.setItem('escalapro_pcmp_semanas', String(PCMP.semanas)); } catch (x) {}
+    carregarPrevCompras();
+  });
+  const DIAS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+  const mxD = Math.max(0, ...d.mediaDow.map(v => v || 0));
+  PCMP.charts.push(new Chart($('chPcmpSemana'), {
+    type: 'bar',
+    data: { labels: DIAS, datasets: [{ label: 'Compras', data: d.mediaDow, backgroundColor: d.mediaDow.map(v => v && v === mxD ? VERDE2 : VERDE), borderRadius: 5, borderSkipped: false, maxBarThickness: 40 }] },
+    options: { responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { ...tooltip, displayColors: false, callbacks: { label: c => `${fmt(c.parsed.y)} compras em média`, footer: it => `média de ${d.baseDow[it[0].dataIndex]} dia(s)` } } },
+      scales: { x: { grid: { display: false }, ticks: { color: '#334155' } }, y: { beginAtZero: true, grid: { color: '#F1F5F9' }, ticks: { precision: 0 } } } }
+  }));
+  if (comp.length) {
+    const dd = comp.flatMap(c => c.dias);
+    PCMP.charts.push(new Chart($('chPcmpComp'), {
+      data: { labels: dd.map(x => [x.iso.slice(8, 10), x.dia]), datasets: [
+        { type: 'line', label: 'Previsto', data: dd.map(x => x.previsto), borderColor: '#eb6834', backgroundColor: '#eb6834', borderWidth: 2, pointRadius: 3, tension: 0.2 },
+        { type: 'bar', label: 'Real', data: dd.map(x => x.real), backgroundColor: VERDE, borderRadius: 4, borderSkipped: false, maxBarThickness: 18 }] },
+      options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+        plugins: { legend: { display: false }, tooltip: { ...tooltip, callbacks: { title: it => fmtData(dd[it[0].dataIndex].iso), label: c => `${c.dataset.label}: ${c.parsed.y === null ? '—' : fmt(c.parsed.y)}` } } },
+        scales: { x: { grid: { display: false }, ticks: { color: '#334155', maxRotation: 0, autoSkip: true, font: { size: 10 } } }, y: { beginAtZero: true, grid: { color: '#F1F5F9' }, ticks: { precision: 0 } } } }
+    }));
+  }
+}
+
 // ---------- Vistas personalizáveis da aba Inspeções ----------
 // Cada bloco da aba é uma "vista": dá para ocultar, arrastar, redimensionar e apresentar em tela cheia.
 // O arranjo fica salvo neste navegador (por usuário).
@@ -2239,7 +2338,8 @@ const VST = {
     { id: 'tipo', titulo: 'Express × Regular', c: 6, sup: true },
     { id: 'hub',  titulo: 'Achados por HUB', c: 6, sup: true },
     { id: 'esp',  titulo: 'B2B · FLUA · KUNA', c: 12 },
-    { id: 'mov',  titulo: 'Movimento por dia da semana', c: 12 }
+    { id: 'mov',  titulo: 'Movimento por dia da semana', c: 12 },
+    { id: 'pcmp', titulo: 'Previsão de compras', c: 12 }
   ],
   SPANS: [3, 4, 6, 8, 12]
 };
@@ -2255,7 +2355,7 @@ function vstLer() {
   const ids = VST.defs.map(d => d.id);
   const ordem = (e && Array.isArray(e.ordem) ? e.ordem.filter(i => ids.includes(i)) : []);
   ids.forEach(i => { if (!ordem.includes(i)) ordem.push(i); });
-  return { ordem, ocultas: (e && e.ocultas) || {}, tam: (e && e.tam) || {}, min: (e && e.min) || {} };
+  return { ordem, ocultas: (e && e.ocultas) || {}, tam: (e && e.tam) || {}, qd: (e && e.qd) || {} };
 }
 function vstGravar() { try { localStorage.setItem(vstChave(), JSON.stringify(VST.estado)); } catch (x) {} }
 
@@ -2268,16 +2368,62 @@ function vistasAplicar() {
     const t = VST.estado.tam[def.id] || {};
     el.style.display = vstDisponivel(def) && !VST.estado.ocultas[def.id] ? '' : 'none';
     el.style.setProperty('--c', t.c || def.c);
-    const min = !!VST.estado.min[def.id] && !VST.apres;
-    el.classList.toggle('vista-min', min);
-    const tg = el.querySelector('.vista-tog');
-    if (tg) { tg.textContent = min ? '+' : '−'; tg.title = min ? 'Mostrar o bloco' : 'Minimizar o bloco'; }
     const corpo = el.querySelector('.vista-corpo');
     corpo.style.height = t.h ? t.h + 'px' : '';
     corpo.style.overflow = t.h ? 'auto' : '';
   });
   $('vistasGrid').style.zoom = VST.apres ? VST.zoom : '';
+  vstQuadros();
 }
+
+
+// ---------- Quadros (cada quadrado dentro dos blocos): − minimiza, × tira da tela ----------
+// Quadro tirado volta pelo "Escolher blocos". Fica salvo neste navegador.
+function vstQdChave(card) {
+  const v = card.closest('.vista'), t = card.querySelector('h3') || card.querySelector('p');
+  const tit = t ? t.textContent.replace(/·\s*ver placas.*$/i, '').replace(/\([^)]*\)/g, ' ').replace(/(^|\s)[\d.,%~+-]+(?=\s|$)/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60) : '';
+  return tit ? (v ? v.dataset.vista : '') + '|' + tit : '';
+}
+function vstQuadros() {
+  if (!VST.estado) return;
+  const qd = VST.estado.qd || (VST.estado.qd = {});
+  document.querySelectorAll('#vistasGrid .vista-corpo [class*="shadow-sm"][class*="border"]').forEach(card => {
+    if (!card.dataset.qd) {
+      const k = vstQdChave(card);
+      if (!k || card.parentElement.closest('[data-qd]')) return;   // sem título ou dentro de outro quadro
+      card.dataset.qd = k;
+      card.classList.add('qd');
+      const ctl = document.createElement('div');
+      ctl.className = 'qd-ctl';
+      ctl.innerHTML = '<button type="button" data-qd-min title="Minimizar">−</button><button type="button" data-qd-del title="Tirar da tela (volta pelo Escolher blocos)">×</button>';
+      card.appendChild(ctl);
+    }
+    const st = qd[card.dataset.qd];
+    card.classList.toggle('qd-min', st === 'min' && !VST.apres);
+    card.classList.toggle('qd-oculto', st === 'oculto' && !VST.apres);
+    const b = card.querySelector('[data-qd-min]');
+    if (b) { b.textContent = st === 'min' ? '+' : '−'; b.title = st === 'min' ? 'Mostrar' : 'Minimizar'; }
+  });
+}
+(function ligarQuadros() {
+  const ligar = () => {
+    const grid = document.getElementById('vistasGrid'); if (!grid || grid.dataset.qdOk) return;
+    grid.dataset.qdOk = '1';
+    grid.addEventListener('click', e => {
+      const b = e.target.closest('[data-qd-min],[data-qd-del]'); if (!b) return;
+      e.stopPropagation(); e.preventDefault();
+      const card = b.closest('[data-qd]'), k = card.dataset.qd, qd = VST.estado.qd || (VST.estado.qd = {});
+      if (b.hasAttribute('data-qd-del')) qd[k] = 'oculto';
+      else if (qd[k] === 'min') { delete qd[k]; if (window.Chart) setTimeout(() => Object.values(Chart.instances).forEach(c => { try { c.resize(); } catch (x) {} }), 50); }
+      else qd[k] = 'min';
+      vstGravar(); vstQuadros();
+    }, true);
+    let pend = false;
+    new MutationObserver(() => { if (pend) return; pend = true; requestAnimationFrame(() => { pend = false; vstQuadros(); }); })
+      .observe(grid, { childList: true, subtree: true });
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', ligar); else ligar();
+})();
 
 function vstMover(id, delta) {
   const o = VST.estado.ordem, i = o.indexOf(id), j = i + delta;
@@ -2290,6 +2436,14 @@ function vstPainel() {
   const p = $('vstPainel');
   p.innerHTML = '<p class="font-bold text-gray-900">Blocos que aparecem na tela</p><p class="text-[11px] text-gray-500">Desmarque o que não quiser ver.</p>' +
     VST.defs.filter(vstDisponivel).map(d => `<label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" data-vst-ver="${d.id}" ${VST.estado.ocultas[d.id] ? '' : 'checked'}> ${esc(d.titulo)}</label>`).join('') +
+    (() => {
+      const tirados = Object.keys(VST.estado.qd || {}).filter(k => VST.estado.qd[k] === 'oculto');
+      if (!tirados.length) return '';
+      const nomeBloco = id => (VST.defs.find(d => d.id === id) || {}).titulo || id;
+      return '<p class="font-bold text-gray-900 pt-2 border-t border-gray-200">Quadros tirados da tela</p><p class="text-[11px] text-gray-500">Marque para mostrar de novo.</p>' +
+        tirados.map(k => { const [b, t] = k.split('|'); return `<label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" data-vst-qd="${esc(k)}"> ${esc(t)} <span class="text-gray-400 text-[10px]">· ${esc(nomeBloco(b))}</span></label>`; }).join('') +
+        '<button type="button" id="vstQdTodos" class="w-full border border-gray-300 rounded px-2 py-1.5 font-bold text-gray-700 hover:bg-gray-50">Mostrar todos os quadros</button>';
+    })() +
     '<button type="button" id="vstRestaurar" class="w-full border border-gray-300 rounded px-2 py-1.5 font-bold text-gray-700 hover:bg-gray-50">Restaurar padrão</button>';
 }
 
@@ -2333,23 +2487,10 @@ function vistasIniciar() {
     const rz = document.createElement('div');
     rz.className = 'vista-resize'; rz.title = 'Arraste para redimensionar (duplo clique: altura automática)';
     el.insertBefore(barra, el.firstChild); el.appendChild(rz);
-    const tog = document.createElement('button');
-    tog.type = 'button'; tog.className = 'vista-tog'; tog.dataset.vstMin = def.id; tog.textContent = '−';
-    const rot = document.createElement('div');
-    rot.className = 'vista-rot'; rot.dataset.vstMin = def.id; rot.textContent = def.titulo;
-    el.insertBefore(rot, barra.nextSibling); el.appendChild(tog);
   });
 
   const grid = $('vistasGrid');
   grid.addEventListener('click', e => {
-    const m = e.target.closest('[data-vst-min]');
-    if (m) {
-      const id = m.dataset.vstMin;
-      if (VST.estado.min[id]) delete VST.estado.min[id]; else VST.estado.min[id] = true;
-      vstGravar(); vistasAplicar();
-      if (!VST.estado.min[id] && window.Chart) Object.values(Chart.instances).forEach(c => { try { c.resize(); } catch (x) {} });
-      return;
-    }
     const b = e.target.closest('[data-v]'); if (!b) return;
     const el = b.closest('.vista'), id = el.dataset.vista, v = b.dataset.v;
     if (v === 'sobe') return vstMover(id, -1);
@@ -2416,11 +2557,14 @@ function vistasIniciar() {
   $('vstBtnPainel').addEventListener('click', e => { e.stopPropagation(); vstPainel(); $('vstPainel').classList.toggle('hidden'); });
   $('vstPainel').addEventListener('click', e => e.stopPropagation());
   $('vstPainel').addEventListener('change', e => {
+    const q = e.target.closest('[data-vst-qd]');
+    if (q) { if (q.checked) delete VST.estado.qd[q.dataset.vstQd]; vstGravar(); vistasAplicar(); vstPainel(); return; }
     const c = e.target.closest('[data-vst-ver]'); if (!c) return;
     if (c.checked) delete VST.estado.ocultas[c.dataset.vstVer]; else VST.estado.ocultas[c.dataset.vstVer] = true;
     vstGravar(); vistasAplicar();
   });
   $('vstPainel').addEventListener('click', e => {
+    if (e.target.closest('#vstQdTodos')) { VST.estado.qd = {}; vstGravar(); vistasAplicar(); vstPainel(); return; }
     if (!e.target.closest('#vstRestaurar')) return;
     VST.estado = { ordem: VST.defs.map(d => d.id), ocultas: {}, tam: {} };
     vstGravar(); vistasAplicar(); vstPainel();
