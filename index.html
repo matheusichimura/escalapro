@@ -817,10 +817,14 @@ function perguntarMigracao() {
     false, true);
 }
 
+// Botões "Gerar Escala" e "Desfazer" do topo: false = escondidos. Para voltar, troque para true.
+const MOSTRAR_GERAR_ESCALA = false;
+
 function aplicarPapel() {
   const sup = podeEditar();
   const vis = (id, on) => { const el = $(id); if (el) el.style.display = on ? '' : 'none'; };
-  ['btn-equipe', 'btn-lojas', 'btnGerar', 'btnDesfazer', 'btnAddInspetor'].forEach(id => vis(id, sup));
+  ['btn-equipe', 'btn-lojas', 'btnAddInspetor'].forEach(id => vis(id, sup));
+  ['btnGerar', 'btnDesfazer'].forEach(id => vis(id, sup && MOSTRAR_GERAR_ESCALA));
   vis('btn-acessos', ehSupervisor() && !MODO_LOCAL);
   vis('btnSair', !MODO_LOCAL); vis('usuarioInfo', !MODO_LOCAL);
   if (!MODO_LOCAL && SESSAO) $('usuarioInfo').textContent = 'BEM VINDO · ' + (SESSAO.nome || SESSAO.usuario);
@@ -3356,7 +3360,7 @@ function renderQuadro() {
       </div>
       <div class="flex items-center gap-2">
         <button data-act="quadroMes" data-d="-1" class="border border-gray-300 rounded px-2.5 py-1.5 text-xs font-bold hover:bg-gray-50" aria-label="Mês anterior">‹</button>
-        <button id="quadroReset" class="border border-gray-300 rounded px-2.5 py-1.5 text-[11px] font-bold hover:bg-gray-50 hidden lg:block" title="Volta as nuvens para o lugar e tamanho original">Reorganizar</button>
+        <button id="quadroReset" class="border border-gray-300 rounded px-2.5 py-1.5 text-[11px] font-bold hover:bg-gray-50" title="Volta as nuvens para o lugar e tamanho original">Reorganizar</button>
         <span class="text-xs font-bold text-gray-800 min-w-[110px] text-center">${NOMES_MES[mm - 1]} ${ano}</span>
         <button data-act="quadroMes" data-d="1" class="border border-gray-300 rounded px-2.5 py-1.5 text-xs font-bold hover:bg-gray-50" aria-label="Próximo mês">›</button>
       </div>
@@ -3380,14 +3384,36 @@ function renderQuadro() {
       if (e.target.closest('button')) return;
       const o = quadroTam[k] = quadroTam[k] || {};
       const x0 = e.clientX - (o.x || 0), y0 = e.clientY - (o.y || 0);
+      // limites: a nuvem não pode sair do quadro (nem para cima, nem para os lados)
+      const r = c.getBoundingClientRect(), q = el.getBoundingClientRect();
+      const baseX = r.left - (o.x || 0), baseY = r.top - (o.y || 0);
+      const minX = q.left - baseX, maxX = q.right - baseX - Math.min(r.width, q.width), minY = q.top - baseY;
       h.setPointerCapture(e.pointerId); c.style.zIndex = 20; h.style.cursor = 'grabbing';
-      const mv = ev => { o.x = Math.round(ev.clientX - x0); o.y = Math.round(ev.clientY - y0); c.style.transform = `translate(${o.x}px,${o.y}px)`; };
+      const mv = ev => {
+        o.x = Math.round(Math.min(Math.max(ev.clientX - x0, minX), Math.max(minX, maxX)));
+        o.y = Math.round(Math.max(ev.clientY - y0, minY));
+        c.style.transform = `translate(${o.x}px,${o.y}px)`;
+      };
       const up = () => { h.removeEventListener('pointermove', mv); h.removeEventListener('pointerup', up); h.style.cursor = 'grab'; persistirQuadro(); };
       h.addEventListener('pointermove', mv); h.addEventListener('pointerup', up);
     });
   });
   const rs = $('quadroReset');
   if (rs) rs.onclick = () => { quadroTam = {}; try { localStorage.removeItem(KEY + '_quadroCards'); } catch (e) {} renderQuadro(); };
+
+  // Se alguma nuvem ficou salva fora do quadro (cabeçalho escondido), volta ela para o lugar sozinha
+  requestAnimationFrame(() => {
+    const q = el.getBoundingClientRect();
+    if (!q.width) return;   // quadro escondido: confere na próxima vez
+    let mudou = false;
+    el.querySelectorAll('.qm-card').forEach(c => {
+      const r = c.getBoundingClientRect(), k = c.dataset.qk;
+      if (r.top < q.top - 2 || r.left < q.left - 2 || r.right > q.right + 2 || r.width > q.width + 2) {
+        delete quadroTam[k]; c.style.transform = ''; c.style.width = ''; c.style.height = ''; mudou = true;
+      }
+    });
+    if (mudou) persistirQuadro();
+  });
 }
 
 function novoAviso() {
