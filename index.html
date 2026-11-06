@@ -415,6 +415,7 @@ html.escuro .text-black{color:#f1f5f9}
         <div class="vista" data-vista="mov"><div class="vista-corpo"><div id="movConteudo"></div></div></div>
         <div class="vista" data-vista="pcmp"><div class="vista-corpo"><div id="pcmpConteudo"></div></div></div>
         <div class="vista" data-vista="tinsp"><div class="vista-corpo"><div id="tinspConteudo"></div></div></div>
+        <div class="vista" data-vista="semi"><div class="vista-corpo"><div id="semiConteudo"></div></div></div>
       </div>
     </div>
     <div id="achConteudo" class="hidden"></div>
@@ -1257,6 +1258,8 @@ async function carregarInspecoes() {
   carregarAchadosAud(iv);
   carregarAchados(iv);
   carregarEspeciais(iv);
+  carregarSemInsp(iv);
+  carregarTotalSla(iv, d.canais.reduce((t, c) => t + c.total, 0));
   if (!MOV.dados) carregarMovimento();   // movimento usa as últimas semanas, não o filtro: carrega 1 vez
   if (!PCMP.dados) carregarPrevCompras();
   if (!TINSP.dados) carregarTempoInsp();   // planilha de tempos: carrega 1 vez (botão Atualizar recarrega)
@@ -1300,9 +1303,14 @@ function renderInspecoes(d, fonte) {
     <div class="relative w-full" style="height:${h}px"><canvas id="${id}"></canvas></div></div>`;
 
   $('inspConteudo').innerHTML = `<div class="space-y-5">
-    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
-      ${kpi('Total de inspeções', total, '100%')}${kpi('Lojas físicas', grupo('loja'), pct(grupo('loja')))}
-      ${kpi('Canal online', grupo('online'), pct(grupo('online')))}${kpi('B2B + KUNA', grupo('b2b'), pct(grupo('b2b')))}
+    <div class="grid grid-cols-2 lg:grid-cols-5 gap-4">
+      ${kpi('Total de carros', total, '100%')}
+      <div id="kpiSla" class="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
+        <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Inspeções no sistema</p>
+        <div class="flex items-baseline justify-between mt-2"><span class="text-3xl font-extrabold text-gray-900">…</span></div>
+        <p class="text-[10px] text-gray-400 mt-3">planilha de SLA</p></div>
+      ${kpi('Lojas físicas', grupo('loja'), pct(grupo('loja')))}
+      ${kpi('Canal online', grupo('online'), pct(grupo('online')))}${kpi('B2B · KUNA · FLUA', grupo('b2b'), pct(grupo('b2b')))}
     </div>
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
       ${card('Carros por loja / canal', 'Carros inspecionados por canal de atendimento', 'chInspCanais', 340)}
@@ -2330,6 +2338,90 @@ function renderPrevCompras() {
   }
 }
 
+// ---------- Card "Inspeções no sistema" (planilha de SLA) ----------
+async function carregarTotalSla(iv, totalCarros) {
+  const el = $('kpiSla'); if (!el || MODO_LOCAL) return;
+  let r;
+  try { r = await api('totalSla', iv); } catch (e) { r = null; }
+  const box = $('kpiSla'); if (!box) return;
+  if (!r || r.erro || typeof r.inspecoes !== 'number') {
+    box.querySelector('span').textContent = '—';
+    box.querySelector('p:last-child').textContent = r && r.erro === 'acao_desconhecida' ? 'publique o SemInspecao.gs novo' : 'sem dados da SLA';
+    return;
+  }
+  const p = totalCarros ? (r.inspecoes / totalCarros * 100).toFixed(1).replace('.', ',') + '%' : '—';
+  const fim = iv && iv.fim, atrasada = r.ultimaSla && fim && r.ultimaSla < fim;
+  box.innerHTML = `<p class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Inspeções no sistema</p>
+    <div class="flex items-baseline justify-between mt-2"><span class="text-3xl font-extrabold text-gray-900">${r.inspecoes}</span><span class="text-xs font-bold text-kavak-blue bg-blue-50 rounded px-2 py-1" title="dos carros que chegaram">${p}</span></div>
+    <div class="w-full bg-gray-100 h-1.5 rounded-full mt-3 overflow-hidden"><div class="bg-kavak-blue h-1.5 rounded-full" style="width:${totalCarros ? Math.min(100, r.inspecoes / totalCarros * 100) : 0}%"></div></div>
+    <p class="text-[10px] mt-1.5 ${atrasada ? 'text-amber-600 font-bold' : 'text-gray-400'}">planilha de SLA${atrasada ? ' · só até ' + esc(fmtData(r.ultimaSla).slice(0, 5)) : ''}</p>`;
+}
+
+// ---------- Chegaram sem inspeção ----------
+// Fonte: api('semInsp') (SemInspecao.gs): quem chegou (Fila) e não tem inspeção no sistema (SLA_INSP) até 7 dias depois.
+const SEMI = { seq: 0, dados: null };
+
+async function carregarSemInsp(iv) {
+  const box = $('semiConteudo'); if (!box) return;
+  if (MODO_LOCAL) { box.innerHTML = ''; return; }
+  const seq = ++SEMI.seq;
+  box.innerHTML = '<p class="text-xs text-gray-500">Cruzando chegadas com inspeções do sistema…</p>';
+  let r;
+  try { r = await api('semInsp', iv); } catch (e) { if (e && e.sessaoExpirada) return; r = { erro: 'rede' }; }
+  if (seq !== SEMI.seq) return;
+  if (!r || r.erro || !Array.isArray(r.lista)) {
+    const m = {
+      acao_desconhecida: 'O Apps Script ainda não tem a ação <b>semInsp</b>: cole o SemInspecao.gs, troque a rotear_ e publique uma nova versão.',
+      tinsp_antigo: 'Cole o TempoInsp.gs mais novo (com placas) e publique uma nova versão.',
+      tinsp_aba: 'Não achei a aba <b>SLA_INSP</b> na planilha base do EscalaPro.'
+    };
+    box.innerHTML = `<div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-4 text-xs">Não foi possível carregar. ${m[r && r.erro] || 'Tente atualizar em instantes.'}</div>`;
+    return;
+  }
+  SEMI.dados = r;
+  renderSemInsp();
+}
+
+function renderSemInsp() {
+  const d = SEMI.dados, box = $('semiConteudo'); if (!d || !box) return;
+  const pct = (a, b) => b ? (Math.round(a / b * 1000) / 10).toString().replace('.', ',') + '%' : '—';
+  const card = (rot, val, sub, cor) => `<div class="rounded-lg border border-gray-200 p-4"><div class="text-[11px] font-bold uppercase tracking-wider text-gray-500">${rot}</div>
+      <div class="text-2xl font-bold mt-1 ${cor || 'text-gray-900'}">${val}</div><div class="text-[11px] text-gray-500 mt-0.5">${sub}</div></div>`;
+  const canais = d.canais.map(c => `<tr class="border-t border-gray-100"><td class="py-1.5 pr-3 font-semibold text-gray-800">${esc(c.canal)}</td>
+      <td class="py-1.5 px-3 text-right tabular-nums">${c.chegadas}</td><td class="py-1.5 px-3 text-right tabular-nums font-bold text-rose-600">${c.sem}</td>
+      <td class="py-1.5 pl-3 text-right tabular-nums">${pct(c.sem, c.chegadas)}</td></tr>`).join('');
+  const motivos = d.motivos.map(m => `<button type="button" data-semi-m="${esc(m.motivo)}" class="flex items-center justify-between gap-3 w-full text-left text-xs border border-gray-200 rounded-md px-3 py-2 hover:bg-gray-50">
+      <span>${esc(m.motivo)}</span><b class="tabular-nums">${m.n}</b></button>`).join('');
+  box.innerHTML = `<div class="space-y-4">
+    <p class="text-[11px] text-gray-500">Carro que <b>chegou</b> (post do Kavaki) e <b>não tem inspeção no sistema</b> até 7 dias depois: provável cancelamento, desistência ou carro que não veio.
+      ${d.ultimaSla < d.periodo.fim ? `A planilha de SLA vai até <b>${esc(fmtData(d.ultimaSla))}</b>: ${d.depoisDaSla} chegada(s) depois disso ainda não entram na conta.` : ''}</p>
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      ${card('Chegaram', d.chegadas, 'carros no período')}
+      ${card('Sem inspeção no sistema', d.sem, 'clique num motivo para ver as placas', 'text-rose-600')}
+      ${card('Taxa', pct(d.sem, d.chegadas), 'dos carros que chegaram')}
+    </div>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div><h4 class="text-xs font-bold text-gray-700 mb-2">Por motivo provável</h4><div class="space-y-1.5">${motivos || '<p class="text-xs text-gray-500">Nenhum.</p>'}
+        <button type="button" data-semi-m="" class="text-xs font-bold text-kavak-blue hover:underline mt-1">Ver todas as placas</button></div></div>
+      <div><h4 class="text-xs font-bold text-gray-700 mb-2">Por loja / canal</h4><table class="w-full text-xs"><thead><tr class="text-gray-500">
+        <th class="text-left font-semibold pb-1">Canal</th><th class="text-right font-semibold pb-1 px-3">Chegaram</th><th class="text-right font-semibold pb-1 px-3">Sem inspeção</th><th class="text-right font-semibold pb-1 pl-3">%</th></tr></thead>
+        <tbody>${canais}</tbody></table></div>
+    </div></div>`;
+  box.querySelectorAll('[data-semi-m]').forEach(b => { b.onclick = () => semiModal(b.dataset.semiM); });
+}
+
+function semiModal(motivo) {
+  const d = SEMI.dados; if (!d) return;
+  const lista = d.lista.filter(x => !motivo || x.m === motivo);
+  const linhas = lista.map((x, i) => `<tr class="border-t border-gray-100">
+      <td class="py-1.5 pr-3 text-gray-400">${i + 1}</td><td class="py-1.5 pr-3 whitespace-nowrap">${esc(fmtData(x.d).slice(0, 5))} ${esc(x.h || '')}</td>
+      <td class="py-1.5 pr-3 font-mono font-bold text-gray-900">${esc(x.p)}</td><td class="py-1.5 pr-3 text-gray-700">${esc(x.c)}</td>
+      <td class="py-1.5 pr-3 text-gray-700">${esc(x.i || '—')}</td><td class="py-1.5 text-gray-600">${esc(x.m)}</td></tr>`);
+  modalTabela('Chegaram sem inspeção' + (motivo ? ' · ' + esc(motivo) : ''),
+    `${lista.length} carro${lista.length === 1 ? '' : 's'} · ${esc(fmtData(d.periodo.inicio))} a ${esc(fmtData(d.periodo.fim))} · horário de chegada`,
+    ['#', 'Chegada', 'Placa', 'Canal', 'Inspetor (Slack)', 'Motivo provável'], linhas, 'Nenhum carro.');
+}
+
 // ---------- Tempo de inspeção por inspetor ----------
 // Fonte: api('tempoInsp') (TempoInsp.gs): aba SLA_INSP da planilha base, com chegada, início e fim de cada carro.
 // Linhas: [loja, inspetor, índice da data em d.datas, minutos de inspeção, minutos de fila (-1 = sem dado)]
@@ -2394,7 +2486,9 @@ function renderTempoInsp() {
     if (x >= 0 && x <= LIM) { o.vals.push(x); p.vals.push(x); total.vals.push(x); tp.vals.push(x); }
     else if (x > LIM) fora++;
   });
-  const ids = Object.keys(porI).sort((a, b) => porI[b].n - porI[a].n);
+  const tempoDe = i => { const v = calc(porI[i].vals); return v === null ? -1 : v; };
+  const poucos = i => porI[i].vals.length < 5 ? 1 : 0;   // quem tem menos de 5 carros vai para o fim
+  const ids = Object.keys(porI).sort((a, b) => (poucos(a) - poucos(b)) || (tempoDe(b) - tempoDe(a)));   // maior tempo primeiro
 
   // cor: só intensidade (mais escuro = mais tempo), sem julgar bom ou ruim
   const todos = []; ids.forEach(i => cols.forEach(k => { const p = porI[i].per[k]; if (p && p.vals.length) todos.push(calc(p.vals)); }));
@@ -2419,6 +2513,7 @@ function renderTempoInsp() {
   const sel = (id, opcoes, atual) => `<select id="${id}" class="border border-gray-300 rounded-md px-2 py-1.5 text-xs bg-white">${opcoes.map(([v, t]) => `<option value="${esc(v)}" ${v === atual ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select>`;
 
   box.innerHTML = `<div class="space-y-3">
+    <h2 class="text-xl font-extrabold text-gray-900">⏱️ ${ehFila ? 'Tempo de fila por inspetor' : 'Tempo de inspeção por inspetor'}</h2>
     <div class="flex flex-wrap items-center gap-2">
       ${sel('tinspGrupo', [['dia', 'Por dia'], ['semana', 'Por semana'], ['mes', 'Por mês']], g)}
       ${sel('tinspLoja', [['', 'Todas as lojas'], ...d.lojas.slice().sort().map(l => [l, l])], TINSP.loja)}
@@ -2486,7 +2581,8 @@ const VST = {
     { id: 'esp',  titulo: 'B2B · FLUA · KUNA', c: 12 },
     { id: 'mov',  titulo: 'Movimento por dia da semana', c: 12 },
     { id: 'pcmp', titulo: 'Previsão de compras', c: 12 },
-    { id: 'tinsp', titulo: 'Tempo de inspeção por inspetor', c: 12, sup: true }
+    { id: 'tinsp', titulo: 'Tempo de inspeção por inspetor', c: 12, sup: true },
+    { id: 'semi', titulo: 'Chegaram sem inspeção', c: 12 }
   ],
   SPANS: [3, 4, 6, 8, 12]
 };
