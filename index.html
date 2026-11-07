@@ -2365,7 +2365,7 @@ function montarConsultarPlacas() {
   box.dataset.pronto = '1';
   box.innerHTML = `<div class="space-y-3">
     <h2 class="text-xl font-extrabold text-gray-900">🔎 Consultar placas</h2>
-    <p class="text-[11px] text-gray-500">Cole as placas (o que não for placa é ignorado; até 1000). Para conferir a conta de um inspetor, escreva o nome dele: placa feita por outra pessoa fica <b>⚠️ Feita por outro</b>. <b>📷 Resguardo sem fotos</b> = não foi rejeitada nem cancelada e o resguardo não tem resposta.</p>
+    <p class="text-[11px] text-gray-500">Cole as placas (o que não for placa é ignorado; até 1000). Para conferir a conta de um inspetor, escreva o nome dele: placa feita por outra pessoa fica <b>⚠️ Feita por outro</b>. <b>📷 Resguardo sem fotos</b> = não foi rejeitada nem cancelada e o resguardo não tem nenhum arquivo (foto, vídeo ou PDF).</p>
     <textarea id="cplTexto" rows="5" class="w-full border border-gray-300 rounded-md p-2 text-xs font-mono bg-white" placeholder="ABC1D23&#10;XYZ9E87&#10;..."></textarea>
     <div class="flex flex-wrap items-center gap-2">
       <button id="cplBtn" class="bg-kavak-blue text-white rounded-md px-4 py-1.5 text-xs font-bold hover:opacity-90">Consultar</button>
@@ -2445,7 +2445,7 @@ function renderConsultaPlacas() {
       : '<span class="text-gray-400">—</span>';
     const quando = x.sla.map(s => `<div class="whitespace-nowrap">${esc(fmtData(s.d).slice(0, 5))} · ${cplHora(s.ini)}–${cplHora(s.fim)} · <b>${tiMin(s.dur)}</b></div>`).join('') || '<span class="text-gray-400">—</span>';
     // Slack + resguardo numa coluna só
-    const resgLinha = t => { const vazio = /· 0 resp\./.test(t); return `<div class="pl-3 ${vazio ? 'text-amber-600 font-bold' : 'text-gray-600'}">📷 ${esc(t)}${vazio ? ' ⚠️ vazio' : ''}</div>`; };
+    const resgLinha = t => { const vazio = /· 0 (resp\.|arquivos)/.test(t); return `<div class="pl-3 ${vazio ? 'text-amber-600 font-bold' : 'text-gray-600'}">📷 ${esc(t)}${vazio ? ' ⚠️ vazio' : ''}</div>`; };
     const slack = x.posts.map(p => `<div class="whitespace-nowrap">${esc(fmtData(p.d).slice(0, 5))} ${esc(p.h)} · ${esc(p.c)} · 🚙 ${esc(inspNomePadrao(p.i) || '—')}${p.lk ? ` · <a href="${esc(p.lk)}" target="_blank" rel="noopener" class="text-kavak-blue underline">abrir</a>` : ''}</div>` +
         (p.gt ? p.gt.split(' | ').map(resgLinha).join('') : '<div class="pl-3 text-gray-400">📷 sem resguardo</div>')).join('')
       || `<span class="text-gray-400">sem post no Slack (aqui o Slack cobre ${esc(periodo)})</span>`;
