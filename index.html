@@ -2447,7 +2447,7 @@ function renderConsultaPlacas() {
     // Slack + resguardo numa coluna só
     const resgLinha = (t, lk) => { const vazio = /· 0 (resp\.|arquivos)/.test(t), pdf = /⚠️ pequeno/.test(t);
       return `<div class="pl-3 ${vazio || pdf ? 'text-amber-600 font-bold' : 'text-gray-600'}">📷 ${esc(t)}${vazio ? ' ⚠️ vazio' : ''}${lk ? ` · <a href="${esc(lk)}" target="_blank" rel="noopener" class="text-kavak-blue underline font-normal">abrir</a>` : ''}</div>`; };
-    const slack = x.posts.map(p => `<div class="whitespace-nowrap">${esc(fmtData(p.d).slice(0, 5))} ${esc(p.h)} · ${esc(p.c)} · 🚙 ${esc(inspNomePadrao(p.i) || '—')}${p.lk ? ` · <a href="${esc(p.lk)}" target="_blank" rel="noopener" class="text-kavak-blue underline">abrir</a>` : ''}</div>` +
+    const slack = x.posts.map(p => `<div class="whitespace-nowrap">${esc(fmtData(p.d).slice(0, 5))} ${esc(p.h)} · ${esc(p.c)} · 🚙 ${esc(inspNomePadrao(p.i) || '—')}</div>` +
         (p.gt ? p.gt.split(' | ').map((t, i) => resgLinha(t, String(p.gl || '').split(' | ')[i])).join('') : '<div class="pl-3 text-gray-400">📷 sem resguardo</div>')).join('')
       || `<span class="text-gray-400">sem post no Slack (aqui o Slack cobre ${esc(periodo)})</span>`;
     return `<tr class="border-t border-gray-100 align-top">
