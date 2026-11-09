@@ -2457,7 +2457,7 @@ function renderConsultaPlacas() {
       <td class="py-2 pr-3 text-[11px] space-y-1">${quando}</td>
       <td class="py-2 text-[11px] space-y-1">${slack}</td></tr>`;
   }).join('');
-  $('cplInfo').textContent = `${r.resultados.length} placa(s) · Slack/resguardo de ${periodo} (hoje ainda não entra)`;
+  $('cplInfo').textContent = `${r.resultados.length} placa(s) · Slack/resguardo de ${periodo} (o dia de hoje atualiza às ~12h e ~17h)`;
   $('cplCopiar').classList.remove('hidden');
   $('cplResultado').innerHTML = `<div class="flex flex-wrap items-center gap-1 mb-2">${resumo}</div>
     ${CPL.filtro ? `<p class="text-[11px] text-gray-500 mb-2">Mostrando ${lista.length} placa(s) com ${esc((CPL_STATUS[CPL.filtro] || [CPL.filtro])[0])}. O "Copiar resultado" copia só estas.</p>` : ''}
