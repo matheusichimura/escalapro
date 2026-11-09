@@ -2354,6 +2354,23 @@ const CPL_STATUS = {
   SEM_INSPECAO: ['⚠️ Sem inspeção no sistema', 'bg-amber-100 text-amber-800'], OK: ['✅ Inspecionada', 'bg-emerald-100 text-emerald-800'],
   NAO_ENCONTRADA: ['❓ Não está no sistema', 'bg-gray-100 text-gray-600']
 };
+// explicação que aparece ao passar o mouse em cima de cada selo
+const CPL_DICA = {
+  PDF_PEQUENO: 'PDF do resguardo com menos de 1 MB (o normal é 3 a 8 MB): provavelmente o laudo saiu com erro.',
+  RESG_SEM_FOTOS: 'Não foi rejeitada nem cancelada, mas o resguardo não tem nenhum arquivo (foto, vídeo ou PDF).',
+  PLACA_PARECIDA: 'Existe uma placa com 1 letra diferente no Slack ou no sistema: talvez foi digitada errado.',
+  OUTRO_INSP: 'Quem fez essa inspeção não foi o inspetor que você está conferindo.',
+  DUPLICADA: 'A placa foi postada 2 vezes no Slack, no mesmo dia ou no dia seguinte.',
+  RESG_DUPLICADO: 'Tem 2 ou mais "Inspeção iniciada" no #br-resguardo para essa placa.',
+  REINSPECAO: 'O sistema tem 2 inspeções dessa placa com mais de 7 dias de diferença (o carro voltou).',
+  CANCELADA: 'O post no Slack tem o emoji de fluxo cancelado.',
+  REPROVADA: 'O post tem o emoji ❌ ou o resguardo foi finalizado como "Reprovada".',
+  REJEITADA: 'O post tem o emoji de rejeitado ou o resguardo foi finalizado como "Rejeitada".',
+  B2B: 'Carro do fluxo B2B (emoji no Slack).', FLUA: 'Carro do fluxo FLUA (emoji no Slack).', KUNA: 'Carro do fluxo KUNA (emoji no Slack).',
+  SEM_INSPECAO: 'Tem post no Slack, mas não tem inspeção no sistema, e nada explica (não foi cancelada, rejeitada, reprovada nem é B2B/FLUA/KUNA).',
+  OK: 'A inspeção está no sistema (inspetor, horário e tempo) e não tem nenhum problema marcado. Não quer dizer aprovada nem comprada.',
+  NAO_ENCONTRADA: 'Não achei essa placa nem no sistema nem no Slack (no período que o Slack cobre).'
+};
 const cplReacoes = txt => String(txt || '').split(' ').filter(Boolean).reduce((out, t) => {
   if (/^x\d+$/.test(t) && out.length) { out[out.length - 1] += '×' + t.slice(1); return out; }
   out.push(CPL_EMOJI[t] || ':' + t + ':'); return out;
@@ -2365,7 +2382,7 @@ function montarConsultarPlacas() {
   box.dataset.pronto = '1';
   box.innerHTML = `<div class="space-y-3">
     <h2 class="text-xl font-extrabold text-gray-900">🔎 Consultar placas</h2>
-    <p class="text-[11px] text-gray-500">Cole as placas (o que não for placa é ignorado; até 1000). Para conferir a conta de um inspetor, escreva o nome dele: placa feita por outra pessoa fica <b>⚠️ Feita por outro</b>. <b>📷 Resguardo sem fotos</b> = não foi rejeitada nem cancelada e o resguardo não tem nenhum arquivo. <b>📄 PDF suspeito</b> = PDF do resguardo com menos de 1 MB (o normal é 3 a 8 MB). <b>🔄 Reinspeção</b> = 2 inspeções no sistema com mais de 7 dias de diferença.</p>
+    <p class="text-[11px] text-gray-500">Cole as placas (até 1000). Passe o mouse em cima de cada selo para ver o que ele significa.</p>
     <textarea id="cplTexto" rows="5" class="w-full border border-gray-300 rounded-md p-2 text-xs font-mono bg-white" placeholder="ABC1D23&#10;XYZ9E87&#10;..."></textarea>
     <div class="flex flex-wrap items-center gap-2">
       <button id="cplBtn" class="bg-kavak-blue text-white rounded-md px-4 py-1.5 text-xs font-bold hover:opacity-90">Consultar</button>
@@ -2429,7 +2446,7 @@ function renderConsultaPlacas() {
   const r = CPL.dados; if (!r) return;
   const cont = {};
   r.resultados.forEach(x => cplStatusDe(x).forEach(s => { cont[s] = (cont[s] || 0) + 1; }));
-  const badge = s => { const c = CPL_STATUS[s] || [s, 'bg-gray-100 text-gray-700']; return `<span class="inline-block rounded px-1.5 py-0.5 text-[10px] font-bold whitespace-nowrap ${c[1]}">${c[0]}</span>`; };
+  const badge = s => { const c = CPL_STATUS[s] || [s, 'bg-gray-100 text-gray-700']; return `<span title="${esc(CPL_DICA[s] || '')}" class="inline-block rounded px-1.5 py-0.5 text-[10px] font-bold whitespace-nowrap cursor-help ${c[1]}">${c[0]}</span>`; };
   // selos do resumo: clicar mostra só as placas daquele selo; clicar de novo (ou em "Todas") volta tudo
   if (CPL.filtro && !cont[CPL.filtro]) CPL.filtro = '';
   const selo = (s, rot, n) => `<button type="button" data-cpl-f="${s}" class="inline-flex items-center gap-1 rounded-md px-1 py-0.5 mr-1 ${CPL.filtro === s ? 'ring-2 ring-kavak-blue' : 'hover:bg-gray-100'}">${rot} <b class="text-xs">${n}</b></button>`;
