@@ -2708,11 +2708,11 @@ async function carregarRejeicoes(iv) {
   if (!r || r.erro || !Array.isArray(r.rejeitados)) {
     const m = {
       acao_desconhecida: 'O Apps Script ainda não tem a ação <b>rejeicoes</b>: cole o Rejeicoes.gs, troque a rotear_ e publique uma nova versão.',
-      rej_acesso: 'O EscalaPro não conseguiu abrir a planilha de rejeitadas do Bruno (confira o acesso da conta).',
-      rej_aba: 'Não achei a aba <b>REJEITADAS</b> na planilha do Bruno.',
+      rej_acesso: 'O EscalaPro não conseguiu abrir a planilha base.',
+      rej_aba: 'Não achei a aba <b>REJEITADAS</b> (IMPORTRANGE da planilha do Bruno) na planilha base do EscalaPro.',
       rej_colunas: 'A aba REJEITADAS mudou de formato (não achei as colunas DATA e PLACA).'
     };
-    box.innerHTML = `<div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-4 text-xs">Não foi possível carregar as rejeições. ${m[r && r.erro] || 'Tente atualizar em instantes.'}</div>`;
+    box.innerHTML = `<div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-4 text-xs">Não foi possível carregar as rejeições. ${m[r && r.erro] || 'Tente atualizar em instantes.' + (r && r.erro ? ' <span class="text-amber-600">(' + esc(String(r.erro)) + ')</span>' : '')}</div>`;
     return;
   }
   r.rejeitados.forEach(x => { x.i = inspNomePadrao(x.i) || x.i; x.temas = rejTemas(x); });
