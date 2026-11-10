@@ -718,7 +718,8 @@ function setSync(estado) {
 async function api(acao, corpo) {
   // Tempo limite: o servidor (Apps Script) às vezes demora na primeira chamada; sem limite a tela ficava presa.
   const ctrl = new AbortController();
-  const limite = setTimeout(() => ctrl.abort(), acao === 'ia_escala' ? 120000 : 30000);
+  const LENTAS = ['rejeicoes', 'tempoSlack', 'tempoInsp', 'consultarPlacas', 'semInsp'];   // leem planilhas grandes: esperam mais
+  const limite = setTimeout(() => ctrl.abort(), acao === 'ia_escala' ? 120000 : LENTAS.includes(acao) ? 90000 : 30000);
   let j;
   try {
     const resp = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ acao, token: SESSAO && SESSAO.token, ...(corpo || {}) }), signal: ctrl.signal });
@@ -2703,7 +2704,7 @@ async function carregarRejeicoes(iv) {
   const seq = ++REJ.seq;
   box.innerHTML = '<p class="text-xs text-gray-500">Carregando rejeições…</p>';
   let r;
-  try { r = await api('rejeicoes', iv); } catch (e) { if (e && e.sessaoExpirada) return; r = { erro: 'rede' }; }
+  try { r = await api('rejeicoes', iv); } catch (e) { if (e && e.sessaoExpirada) return; r = { erro: e && e.message === 'timeout' ? 'demorou demais' : 'rede' }; }
   if (seq !== REJ.seq) return;
   if (!r || r.erro || !Array.isArray(r.rejeitados)) {
     const m = {
