@@ -417,6 +417,7 @@ html.escuro .text-black{color:#f1f5f9}
         <div class="vista" data-vista="tinsp"><div class="vista-corpo"><div id="tinspConteudo"></div></div></div>
         <div class="vista" data-vista="semi"><div class="vista-corpo"><div id="semiConteudo"></div></div></div>
         <div class="vista" data-vista="cpl"><div class="vista-corpo"><div id="cplConteudo"></div></div></div>
+        <div class="vista" data-vista="rej"><div class="vista-corpo"><div id="rejConteudo"></div></div></div>
       </div>
     </div>
     <div id="achConteudo" class="hidden"></div>
@@ -1261,6 +1262,7 @@ async function carregarInspecoes() {
   carregarEspeciais(iv);
   carregarSemInsp(iv);
   if (ehSupervisor()) montarConsultarPlacas();
+  if (ehSupervisor()) carregarRejeicoes(iv);
   carregarTotalSla(iv, d.canais.reduce((t, c) => t + c.total, 0));
   if (!MOV.dados) carregarMovimento();   // movimento usa as últimas semanas, não o filtro: carrega 1 vez
   if (!PCMP.dados) carregarPrevCompras();
@@ -2668,6 +2670,154 @@ function semiModal(motivo) {
     ['#', 'Chegada', 'Placa', 'Canal', 'Inspetor (Slack)', 'Motivo provável'], linhas, 'Nenhum carro.');
 }
 
+// ---------- Rejeições ----------
+// Fonte: api('rejeicoes') (Rejeicoes.gs): planilha do Bruno (aba REJEITADAS) + Dados Veículos (carros que chegaram, para a %).
+const REJ = { seq: 0, dados: null, hub: '', motivo: '' };
+const REJ_FAIXAS_ANO = [['até 2010', a => a <= 2010], ['2011–2014', a => a >= 2011 && a <= 2014], ['2015–2018', a => a >= 2015 && a <= 2018],
+                        ['2019–2022', a => a >= 2019 && a <= 2022], ['2023 ou mais', a => a >= 2023]];
+const REJ_FAIXAS_KM = [['até 50 mil', k => k <= 50000], ['50–100 mil', k => k > 50000 && k <= 100000], ['100–150 mil', k => k > 100000 && k <= 150000],
+                       ['150–200 mil', k => k > 150000 && k <= 200000], ['200 mil ou mais', k => k > 200000]];
+// Temas do texto livre ("Outro - motivo descrito" + motivo): um carro pode ter vários
+const REJ_TEMAS = [
+  ['Motor', /MOTOR|PISTAO|BIELA|CABECOTE|FUMA[CN]|BATEND/],
+  ['Chassi / numeração', /CHASSI|NUMERA|REMARC|ILEGIV|\bBIN\b/],
+  ['Estrutura', /ESTRUTUR|LONGARINA|COLUNA|TORRE|ASSOALHO|CAIXA DE AR|CAIXA DE RODA|PAINEL (DIANTEIRO|TRASEIRO)/],
+  ['Oxidação / ferrugem', /OXID|FERRUG|CORROS|PODRE/],
+  ['Vazamento', /VAZAMENT/],
+  ['Conservação / estética', /CONSERVA|PESSIMO|ESTETIC|PINTURA|LATARIA|PNEUS? (CARECA|LISO)/],
+  ['Excesso de deméritos', /DEMERIT/],
+  ['KM / odômetro', /\bKM\b|KILOMETR|QUILOMETR|ODOMETRO|HODOMETRO/],
+  ['Blindado', /BLINDAD/], ['GNV', /\bGNV\b/], ['Enchente', /ENCHENTE|ALAGA/],
+  ['Restrição / investigação', /RESTRI|INVESTIG|OBITO|LEILAO|SINISTRO|ROUBO|FURTO|TRIBUT/],
+  ['Táxi / placa vermelha', /TAXI|PLACA VERMELHA/],
+  ['Cliente desistiu', /DESIST/],
+  ['Sem interesse comercial', /SEM INTERESSE/]
+];
+const rejNorm = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+const rejTemas = x => { const t = rejNorm(x.m + ' ' + x.t); const r = REJ_TEMAS.filter(([, re]) => re.test(t)).map(([n]) => n); return r.length ? r : ['Outros']; };
+const rejKm = k => k >= 0 ? Math.round(k / 1000).toLocaleString('pt-BR') + ' mil' : '—';
+
+async function carregarRejeicoes(iv) {
+  const box = $('rejConteudo'); if (!box) return;
+  if (MODO_LOCAL || !ehSupervisor()) { box.innerHTML = ''; return; }
+  const seq = ++REJ.seq;
+  box.innerHTML = '<p class="text-xs text-gray-500">Carregando rejeições…</p>';
+  let r;
+  try { r = await api('rejeicoes', iv); } catch (e) { if (e && e.sessaoExpirada) return; r = { erro: 'rede' }; }
+  if (seq !== REJ.seq) return;
+  if (!r || r.erro || !Array.isArray(r.rejeitados)) {
+    const m = {
+      acao_desconhecida: 'O Apps Script ainda não tem a ação <b>rejeicoes</b>: cole o Rejeicoes.gs, troque a rotear_ e publique uma nova versão.',
+      rej_acesso: 'O EscalaPro não conseguiu abrir a planilha de rejeitadas do Bruno (confira o acesso da conta).',
+      rej_aba: 'Não achei a aba <b>REJEITADAS</b> na planilha do Bruno.',
+      rej_colunas: 'A aba REJEITADAS mudou de formato (não achei as colunas DATA e PLACA).'
+    };
+    box.innerHTML = `<div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-4 text-xs">Não foi possível carregar as rejeições. ${m[r && r.erro] || 'Tente atualizar em instantes.'}</div>`;
+    return;
+  }
+  r.rejeitados.forEach(x => { x.i = inspNomePadrao(x.i) || x.i; x.temas = rejTemas(x); });
+  REJ.dados = r;
+  renderRejeicoes();
+}
+
+// lista com os filtros de hub e motivo
+const rejLista = () => (REJ.dados ? REJ.dados.rejeitados : []).filter(x => (!REJ.hub || x.h === REJ.hub) && (!REJ.motivo || x.m === REJ.motivo));
+
+function renderRejeicoes() {
+  const d = REJ.dados, box = $('rejConteudo'); if (!d || !box) return;
+  const todos = d.rejeitados, lista = rejLista();
+  const pct = (a, b) => b ? (Math.round(a / b * 1000) / 10).toString().replace('.', ',') + '%' : '—';
+  const comBase = !REJ.hub && !REJ.motivo && d.base.length > 0;   // a % só faz sentido sem filtro (a base não tem hub)
+  const baseCobre = d.baseDe && d.baseDe <= d.periodo.inicio;
+  const conta = (arr, f) => { const o = {}; arr.forEach(x => [].concat(f(x)).forEach(k => { if (k) o[k] = (o[k] || 0) + 1; })); return Object.entries(o).sort((a, b) => b[1] - a[1]); };
+  const barras = (pares, tipo, max) => { const topo = pares.length ? pares[0][1] : 1;
+    return pares.slice(0, max || 99).map(([k, n]) => `<button type="button" data-rej="${tipo}" data-v="${esc(k)}" class="w-full text-left text-xs hover:bg-gray-50 rounded px-1 py-1">
+      <div class="flex justify-between gap-2"><span class="truncate">${esc(k)}</span><b class="tabular-nums">${n} <span class="font-normal text-gray-500">(${pct(n, lista.length)})</span></b></div>
+      <div class="h-1.5 bg-gray-100 rounded mt-1"><div class="h-1.5 bg-rose-400 rounded" style="width:${Math.round(n / topo * 100)}%"></div></div></button>`).join('') || '<p class="text-xs text-gray-500">Nenhum.</p>'; };
+  const faixas = (defs, campo, idxBase, tipo) => `<table class="w-full text-xs"><thead><tr class="text-gray-500"><th class="text-left font-semibold pb-1">Faixa</th>
+      <th class="text-right font-semibold pb-1 px-2">Rejeitados</th>${comBase ? '<th class="text-right font-semibold pb-1 px-2">Chegaram</th><th class="text-right font-semibold pb-1 pl-2">% rejeição</th>' : ''}</tr></thead><tbody>
+      ${defs.map(([nome, ok], i) => { const rj = lista.filter(x => x[campo] > 0 && ok(x[campo])).length, ch = comBase ? d.base.filter(b => b[idxBase] > 0 && ok(b[idxBase])).length : 0;
+        return `<tr class="border-t border-gray-100 hover:bg-gray-50 cursor-pointer" data-rej="${tipo}" data-v="${i}"><td class="py-1.5 pr-2 font-semibold text-gray-800">${nome}</td>
+          <td class="py-1.5 px-2 text-right tabular-nums font-bold text-rose-600">${rj}</td>${comBase ? `<td class="py-1.5 px-2 text-right tabular-nums">${ch}</td><td class="py-1.5 pl-2 text-right tabular-nums font-bold">${pct(rj, ch)}</td>` : ''}</tr>`; }).join('')}
+      </tbody></table><p class="text-[10px] text-gray-400 mt-1">${lista.filter(x => !(x[campo] > 0)).length} sem ${campo === 'a' ? 'ano' : 'KM'} (sem dados).</p>`;
+  const motivos = conta(lista, x => x.m), temas = conta(lista, x => x.temas), carros = conta(lista, x => x.ma ? x.ma + ' ' + x.mo : ''),
+        hubs = conta(lista, x => x.h || 'Sem hub'), insps = conta(lista, x => x.i || 'Sem inspetor');
+  const sel = (id, opcoes, atual) => `<select id="${id}" class="border border-gray-300 rounded-md px-2 py-1.5 text-xs bg-white">${opcoes.map(([v, t]) => `<option value="${esc(v)}" ${v === atual ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select>`;
+  const card = (rot, val, sub, cor) => `<div class="rounded-lg border border-gray-200 p-4"><div class="text-[11px] font-bold uppercase tracking-wider text-gray-500">${rot}</div>
+      <div class="text-2xl font-bold mt-1 ${cor || 'text-gray-900'}">${val}</div><div class="text-[11px] text-gray-500 mt-0.5">${sub}</div></div>`;
+  const bloco = (titulo, corpo) => `<div class="rounded-lg border border-gray-200 p-3"><h4 class="text-xs font-bold text-gray-700 mb-2">${titulo}</h4>${corpo}</div>`;
+
+  box.innerHTML = `<div class="space-y-4">
+    <h2 class="text-xl font-extrabold text-gray-900">🔴 Rejeições</h2>
+    <div class="flex flex-wrap items-center gap-2">
+      ${sel('rejHub', [['', 'Todos os hubs'], ...[...new Set(todos.map(x => x.h).filter(Boolean))].sort().map(h => [h, h])], REJ.hub)}
+      ${sel('rejMotivo', [['', 'Todos os motivos'], ...[...new Set(todos.map(x => x.m))].sort().map(m => [m, m])], REJ.motivo)}
+      <button id="rejLista" class="border border-gray-300 rounded-md px-2.5 py-1.5 text-xs font-bold hover:bg-gray-50">Ver lista completa</button>
+      <button id="rejCopiar" class="border border-gray-300 rounded-md px-2.5 py-1.5 text-xs font-bold hover:bg-gray-50">Copiar lista</button>
+      <span id="rejInfo" class="text-xs text-gray-500"></span>
+    </div>
+    <p class="text-[11px] text-gray-500">Rejeitados da planilha do Bruno (aba REJEITADAS), no período do painel. Carro "Sem dados": ano e KM vêm do Kavaki.
+      ${comBase ? `A <b>% de rejeição</b> é rejeitados ÷ carros que chegaram naquela faixa (pelo Kavaki)${baseCobre ? '' : ` · <b>atenção:</b> os carros que chegaram só estão completos a partir de ${esc(fmtData(d.baseDe))}`}.` : 'Com filtro de hub ou motivo, a % de rejeição não aparece (a base de carros que chegaram não tem hub).'}
+      Clique em qualquer linha para ver as placas.</p>
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      ${card('Rejeitados', lista.length, 'carros no período', 'text-rose-600')}
+      ${card('Taxa de rejeição', comBase ? pct(lista.length, d.base.length) : '—', comBase ? 'dos ' + d.base.length + ' carros que chegaram' : 'só sem filtro')}
+      ${card('Motivo mais comum', motivos.length ? esc(motivos[0][0]) : '—', motivos.length ? motivos[0][1] + ' carros (' + pct(motivos[0][1], lista.length) + ')' : '')}
+    </div>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      ${bloco('Por motivo (categoria)', barras(motivos, 'motivo'))}
+      ${bloco('Por tema (o que foi escrito)', barras(temas, 'tema'))}
+      ${bloco('Por ano do carro', faixas(REJ_FAIXAS_ANO, 'a', 0, 'ano'))}
+      ${bloco('Por KM', faixas(REJ_FAIXAS_KM, 'km', 1, 'km'))}
+      ${bloco('Marcas / modelos mais rejeitados', barras(carros, 'carro', 10))}
+      ${bloco('Por hub', barras(hubs, 'hub', 12))}
+      ${bloco('Por inspetor', barras(insps, 'insp', 15))}
+    </div></div>`;
+
+  $('rejHub').onchange = e => { REJ.hub = e.target.value; renderRejeicoes(); };
+  $('rejMotivo').onchange = e => { REJ.motivo = e.target.value; renderRejeicoes(); };
+  $('rejLista').onclick = () => rejModal('todos', '');
+  $('rejCopiar').onclick = rejCopiar;
+  box.querySelectorAll('[data-rej]').forEach(b => { b.onclick = () => rejModal(b.dataset.rej, b.dataset.v); });
+}
+
+function rejFiltro(tipo, v) {
+  if (tipo === 'motivo') return x => x.m === v;
+  if (tipo === 'tema') return x => x.temas.includes(v);
+  if (tipo === 'carro') return x => (x.ma + ' ' + x.mo) === v;
+  if (tipo === 'hub') return x => (x.h || 'Sem hub') === v;
+  if (tipo === 'insp') return x => (x.i || 'Sem inspetor') === v;
+  if (tipo === 'ano') { const f = REJ_FAIXAS_ANO[+v][1]; return x => x.a > 0 && f(x.a); }
+  if (tipo === 'km') { const f = REJ_FAIXAS_KM[+v][1]; return x => x.km > 0 && f(x.km); }
+  return () => true;
+}
+
+function rejModal(tipo, v) {
+  const d = REJ.dados; if (!d) return;
+  const lista = rejLista().filter(rejFiltro(tipo, v));
+  const nome = tipo === 'ano' ? REJ_FAIXAS_ANO[+v][0] : tipo === 'km' ? REJ_FAIXAS_KM[+v][0] : v;
+  const linhas = lista.map((x, i) => `<tr class="border-t border-gray-100 align-top">
+      <td class="py-1.5 pr-3 text-gray-400">${i + 1}</td><td class="py-1.5 pr-3 whitespace-nowrap">${esc(fmtData(x.d).slice(0, 5))}</td>
+      <td class="py-1.5 pr-3 font-mono font-bold text-gray-900">${esc(x.p)}</td><td class="py-1.5 pr-3 whitespace-nowrap">${esc(x.h)}</td>
+      <td class="py-1.5 pr-3 whitespace-nowrap">${esc(x.i)}</td>
+      <td class="py-1.5 pr-3">${esc(x.ma ? x.ma + ' ' + x.mo : '—')}${x.f === 'K' ? ' <span class="text-[10px] text-gray-400">(Kavaki)</span>' : ''}</td>
+      <td class="py-1.5 pr-3 tabular-nums">${x.a || '—'}</td><td class="py-1.5 pr-3 tabular-nums whitespace-nowrap">${rejKm(x.km)}</td>
+      <td class="py-1.5 pr-3">${esc(x.m)}</td><td class="py-1.5 text-gray-600">${esc(x.t)}</td></tr>`);
+  modalTabela('Rejeições' + (tipo !== 'todos' ? ' · ' + esc(nome) : ''),
+    `${lista.length} carro${lista.length === 1 ? '' : 's'} · ${esc(fmtData(d.periodo.inicio))} a ${esc(fmtData(d.periodo.fim))}${REJ.hub ? ' · ' + esc(REJ.hub) : ''}${REJ.motivo ? ' · ' + esc(REJ.motivo) : ''}`,
+    ['#', 'Dia', 'Placa', 'Hub', 'Inspetor', 'Carro', 'Ano', 'KM', 'Motivo', 'Descrição'], linhas, 'Nenhum carro.');
+  const m = document.querySelector('#modalTabela > div'); if (m) m.classList.replace('max-w-3xl', 'max-w-6xl');
+}
+
+function rejCopiar() {
+  const cab = ['Data', 'Placa', 'Hub', 'Inspetor', 'Marca', 'Modelo', 'Ano', 'KM', 'Motivo', 'Descrição', 'Temas', 'Resultado B2B'];
+  const linhas = rejLista().map(x => [fmtData(x.d), x.p, x.h, x.i, x.ma, x.mo, x.a || '', x.km >= 0 ? x.km : '', x.m, x.t, x.temas.join(', '), x.b]
+    .map(c => String(c).replace(/[\t\n]+/g, ' ')).join('\t'));
+  const txt = [cab.join('\t')].concat(linhas).join('\n');
+  const ok = () => { $('rejInfo').textContent = linhas.length + ' linha(s) copiada(s): cole numa planilha.'; };
+  if (navigator.clipboard) navigator.clipboard.writeText(txt).then(ok, () => prompt('Copie:', txt)); else prompt('Copie:', txt);
+}
+
 // ---------- Tempo de inspeção por inspetor ----------
 // Fonte: api('tempoInsp') (TempoInsp.gs): aba SLA_INSP da planilha base, com chegada, início e fim de cada carro.
 // Linhas: [loja, inspetor, índice da data em d.datas, minutos de inspeção, minutos de fila (-1 = sem dado)]
@@ -2881,7 +3031,8 @@ const VST = {
     { id: 'pcmp', titulo: 'Previsão de compras', c: 12 },
     { id: 'tinsp', titulo: 'Tempo de inspeção por inspetor', c: 12, sup: true },
     { id: 'semi', titulo: 'Chegaram sem inspeção', c: 12 },
-    { id: 'cpl', titulo: 'Consultar placas', c: 12, sup: true }
+    { id: 'cpl', titulo: 'Consultar placas', c: 12, sup: true },
+    { id: 'rej', titulo: 'Rejeições', c: 12, sup: true }
   ],
   SPANS: [3, 4, 6, 8, 12]
 };
