@@ -3322,8 +3322,8 @@ const VST = {
     { id: 'tinsp', titulo: 'Tempo de inspeção por inspetor', c: 12, sup: true },
     { id: 'semi', titulo: 'Chegaram sem inspeção', c: 12 },
     { id: 'cpl', titulo: 'Consultar placas', c: 12, sup: true },
-    { id: 'rej', titulo: 'Rejeições', c: 12, sup: true },
-    { id: 'coin', titulo: 'Coincidências', c: 12, sup: true }
+    { id: 'rej', titulo: 'Rejeições', c: 12, min: 6, sup: true },
+    { id: 'coin', titulo: 'Coincidências', c: 12, min: 6, sup: true }
   ],
   SPANS: [3, 4, 6, 8, 12]
 };
@@ -3351,7 +3351,7 @@ function vistasAplicar() {
     const el = vstEl(def.id); if (!el) return;
     const t = VST.estado.tam[def.id] || {};
     el.style.display = vstDisponivel(def) && !VST.estado.ocultas[def.id] ? '' : 'none';
-    el.style.setProperty('--c', t.c || def.c);
+    el.style.setProperty('--c', Math.max(def.min || 0, t.c || def.c));   // blocos grandes nunca ficam estreitos demais
     const corpo = el.querySelector('.vista-corpo');
     corpo.style.height = t.h ? t.h + 'px' : '';
     corpo.style.overflow = t.h ? 'auto' : '';
@@ -3428,6 +3428,7 @@ function vstPainel() {
         tirados.map(k => { const [b, t] = k.split('|'); return `<label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" data-vst-qd="${esc(k)}"> ${esc(t)} <span class="text-gray-400 text-[10px]">· ${esc(nomeBloco(b))}</span></label>`; }).join('') +
         '<button type="button" id="vstQdTodos" class="w-full border border-gray-300 rounded px-2 py-1.5 font-bold text-gray-700 hover:bg-gray-50">Mostrar todos os quadros</button>';
     })() +
+    '<button type="button" id="vstTamanhos" class="w-full border border-gray-300 rounded px-2 py-1.5 font-bold text-gray-700 hover:bg-gray-50">↺ Restaurar tamanhos</button>' +
     '<button type="button" id="vstRestaurar" class="w-full border border-gray-300 rounded px-2 py-1.5 font-bold text-gray-700 hover:bg-gray-50">Restaurar padrão</button>';
 }
 
@@ -3524,7 +3525,8 @@ function vistasIniciar() {
     const mover = ev => {
       const g = grid.getBoundingClientRect(), r = el.getBoundingClientRect(), z = parseFloat(grid.style.zoom) || 1;
       const cols = Math.max(1, Math.min(12, (ev.clientX - r.left) / (g.width) * 12));
-      const c = VST.SPANS.reduce((a, b) => Math.abs(b - cols) < Math.abs(a - cols) ? b : a);
+      const minC = (VST.defs.find(d => d.id === id) || {}).min || 0;
+      const c = Math.max(minC, VST.SPANS.reduce((a, b) => Math.abs(b - cols) < Math.abs(a - cols) ? b : a));
       const alt = Math.max(120, Math.round((ev.clientY - corpo.getBoundingClientRect().top) / z));
       VST.estado.tam[id] = { c, h: alt };
       el.style.setProperty('--c', c); corpo.style.height = alt + 'px'; corpo.style.overflow = 'auto';
@@ -3549,6 +3551,7 @@ function vistasIniciar() {
   });
   $('vstPainel').addEventListener('click', e => {
     if (e.target.closest('#vstQdTodos')) { VST.estado.qd = {}; vstGravar(); vistasAplicar(); vstPainel(); return; }
+    if (e.target.closest('#vstTamanhos')) { VST.estado.tam = {}; vstGravar(); vistasAplicar(); vstPainel(); return; }   // só larguras/alturas
     if (!e.target.closest('#vstRestaurar')) return;
     VST.estado = { ordem: VST.defs.map(d => d.id), ocultas: {}, tam: {} };
     vstGravar(); vistasAplicar(); vstPainel();
