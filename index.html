@@ -49,6 +49,17 @@ button:disabled{cursor:not-allowed}
   body.pdf-insp .overflow-auto,body.pdf-insp .overflow-x-auto{overflow:visible!important;max-height:none!important}
 }
 .btn-desfazer:disabled{opacity:.4}
+/* Balão zoeira ao arrastar pessoa entre lojas */
+.rec-balao{position:fixed;z-index:60;width:min(340px,calc(100vw - 16px));color:#111827;border:2px solid;border-radius:14px;padding:10px 12px 8px;box-shadow:0 12px 32px rgba(0,0,0,.28);font-size:12px;line-height:1.35;animation:recVoa .25s ease}
+.rec-balao b{color:#111827}
+.rec-frase{font-weight:800;font-size:13px;padding-right:18px}
+.rec-num{margin-top:6px;color:#374151;font-size:11px;display:grid;gap:2px}
+.rec-ia{margin-top:6px;color:#6b7280;font-size:10px}
+.rec-acoes{margin-top:6px;display:flex;justify-content:flex-end}
+.rec-desfazer{background:#fff;color:#111827;border:1px solid #9ca3af;border-radius:8px;padding:3px 10px;font-weight:700;font-size:11px;cursor:pointer}
+.rec-desfazer:hover{background:#f3f4f6}
+.rec-x{position:absolute;top:4px;right:8px;background:none;border:0;color:#374151;font-size:16px;line-height:1;cursor:pointer}
+@keyframes recVoa{from{transform:translateY(8px) scale(.94);opacity:0}to{transform:none;opacity:1}}
 /* Vistas personalizáveis (aba Inspeções) */
 #vistasGrid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:1.25rem;align-items:start}
 .vista{grid-column:1/-1;position:relative;min-width:0}
@@ -5726,6 +5737,245 @@ document.addEventListener('drop', e => {
   atualizarTudo();
   toast(`${f.nome} em ${dest || 'Volantes'} no dia ${fmtDiaSemana(dataSelecionada)}`);
 });
+
+// ---------- BALÃO ZOEIRA ao arrastar pessoa entre lojas (só acrescenta: não muda o arrastar de antes) ----------
+// Mostra como ficam as 2 lojas: pessoas × mínimo × ideal (média de carros das últimas 4 semanas e tempo do Slack).
+// Para DESLIGAR tudo: REC.LIGADO = false. A IA fica reservada: REC.IA_LIGADA = false (ver iaBalao_ no Recomendacao.gs).
+const REC = { LIGADO: true, IA_LIGADA: false, dados: null, prom: null, origem: null, el: null, timer: null, ultimo: null };
+const REC_DIA = ['segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado', 'domingo'];       // 0 = seg (igual diaIdx)
+const REC_NA = ['na segunda', 'na terça', 'na quarta', 'na quinta', 'na sexta', 'no sábado', 'no domingo'];
+const REC_FRASES = {
+  vazia: [
+    'EI, TÁ DOIDO? {O} vai ficar SEM NINGUÉM {na}! Quem vai inspecionar, o segurança?',
+    'Ô LOUCO! {O} {na} fica às moscas, zero inspetor. Vai deixar o cliente conversando com a parede?',
+    'Socorro! Você acabou de fechar {O} {na}. Não sobrou ninguém nem pra apagar a luz!'
+  ],
+  minimo: [
+    'Ô MEU FILHO, {O} vai ficar com {n} de {min} do mínimo {na}. Vai fechar sozinho?',
+    'Calma lá! {O} {na} cai pra {n} e o mínimo é {min}. Esse pessoal não é super-herói não!',
+    'Abaixo do mínimo, chefe! {O} fica com {n} {na} (mínimo {min}). Alguém vai almoçar em pé.'
+  ],
+  tempo: [
+    '{O} já tá com {t} min de média (meta {meta}) e você ainda tira gente? Coragem, hein!',
+    'Ousado! {O} já leva {t} min por carro (meta {meta}) e você tira mais um. O cliente vai criar raiz!',
+    'Tirar gente de {O}? Lá a média já é {t} min e a meta é {meta}. O relógio agradece… só que não.'
+  ],
+  ideal: [
+    'EI, TÁ DOIDO? {O} fica com {n} {na}, e {dia} lá costuma ter {c} carros!',
+    '{Dia} chegam uns {c} carros em {O}: o ideal é {ideal} e vai ficar {n}. Vai ter fila até a esquina!',
+    'Conta rápida: {c} carros {na} em {O} pedem {ideal} pessoas. Vai ficar {n}. Boa sorte pra quem ficar!'
+  ],
+  salvou: [
+    'Salvou! {D} tava vazia {na} e agora tem {nome} 🦸',
+    'Herói do dia: {nome} foi resgatar {D}, que tava sem ninguém {na} 🦸'
+  ],
+  sobrando: [
+    '{D} agora tem {nD} e o ideal é {idealD}. Vai ter gente tomando cafezinho ☕',
+    'Opa, {D} fica com {nD} {na} e o ideal é {idealD}. Já dá pra montar um time de futsal ⚽'
+  ],
+  ok: [
+    'Boa! {nome} foi pra {D}. Pode seguir 👍',
+    'Jogada de mestre! {nome} em {D} e ninguém sai prejudicado 😎',
+    'Aprovado! {nome} foi pra {D} e as contas fecham 👍'
+  ],
+  folga: [
+    '{nome} tá de folga {na}, então nas contas não muda nada 😅',
+    'Mudou, mas {nome} nem trabalha {na}. Nas contas fica tudo igual 😅'
+  ],
+  semVazia: ['EI, TÁ DOIDO? Mudando {nome} de vez, {O} fica SEM NINGUÉM {nas}!'],
+  semMinimo: [
+    'Mudando {nome} de vez pra {D}: {O} fica abaixo do mínimo {nas}. Semana vai ser puxada lá!',
+    'Ô MEU FILHO, sem {nome} a {O} fura o mínimo {nas}. Vai fechar sozinho?'
+  ],
+  semIdeal: [
+    'Mudando {nome} de vez pra {D}: {O} fica abaixo do ideal {nas}. Semana vai ser puxada lá!',
+    'Sem {nome}, {O} fica curta {nas}. Prepara o cafezinho pra fila!'
+  ],
+  semOk: [
+    'Mudança aprovada! {nome} agora é de {D} e {O} segura a semana 👍',
+    'Fechou! {nome} vai de vez pra {D} e ninguém fica no sufoco 😎'
+  ]
+};
+const recSorteia = k => { const l = REC_FRASES[k]; return l[Math.floor(Math.random() * l.length)]; };
+const recPreenche = (t, v) => t.replace(/\{(\w+)\}/g, (m, k) => k in v ? '<b>' + esc(String(v[k])) + '</b>' : m);
+const recNome = l => l === '' ? 'Volantes' : l;
+const recLista = arr => arr.length < 2 ? arr.join('') : arr.slice(0, -1).join(', ') + ' e ' + arr[arr.length - 1];
+
+function recCarregar() {
+  if (MODO_LOCAL || !SESSAO) return Promise.resolve(null);
+  if (REC.dados) return Promise.resolve(REC.dados);
+  if (REC.prom) return REC.prom;
+  REC.prom = api('recomendacao', {}).then(r => {
+    if (r && r.ok) REC.dados = r; else REC.prom = null;
+    return REC.dados;
+  }).catch(() => { REC.prom = null; return null; });
+  return REC.prom;
+}
+
+// loja da escala → nome da loja nos dados do Slack (mesma ligação da tela Coincidências + nome parecido)
+function recCanal(loja) {
+  const d = REC.dados; if (!d || !loja) return '';
+  const nomes = Object.keys(d.lojas || {});
+  const n = rejNorm(loja);
+  const igual = nomes.find(x => rejNorm(x) === n); if (igual) return igual;
+  let c = coinCanalDaEscala(loja);
+  if (!c && /^KC$|BARUERI/.test(n)) c = 'Kavak City Barueri';
+  if (c && nomes.includes(c)) return c;
+  return nomes.find(x => { const k = rejNorm(x); return n.length >= 4 && (k.includes(n) || n.includes(k)); }) || '';
+}
+
+// pessoas trabalhando na loja no dia (mesma conta da tabela Cobertura por Loja)
+const recConta = (l, iso) => S.funcs.filter(x => !x.isInspetor && lojaDoDia(x, iso) === l && statusDia(x, iso) === 'T').length;
+
+// números do dia da semana: carros, tempo e ideal (null = sem histórico)
+function recNumeros(loja, iso) {
+  const d = REC.dados, canal = recCanal(loja);
+  if (!d || !canal) return null;
+  const x = d.lojas[canal], w = diaIdx(iso);
+  if (!x || x.c[w] === null || x.c[w] === undefined) return null;
+  const t = (x.nt[w] >= 8 ? x.t[w] : x.tg) || null;
+  const ideal = Math.max(Number(S.cfg.min) || 1, Math.ceil(x.c[w] * (t || d.meta) / (d.jornada * d.aproveitamento)));
+  return { c: Math.round(x.c[w]), t, ideal };
+}
+
+// como a loja fica naquele dia: nível (vazia/minimo/tempo/ideal/ok) + números
+function recAvaliaOrigem(l, iso) {
+  const n = recConta(l, iso), num = recNumeros(l, iso), min = Number(S.cfg.min) || 1;
+  let nivel = 'ok';
+  if (l === '' || lojaSemAlerta(l) || !lojaAbre(l, iso)) nivel = 'fora';
+  else if (n === 0) nivel = 'vazia';
+  else if (n < min) nivel = 'minimo';
+  else if (num && num.t && num.t > REC.dados.meta) nivel = 'tempo';
+  else if (num && n < num.ideal) nivel = 'ideal';
+  return { l, n, num, min, nivel };
+}
+
+function recLinhaNumeros(a, iso) {
+  if (a.l === '') return `📊 <b>Volantes</b> ${REC_NA[diaIdx(iso)]}: ${a.n} disponível(is)`;
+  if (lojaSemAlerta(a.l)) return `📊 <b>${esc(a.l)}</b>: fica fora da conta (On Line)`;
+  if (!lojaAbre(a.l, iso)) return `📊 <b>${esc(a.l)}</b>: fechada ${REC_NA[diaIdx(iso)]}`;
+  if (!REC.dados) return `📊 <b>${esc(a.l)}</b> · ${REC_DIA[diaIdx(iso)]}: vai ficar ${a.n} (mínimo ${a.min}) · ⏳ buscando a média…`;
+  if (!a.num) return `📊 <b>${esc(a.l)}</b> · ${REC_DIA[diaIdx(iso)]}: sem histórico, só conferi o mínimo · vai ficar ${a.n} (mínimo ${a.min})`;
+  const tempo = a.num.t ? `${a.num.t} min de média (meta ${REC.dados.meta})` : 'sem tempo no Slack';
+  return `📊 <b>${esc(a.l)}</b> · ${REC_DIA[diaIdx(iso)]}: ~${a.num.c} carros · ${tempo} · ideal ${a.num.ideal} · vai ficar <b>${a.n}</b>`;
+}
+
+const REC_COR = { vermelho: ['#fee2e2', '#ef4444'], amarelo: ['#fef3c7', '#f59e0b'], verde: ['#dcfce7', '#22c55e'] };
+
+// monta o texto do balão (de novo quando a média chega do servidor)
+function recConteudo(o) {
+  const f = S.funcs.find(x => x.id === o.id); if (!f) return null;
+  const v = { nome: f.nome, O: recNome(o.de), D: recNome(o.para), meta: REC.dados ? REC.dados.meta : 50, min: Number(S.cfg.min) || 1 };
+  let frase, cor = 'verde', linhas = [];
+
+  if (o.tipo === 'dia') {
+    const iso = o.dia, w = diaIdx(iso);
+    Object.assign(v, { na: REC_NA[w], dia: REC_DIA[w], Dia: coinMaiusc(REC_DIA[w]) });
+    const a = recAvaliaOrigem(o.de, iso), b = recAvaliaOrigem(o.para, iso);
+    linhas = [recLinhaNumeros(a, iso), recLinhaNumeros(b, iso)];
+    if (statusDia(f, iso) !== 'T') { frase = recSorteia('folga'); cor = 'verde'; }
+    else if (['vazia', 'minimo'].includes(a.nivel)) { frase = recSorteia(a.nivel); cor = 'vermelho'; }
+    else if (['tempo', 'ideal'].includes(a.nivel)) { frase = recSorteia(a.nivel); cor = 'amarelo'; }
+    else if (o.para !== '' && b.n === 1 && !lojaSemAlerta(o.para)) { frase = recSorteia('salvou'); cor = 'verde'; }
+    else if (b.num && b.n > b.num.ideal && !lojaSemAlerta(o.para)) { frase = recSorteia('sobrando'); cor = 'amarelo'; }
+    else frase = recSorteia('ok');
+    Object.assign(v, { n: a.n, c: a.num ? a.num.c : '?', t: a.num && a.num.t ? a.num.t : '?', ideal: a.num ? a.num.ideal : '?',
+                       nD: b.n, idealD: b.num ? b.num.ideal : '?' });
+  } else {
+    // mudança de vez: confere a semana que está na tela
+    const seg = getDataDaSemana(semanaAtiva), datas = DIAS.map((_, i) => somaDias(seg, i));
+    const ruins = { vazia: [], minimo: [], ideal: [] }, detalhe = [];
+    datas.forEach(iso => {
+      const a = recAvaliaOrigem(o.de, iso), w = diaIdx(iso);
+      if (a.nivel === 'vazia' || a.nivel === 'minimo') { ruins[a.nivel].push(REC_NA[w]); detalhe.push(`${DIAS[w].toLowerCase()} ${a.n}/${a.min} mín.`); }
+      else if ((a.nivel === 'ideal' || a.nivel === 'tempo') && a.num && a.n < a.num.ideal) { ruins.ideal.push(REC_NA[w]); detalhe.push(`${DIAS[w].toLowerCase()} ${a.n}/${a.num.ideal}`); }
+    });
+    if (ruins.vazia.length) { frase = recSorteia('semVazia'); cor = 'vermelho'; v.nas = recLista(ruins.vazia); }
+    else if (ruins.minimo.length) { frase = recSorteia('semMinimo'); cor = 'vermelho'; v.nas = recLista(ruins.minimo); }
+    else if (ruins.ideal.length) { frase = recSorteia('semIdeal'); cor = 'amarelo'; v.nas = recLista(ruins.ideal); }
+    else frase = recSorteia('semOk');
+    if (o.de === '' || lojaSemAlerta(o.de)) frase = recSorteia('semOk');
+    linhas = [o.de === '' ? '📊 <b>Volantes</b>: sem mínimo' :
+              `📊 <b>${esc(o.de)}</b> na semana: ${detalhe.length ? esc(detalhe.join(' · ')) + ' (fica/precisa)' : 'tudo coberto'}${REC.dados ? '' : ' · ⏳ buscando a média…'}`];
+  }
+  // a frase fica guardada para não mudar quando a média chega
+  if (o.frase && o.fraseCor === cor) frase = o.frase; else { o.frase = frase; o.fraseCor = cor; }
+  return { html: recPreenche(frase, v), linhas, cor };
+}
+
+function recFechar() { clearTimeout(REC.timer); if (REC.el) REC.el.remove(); REC.el = null; }
+
+function recMostrar(o) {
+  if (!REC.LIGADO) return;
+  const c = recConteudo(o); if (!c) return;
+  recFechar();
+  const [fundo, borda] = REC_COR[c.cor];
+  const b = document.createElement('div');
+  b.className = 'rec-balao';
+  b.style.background = fundo; b.style.borderColor = borda;
+  b.innerHTML = `<button type="button" class="rec-x" title="Fechar">×</button>
+    <div class="rec-frase">${c.html}</div>
+    <div class="rec-num">${c.linhas.map(x => `<div>${x}</div>`).join('')}</div>
+    <div class="rec-ia">${REC.IA_LIGADA ? '🤖 IA: pensando…' : '🤖 IA: em breve'}</div>
+    <div class="rec-acoes"><button type="button" class="rec-desfazer">↩ Desfazer</button></div>`;
+  document.body.appendChild(b);
+  // perto do mouse, sem sair da tela
+  const L = Math.min(Math.max(8, o.x + 14), window.innerWidth - b.offsetWidth - 8);
+  const T = Math.min(Math.max(8, o.y - 10), window.innerHeight - b.offsetHeight - 8);
+  b.style.left = L + 'px'; b.style.top = T + 'px';
+  REC.el = b; REC.ultimo = o;
+  b.querySelector('.rec-x').onclick = recFechar;
+  b.querySelector('.rec-desfazer').onclick = () => recDesfazer(o);
+  b.onmouseenter = () => clearTimeout(REC.timer);
+  b.onmouseleave = () => { clearTimeout(REC.timer); REC.timer = setTimeout(recFechar, 4000); };
+  REC.timer = setTimeout(recFechar, 9000);
+  if (!REC.dados) recCarregar().then(d => { if (d && REC.el === b) recMostrar(o); });   // a média chegou: atualiza o balão
+  if (REC.IA_LIGADA) recPerguntarIA(o, b);
+}
+
+// ESPAÇO DA IA (desligado): quando ligar, o servidor responde em iaBalao_ (Recomendacao.gs)
+async function recPerguntarIA(o, b) {
+  try {
+    const f = S.funcs.find(x => x.id === o.id) || {};
+    const iso = o.tipo === 'dia' ? o.dia : getDataDaSemana(semanaAtiva);
+    const contexto = { nome: f.nome, origem: recNome(o.de), destino: recNome(o.para), tipo: o.tipo, dia: iso,
+                       numeros: { origem: recNumeros(o.de, iso), destino: recNumeros(o.para, iso) } };
+    const r = await api('iaBalao', { contexto });
+    const alvo = b.querySelector('.rec-ia'); if (!alvo) return;
+    alvo.textContent = r && r.ok && r.texto ? '🤖 ' + r.texto : '🤖 IA: em breve';
+  } catch (e) {}
+}
+
+function recDesfazer(o) {
+  const f = S.funcs.find(x => x.id === o.id); if (!f) return recFechar();
+  if (o.tipo === 'dia') moverNoDia(f, o.dia, o.de); else f.loja = o.de;
+  atualizarTudo();
+  recFechar();
+  toast(`Desfeito: ${f.nome} voltou para ${recNome(o.de)}`);
+}
+
+// guarda de onde a pessoa saiu (antes do arrastar de sempre mexer na escala)
+document.addEventListener('dragstart', e => {
+  REC.origem = null;
+  if (!REC.LIGADO || !e.target.closest) return;
+  const fixo = e.target.closest('[data-drag]'), dia = e.target.closest('[data-drag-dia]');
+  const chip = fixo || dia; if (!chip) return;
+  const f = S.funcs.find(x => x.id === +(fixo ? chip.dataset.drag : chip.dataset.dragDia));
+  if (!f || f.isInspetor) return;
+  REC.origem = fixo ? { id: f.id, tipo: 'fixo', de: f.loja } : { id: f.id, tipo: 'dia', dia: dataSelecionada, de: lojaDoDia(f, dataSelecionada) };
+  recCarregar();
+}, true);
+// depois que o arrastar de sempre terminou: se a pessoa mudou de loja, mostra o balão
+document.addEventListener('drop', e => {
+  const o = REC.origem; REC.origem = null;
+  if (!o || !REC.LIGADO) return;
+  const f = S.funcs.find(x => x.id === o.id); if (!f) return;
+  const agora = o.tipo === 'dia' ? lojaDoDia(f, o.dia) : f.loja;
+  if (agora === o.de) return;
+  o.para = agora; o.x = e.clientX; o.y = e.clientY;
+  recMostrar(o);
+});
+document.addEventListener('dragend', () => { setTimeout(() => { REC.origem = null; }, 0); });
 
 // ---------- Login, senha e sincronização ----------
 $('formLogin').onsubmit = async e => {
