@@ -2764,13 +2764,13 @@ function renderRejeicoes() {
     <p class="text-[11px] text-gray-500">Rejeitados da planilha do Bruno (aba REJEITADAS), no período do painel. Carro "Sem dados": ano e KM vêm do Kavaki.
       ${comBase ? `A <b>% de rejeição</b> é rejeitados ÷ carros que chegaram naquela faixa (pelo Kavaki)${baseCobre ? '' : ` · <b>atenção:</b> os carros que chegaram só estão completos a partir de ${esc(fmtData(d.baseDe))}`}.` : 'Com filtro de hub ou motivo, a % de rejeição não aparece (a base de carros que chegaram não tem hub).'}
       Clique em qualquer linha para ver as placas.</p>
-    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+    <div class="grid gap-3" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr))">
       ${card('Rejeitados', lista.length, 'carros no período', 'text-rose-600')}
       ${card('Taxa de rejeição', comBase ? pct(lista.length, d.base.length) : '—', comBase ? 'dos ' + d.base.length + ' carros que chegaram' : 'só sem filtro')}
       ${card('Motivo mais comum', motivos.length ? esc(motivos[0][0]) : '—', motivos.length ? motivos[0][1] + ' carros (' + pct(motivos[0][1], lista.length) + ')' : '')}
     </div>
     ${bloco('💡 Destaques', rejDestaques(d, lista, comBase))}
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+    <div class="grid gap-4" style="grid-template-columns:repeat(auto-fit,minmax(340px,1fr))">
       ${bloco('Por motivo (categoria)', barras(motivos, 'motivo'))}
       ${bloco('Por tema (o que foi escrito)', barras(temas, 'tema'))}
       ${bloco('Por ano do carro', faixas(REJ_FAIXAS_ANO, 'a', 0, 'ano') + faixasNota('a'))}
