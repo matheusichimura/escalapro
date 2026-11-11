@@ -418,6 +418,7 @@ html.escuro .text-black{color:#f1f5f9}
         <div class="vista" data-vista="semi"><div class="vista-corpo"><div id="semiConteudo"></div></div></div>
         <div class="vista" data-vista="cpl"><div class="vista-corpo"><div id="cplConteudo"></div></div></div>
         <div class="vista" data-vista="rej"><div class="vista-corpo"><div id="rejConteudo"></div></div></div>
+        <div class="vista" data-vista="coin"><div class="vista-corpo"><div id="coinConteudo"></div></div></div>
       </div>
     </div>
     <div id="achConteudo" class="hidden"></div>
@@ -718,7 +719,7 @@ function setSync(estado) {
 async function api(acao, corpo) {
   // Tempo limite: o servidor (Apps Script) às vezes demora na primeira chamada; sem limite a tela ficava presa.
   const ctrl = new AbortController();
-  const LENTAS = ['rejeicoes', 'tempoSlack', 'tempoInsp', 'consultarPlacas', 'semInsp'];   // leem planilhas grandes: esperam mais
+  const LENTAS = ['rejeicoes', 'tempoSlack', 'tempoInsp', 'consultarPlacas', 'semInsp', 'coincidencias'];   // leem planilhas grandes: esperam mais
   const limite = setTimeout(() => ctrl.abort(), acao === 'ia_escala' ? 120000 : LENTAS.includes(acao) ? 90000 : 30000);
   let j;
   try {
@@ -1264,6 +1265,7 @@ async function carregarInspecoes() {
   carregarSemInsp(iv);
   if (ehSupervisor()) montarConsultarPlacas();
   if (ehSupervisor()) carregarRejeicoes(iv);
+  if (ehSupervisor()) carregarCoincidencias(iv);
   carregarTotalSla(iv, d.canais.reduce((t, c) => t + c.total, 0));
   if (!MOV.dados) carregarMovimento();   // movimento usa as últimas semanas, não o filtro: carrega 1 vez
   if (!PCMP.dados) carregarPrevCompras();
@@ -2885,6 +2887,227 @@ function rejCopiar() {
   if (navigator.clipboard) navigator.clipboard.writeText(txt).then(ok, () => prompt('Copie:', txt)); else prompt('Copie:', txt);
 }
 
+// ---------- 💡 Coincidências ----------
+// Fonte: api('coincidencias') (Coincidencias.gs): um item por post do Kavaki no período, já cruzado por placa com
+// sistema, ano/KM/modelo, rejeitadas, compras e novos achados. A escala (quem trabalhou em cada loja) vem do próprio site (S).
+// Cada cruzamento é uma regra fixa: só vira destaque se tiver carros suficientes e ficar bem longe da média.
+const COIN = { seq: 0, dados: null, itens: [] };
+const COIN_DIAS = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+const COIN_NO = ['no <b>domingo</b>', 'na <b>segunda</b>', 'na <b>terça</b>', 'na <b>quarta</b>', 'na <b>quinta</b>', 'na <b>sexta</b>', 'no <b>sábado</b>'];
+const coinMaiusc = t => t.charAt(0).toUpperCase() + t.slice(1);
+const COIN_HORAS = [['antes das 10h', 0, 600], ['10h–12h', 600, 720], ['12h–14h', 720, 840], ['14h–16h', 840, 960], ['depois das 16h', 960, 1440]];
+const COIN_FLAG = { R: 'rejeitada', C: 'cancelada', B: 'B2B/KUNA/FLUA', S: 'resguardo sem arquivo', P: 'PDF suspeito', D: 'duplicada', O: 'finalizada em outro dia' };
+const coinTem = (x, f) => x.fl.indexOf(f) !== -1;
+const coinOnline = x => rejNorm(x.c) === 'ONLINE';
+const coinFisica = x => !coinOnline(x) && !coinTem(x, 'B');
+const coinTempoOk = x => x.t >= 0 && !coinTem(x, 'R') && !coinTem(x, 'O') && x.t <= TINSP_MAX_SLACK && (coinOnline(x) || x.t >= TINSP_MIN_LOJA);
+const coinDesistiu = x => !coinTem(x, 'R') && !coinTem(x, 'B') && (coinTem(x, 'C') || (x.t === -1 && !x.sl));
+// loja da escala → canal da Fila
+function coinCanalDaEscala(loja) {
+  const n = rejNorm(loja);
+  if (/SP MARKET/.test(n)) return 'SP Market';
+  if (/CITY/.test(n)) return 'Kavak City Barueri';
+  if (/ARENA|SANTO ANDRE/.test(n)) return 'Arena Santo André';
+  if (/TATUAPE/.test(n)) return 'Tatuapé';
+  if (/FREI CANECA/.test(n)) return 'Frei Caneca';
+  if (/TRIMAIS|TUCURUVI/.test(n)) return 'Tucuruvi';
+  if (/MORUMBI/.test(n)) return /PETZ/.test(n) ? 'Morumbi' : 'Kavak Morumbi';
+  if (/ON ?LINE/.test(n)) return 'Online';
+  return '';
+}
+// quantos inspetores trabalharam naquela loja naquele dia (pela escala do site)
+function coinEquipe(canal, iso, memo) {
+  const k = canal + '|' + iso; if (k in memo) return memo[k];
+  let n = 0;
+  ((S && S.funcs) || []).forEach(f => { if (statusDia(f, iso) === 'T' && coinCanalDaEscala(lojaDoDia(f, iso) || '') === canal) n++; });
+  return (memo[k] = n);
+}
+
+async function carregarCoincidencias(iv) {
+  const box = $('coinConteudo'); if (!box) return;
+  if (MODO_LOCAL || !ehSupervisor()) { box.innerHTML = ''; return; }
+  const seq = ++COIN.seq;
+  box.innerHTML = '<p class="text-xs text-gray-500">Cruzando os dados do período…</p>';
+  let r;
+  try { r = await api('coincidencias', iv); } catch (e) { if (e && e.sessaoExpirada) return; r = { erro: e && e.message === 'timeout' ? 'demorou demais' : 'rede' }; }
+  if (seq !== COIN.seq) return;
+  if (!r || r.erro || !Array.isArray(r.carros)) {
+    const m = { acao_desconhecida: 'O Apps Script ainda não tem a ação <b>coincidencias</b>: cole o Coincidencias.gs, troque a rotear_ e publique uma nova versão.',
+                coin_raiox: 'Não achei a aba <b>Raio-X Posts</b> na Fila ao vivo.', coin_fila: 'O EscalaPro não conseguiu abrir a planilha da Fila.' };
+    box.innerHTML = `<div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-4 text-xs">Não foi possível cruzar os dados. ${m[r && r.erro] || 'Tente atualizar em instantes.' + (r && r.erro ? ' <span class="text-amber-600">(' + esc(String(r.erro)) + ')</span>' : '')}</div>`;
+    return;
+  }
+  r.carros.forEach(x => { x.i = inspNomePadrao(x.i) || x.i; });
+  COIN.dados = r;
+  renderCoincidencias();
+}
+
+// ---------- os cruzamentos ----------
+function coinCalcular(d) {
+  const pct = v => (Math.round(v * 1000) / 10).toString().replace('.', ',') + '%';
+  const vz = v => (Math.round(v * 10) / 10).toString().replace('.', ',') + 'x';
+  const med = a => tiMed(a);
+  const itens = [], testados = { n: 0 };
+  const add = (cat, ico, ratio, n, txt, filtro) => itens.push({ cat, ico, forca: ratio * (1 - 1 / Math.sqrt(Math.max(n, 1))), txt, filtro });
+  const taxa = (arr, f) => arr.length ? arr.filter(f).length / arr.length : 0;
+  const carros = d.carros;
+
+  // 1) TEMPO × dia da semana, × horário de chegada, × loja+dia
+  const tOk = carros.filter(x => coinTempoOk(x) && coinFisica(x));
+  const medGeral = med(tOk.map(x => x.t));
+  if (tOk.length >= 30 && medGeral) {
+    const porDow = {}; tOk.forEach(x => { const k = new Date(x.d + 'T12:00:00').getDay(); (porDow[k] = porDow[k] || []).push(x); });
+    Object.entries(porDow).forEach(([k, arr]) => { testados.n++; const m = med(arr.map(x => x.t));
+      if (arr.length >= 15 && m >= 1.25 * medGeral) add('Tempo', '📅', m / medGeral, arr.length,
+        `${coinMaiusc(COIN_NO[k])}, o tempo Kavaki → finalizada fica em <b>${tiMin(m)}</b>, ${pct(m / medGeral - 1)} acima do normal (${tiMin(medGeral)}).`,
+        x => coinTempoOk(x) && coinFisica(x) && new Date(x.d + 'T12:00:00').getDay() === +k); });
+    COIN_HORAS.forEach(([nome, de, ate]) => { testados.n++; const arr = tOk.filter(x => x.h >= de && x.h < ate), m = med(arr.map(x => x.t));
+      if (arr.length >= 15 && m >= 1.25 * medGeral) add('Tempo', '🕐', m / medGeral, arr.length,
+        `Carro que chega <b>${nome}</b> leva <b>${tiMin(m)}</b> até a finalização, ${pct(m / medGeral - 1)} acima do normal.`,
+        x => coinTempoOk(x) && coinFisica(x) && x.h >= de && x.h < ate); });
+    let pior = null; const porLD = {};
+    tOk.forEach(x => { const k = x.c + '|' + new Date(x.d + 'T12:00:00').getDay(); (porLD[k] = porLD[k] || []).push(x); });
+    Object.entries(porLD).forEach(([k, arr]) => { testados.n++; const m = med(arr.map(x => x.t));
+      if (arr.length >= 8 && m >= 1.4 * medGeral && (!pior || m > pior.m)) pior = { k, arr, m }; });
+    if (pior) { const [c, dw] = pior.k.split('|');
+      add('Tempo', '📍', pior.m / medGeral, pior.arr.length, `<b>${esc(c)}</b> ${COIN_NO[dw]}: <b>${tiMin(pior.m)}</b> do Kavaki até a finalização (${vz(pior.m / medGeral)} o normal).`,
+        x => coinTempoOk(x) && x.c === c && new Date(x.d + 'T12:00:00').getDay() === +dw); }
+
+    // 2) TEMPO × escala (quantos inspetores na loja no dia)
+    const memo = {}; const grupos = { 1: [], 2: [] };
+    tOk.forEach(x => { const n = coinEquipe(x.c, x.d, memo); if (n === 1) grupos[1].push(x); else if (n >= 2) grupos[2].push(x); });
+    testados.n++;
+    if (grupos[1].length >= 10 && grupos[2].length >= 10) {
+      const m1 = med(grupos[1].map(x => x.t)), m2 = med(grupos[2].map(x => x.t));
+      if (m1 >= 1.2 * m2) add('Escala', '👥', m1 / m2, grupos[1].length,
+        `Quando a loja está com <b>1 inspetor só</b> (pela escala), o tempo vai de <b>${tiMin(m2)}</b> para <b>${tiMin(m1)}</b> (+${pct(m1 / m2 - 1)}).`,
+        x => coinTempoOk(x) && coinFisica(x) && coinEquipe(x.c, x.d, memo) === 1);
+    }
+  }
+
+  // 3) TEMPO × novos achados (só carros comprados, que é quando aparece achado)
+  const comp = carros.filter(x => x.cp === 1 && x.ac >= 0 && coinTempoOk(x) && coinFisica(x));
+  testados.n++;
+  if (comp.length >= 30) {
+    const rapido = comp.filter(x => x.t < 20), resto = comp.filter(x => x.t >= 20);
+    const tr = taxa(rapido, x => x.ac > 0), to = taxa(resto, x => x.ac > 0);
+    if (rapido.length >= 10 && to > 0 && tr >= 1.5 * to) add('Achados', '🔍', tr / to, rapido.length,
+      `Carros comprados que saíram em <b>menos de 20 min</b> (Kavaki → finalizada) tiveram <b>${pct(tr)}</b> com novos achados, contra ${pct(to)} nos demais (${vz(tr / to)}).`,
+      x => x.cp === 1 && coinTempoOk(x) && coinFisica(x) && x.t < 20 && x.ac > 0);
+  }
+
+  // 4) RESGUARDO sem arquivo / PDF suspeito × dia e loja
+  const comArq = carros.filter(x => coinTem(x, 'A'));
+  [['S', 'resguardo sem nenhum arquivo', '📷'], ['P', 'PDF suspeito (menos de 1 MB)', '📄']].forEach(([fl, nome, ico]) => {
+    const geral = taxa(comArq, x => coinTem(x, fl)); if (comArq.length < 30 || !geral) return;
+    const grupos = [];
+    const porDow = {}; comArq.forEach(x => { const k = new Date(x.d + 'T12:00:00').getDay(); (porDow[k] = porDow[k] || []).push(x); });
+    Object.entries(porDow).forEach(([k, arr]) => grupos.push([COIN_NO[k], arr, x => new Date(x.d + 'T12:00:00').getDay() === +k]));
+    const porLoja = {}; comArq.forEach(x => { (porLoja[x.c] = porLoja[x.c] || []).push(x); });
+    Object.entries(porLoja).forEach(([c, arr]) => grupos.push([`em <b>${esc(c)}</b>`, arr, x => x.c === c]));
+    grupos.forEach(([onde, arr, f]) => { testados.n++; const n = arr.filter(x => coinTem(x, fl)).length, tx = n / arr.length;
+      if (arr.length >= 10 && n >= 3 && tx >= 2 * geral) add('Resguardo', ico, tx / geral, arr.length,
+        `${coinMaiusc(onde)}, <b>${pct(tx)}</b> dos resguardos ficaram com ${nome}, contra ${pct(geral)} no geral (${n} carros).`,
+        x => coinTem(x, 'A') && f(x) && coinTem(x, fl)); });
+  });
+
+  // 5) DESISTÊNCIA × fila na chegada e × horário
+  const proc = carros.filter(x => x.t > -2 && coinFisica(x) && !coinTem(x, 'R'));
+  if (proc.length >= 30) {
+    const porLD = {}; proc.forEach(x => { (porLD[x.c + '|' + x.d] = porLD[x.c + '|' + x.d] || []).push(x); });
+    const fila = x => (porLD[x.c + '|' + x.d] || []).filter(o => o !== x && o.h < x.h && o.h >= x.h - 120 && (o.f >= 0 ? o.f > x.h : o.h + 60 > x.h)).length;
+    proc.forEach(x => { x._fila = fila(x); });
+    const geral = taxa(proc, coinDesistiu);
+    testados.n++;
+    const cheia = proc.filter(x => x._fila >= 4), vazia = proc.filter(x => x._fila <= 1);
+    const tc = taxa(cheia, coinDesistiu), tv = taxa(vazia, coinDesistiu);
+    if (cheia.length >= 10 && tv > 0 && tc >= 1.5 * tv) add('Desistência', '🚶', tc / tv, cheia.length,
+      `Quando o carro chega e já tem <b>4 ou mais esperando</b>, <b>${pct(tc)}</b> não fazem a inspeção (desistem/cancelam), contra ${pct(tv)} com a loja vazia.`,
+      x => x._fila >= 4 && coinDesistiu(x));
+    COIN_HORAS.forEach(([nome, de, ate]) => { testados.n++; const arr = proc.filter(x => x.h >= de && x.h < ate), tx = taxa(arr, coinDesistiu);
+      if (arr.length >= 15 && geral > 0 && tx >= 1.6 * geral && arr.filter(coinDesistiu).length >= 3) add('Desistência', '🚶', tx / geral, arr.length,
+        `Quem chega <b>${nome}</b> desiste/cancela <b>${vz(tx / geral)} mais</b>: ${pct(tx)} contra ${pct(geral)}.`,
+        x => x.h >= de && x.h < ate && coinDesistiu(x)); });
+  }
+
+  // 6 e 7) REJEIÇÃO e COMPRA × ano, KM e modelo
+  const comCarro = carros.filter(x => x.a > 0 && !coinTem(x, 'B'));
+  const porCarro = (base, okLinha, cat, ico, verbo, alto) => {
+    const geral = taxa(base, okLinha); if (base.length < 30 || !geral) return;
+    const grupos = [];
+    REJ_FAIXAS_ANO.forEach(([nome, ok]) => grupos.push([`Carros de <b>${nome}</b>`, x => ok(x.a)]));
+    REJ_FAIXAS_KM.forEach(([nome, ok]) => grupos.push([`Carros com <b>${nome}</b> rodados`, x => x.km > 0 && ok(x.km)]));
+    const mods = {}; base.forEach(x => { if (x.m) mods[x.m] = (mods[x.m] || 0) + 1; });
+    Object.keys(mods).filter(m => mods[m] >= 8).forEach(m => grupos.push([`<b>${esc(m)}</b>`, x => x.m === m]));
+    grupos.forEach(([nome, f]) => { testados.n++; const arr = base.filter(f), n = arr.filter(okLinha).length, tx = arr.length ? n / arr.length : 0;
+      if (arr.length >= 8 && n >= 3 && tx >= (alto || 1.8) * geral) add(cat, ico, tx / geral, arr.length,
+        `${nome}: <b>${pct(tx)}</b> ${verbo} (${n} de ${arr.length}), ${vz(tx / geral)} a média de ${pct(geral)}.`, x => base.includes(x) && f(x) && okLinha(x));
+      else if (cat === 'Compra' && arr.length >= 15 && tx <= 0.4 * geral) add(cat, '💸', geral / Math.max(tx, 0.01) / 2, arr.length,
+        `${nome}: só <b>${pct(tx)}</b> foram comprados (${n} de ${arr.length}), contra ${pct(geral)} na média.`, x => base.includes(x) && f(x)); });
+  };
+  porCarro(comCarro, x => coinTem(x, 'R'), 'Rejeição', '🔴', 'rejeitados');
+  porCarro(comCarro.filter(x => x.cp >= 0 && !coinTem(x, 'R')), x => x.cp === 1, 'Compra', '💰', 'comprados', 1.6);
+
+  // 8) REINSPEÇÃO × modelo e loja
+  const reGeral = taxa(carros, x => x.ri);
+  if (carros.length >= 30 && reGeral > 0) {
+    const grupos = [];
+    const mods = {}; carros.forEach(x => { if (x.m) mods[x.m] = (mods[x.m] || 0) + 1; });
+    Object.keys(mods).filter(m => mods[m] >= 5).forEach(m => grupos.push([`<b>${esc(m)}</b>`, x => x.m === m]));
+    [...new Set(carros.map(x => x.c))].forEach(c => grupos.push([`Em <b>${esc(c)}</b>`, x => x.c === c]));
+    grupos.forEach(([nome, f]) => { testados.n++; const arr = carros.filter(f), n = arr.filter(x => x.ri).length, tx = arr.length ? n / arr.length : 0;
+      if (n >= 2 && arr.length >= 5 && tx >= 2 * reGeral) add('Reinspeção', '🔄', tx / reGeral, arr.length,
+        `${nome}: <b>${pct(tx)}</b> dos carros voltaram para reinspeção (${n} de ${arr.length}), ${vz(tx / reGeral)} a média.`, x => f(x) && x.ri); });
+  }
+
+  // 9) DUPLICADAS × loja
+  const dupGeral = taxa(carros, x => coinTem(x, 'D'));
+  if (carros.length >= 30 && dupGeral > 0) [...new Set(carros.map(x => x.c))].forEach(c => { testados.n++;
+    const arr = carros.filter(x => x.c === c), n = arr.filter(x => coinTem(x, 'D')).length, tx = arr.length ? n / arr.length : 0;
+    if (arr.length >= 20 && n >= 3 && tx >= 2 * dupGeral) add('Duplicada', '🔁', tx / dupGeral, arr.length,
+      `<b>${esc(c)}</b>: <b>${pct(tx)}</b> das placas foram postadas 2 vezes, ${vz(tx / dupGeral)} a média.`, x => x.c === c && coinTem(x, 'D')); });
+
+  return { itens: itens.sort((a, b) => b.forca - a.forca), testados: testados.n };
+}
+
+function renderCoincidencias() {
+  const d = COIN.dados, box = $('coinConteudo'); if (!d || !box) return;
+  const r = coinCalcular(d);
+  COIN.itens = r.itens;
+  const cats = [...new Set(r.itens.map(x => x.cat))];
+  const fontes = { sistema: 'sistema (SLA)', veiculos: 'ano/KM (Dados Veículos)', base: 'planilha base', compras: 'compras (BD)', achados: 'novos achados (Auditoria)' };
+  const card = (titulo, corpo) => `<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-3"><h3 class="text-xs font-bold text-gray-700 mb-2 pr-14">${titulo}</h3>${corpo}</div>`;
+  const lista = itens => `<ul class="space-y-2">${itens.map(x => { const i = COIN.itens.indexOf(x); return `<li class="text-xs text-gray-800 flex gap-2 items-start">
+      <span class="text-base leading-none">${x.ico}</span><div class="flex-1">${x.txt} <button type="button" data-coin="${i}" class="text-kavak-blue font-bold hover:underline whitespace-nowrap">ver placas</button></div></li>`; }).join('')}</ul>`;
+  box.innerHTML = `<div class="space-y-4">
+    <h2 class="text-xl font-extrabold text-gray-900">💡 Coincidências</h2>
+    <p class="text-[11px] text-gray-500">${d.carros.length} carros do período cruzados por placa (Slack, sistema, ano/KM, rejeições, compras, novos achados e escala). ${r.testados} cruzamentos testados ·
+      <b>${r.itens.length}</b> fora da curva. Cada frase é uma regra fixa: só aparece com carros suficientes e bem longe da média.
+      ${d.temTempo ? '' : '<b>O tempo do Slack ainda não está no Raio-X deste período</b> (espere o gerarRaioXHistorico). '}
+      ${d.avisos && d.avisos.length ? `<span class="text-amber-600">Não consegui ler: ${d.avisos.map(a => fontes[a] || a).join(', ')}.</span>` : ''}</p>
+    ${r.itens.length ? `<div class="grid gap-4" style="grid-template-columns:repeat(auto-fit,minmax(340px,1fr))">
+      ${card('🏆 As mais fortes', lista(r.itens.slice(0, 5)))}
+      ${cats.map(c => card(c, lista(r.itens.filter(x => x.cat === c)))).join('')}
+    </div>` : '<p class="text-xs text-gray-500">Nada muito fora da curva neste período. Tente um período maior (mais carros = mais coincidências confiáveis).</p>'}
+  </div>`;
+  box.querySelectorAll('[data-coin]').forEach(b => { b.onclick = () => coinModal(+b.dataset.coin); });
+}
+
+function coinModal(i) {
+  const d = COIN.dados, it = COIN.itens[i]; if (!d || !it) return;
+  const hh = m => m >= 0 ? String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0') : '—';
+  const lista = d.carros.filter(it.filtro).sort((a, b) => (a.d + hh(a.h)).localeCompare(b.d + hh(b.h)));
+  const linhas = lista.map((x, n) => `<tr class="border-t border-gray-100">
+      <td class="py-1.5 pr-3 text-gray-400">${n + 1}</td><td class="py-1.5 pr-3 whitespace-nowrap">${esc(fmtData(x.d).slice(0, 5))} ${hh(x.h)}</td>
+      <td class="py-1.5 pr-3 font-mono font-bold text-gray-900">${esc(x.p)}</td><td class="py-1.5 pr-3 whitespace-nowrap">${esc(x.c)}</td>
+      <td class="py-1.5 pr-3 whitespace-nowrap">${esc(x.i || '—')}</td><td class="py-1.5 pr-3">${esc(x.m || '—')}${x.a ? ' ' + x.a : ''}</td>
+      <td class="py-1.5 pr-3 tabular-nums whitespace-nowrap">${x.km > 0 ? rejKm(x.km) : '—'}</td><td class="py-1.5 pr-3 tabular-nums whitespace-nowrap">${x.t >= 0 ? tiMin(x.t) : '—'}</td>
+      <td class="py-1.5 text-gray-600">${[...x.fl].map(f => COIN_FLAG[f]).filter(Boolean).concat(x.cp === 1 ? ['comprado'] : [], x.ac > 0 ? [x.ac + ' achado(s)'] : [], x.ri ? ['reinspeção'] : []).join(' · ') || '—'}</td></tr>`);
+  modalTabela(it.ico + ' ' + esc(it.cat), it.txt + ` · ${lista.length} carro${lista.length === 1 ? '' : 's'}`,
+    ['#', 'Chegada', 'Placa', 'Loja', 'Inspetor', 'Carro', 'KM', 'Tempo', 'Situação'], linhas, 'Nenhum carro.');
+  const m = document.querySelector('#modalTabela > div'); if (m) m.classList.replace('max-w-3xl', 'max-w-6xl');
+}
+
 // ---------- Tempo de inspeção por inspetor ----------
 // Fonte: api('tempoInsp') (TempoInsp.gs): aba SLA_INSP da planilha base, com chegada, início e fim de cada carro.
 // Linhas: [loja, inspetor, índice da data em d.datas, minutos de inspeção, minutos de fila (-1 = sem dado)]
@@ -3099,7 +3322,8 @@ const VST = {
     { id: 'tinsp', titulo: 'Tempo de inspeção por inspetor', c: 12, sup: true },
     { id: 'semi', titulo: 'Chegaram sem inspeção', c: 12 },
     { id: 'cpl', titulo: 'Consultar placas', c: 12, sup: true },
-    { id: 'rej', titulo: 'Rejeições', c: 12, sup: true }
+    { id: 'rej', titulo: 'Rejeições', c: 12, sup: true },
+    { id: 'coin', titulo: 'Coincidências', c: 12, sup: true }
   ],
   SPANS: [3, 4, 6, 8, 12]
 };
