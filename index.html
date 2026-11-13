@@ -60,6 +60,73 @@ button:disabled{cursor:not-allowed}
 .rec-desfazer:hover{background:#f3f4f6}
 .rec-x{position:absolute;top:4px;right:8px;background:none;border:0;color:#374151;font-size:16px;line-height:1;cursor:pointer}
 @keyframes recVoa{from{transform:translateY(8px) scale(.94);opacity:0}to{transform:none;opacity:1}}
+/* Jeepelson (assistente com IA) */
+.jp-off #jpBtn,.jp-off #jpVolta,.jp-off #jpPainel{display:none!important}
+#jpBtn.hidden,#jpVolta.hidden,.jp-chat .hidden,#jpArq{display:none!important}
+.jp-btn{position:fixed;right:18px;bottom:18px;z-index:70;width:74px;height:66px;border:0;background:#fff;border-radius:22px;padding:4px;
+  box-shadow:0 8px 24px rgba(15,23,42,.25),0 0 0 2px #2f5bea;cursor:pointer;transition:transform .15s}
+.jp-btn:hover{transform:translateY(-2px) scale(1.04)}
+.jp-btn .jp-svg{width:100%;height:100%}
+.jp-esconder{position:absolute;top:-7px;right:-7px;width:20px;height:20px;border-radius:50%;background:#0b0b0f;color:#fff;font-size:13px;line-height:20px;text-align:center;opacity:.85}
+.jp-volta{position:fixed;right:0;bottom:90px;z-index:70;border:0;background:#2f5bea;color:#fff;border-radius:10px 0 0 10px;padding:6px 6px 6px 8px;font-size:16px;cursor:pointer;opacity:.75;box-shadow:0 4px 12px rgba(0,0,0,.2)}
+.jp-volta:hover{opacity:1}
+.jp-painel{position:fixed;right:18px;bottom:96px;z-index:71;width:min(390px,calc(100vw - 24px));height:min(580px,calc(100vh - 120px));display:none}
+.jp-painel.aberto{display:block}
+.jp-chat{display:flex;flex-direction:column;height:100%;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 18px 50px rgba(15,23,42,.35);border:1px solid #e5e7eb;color:#111827}
+.jp-chat.jp-cheio{height:calc(100vh - 210px);min-height:420px;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.jp-topo{display:flex;align-items:center;gap:8px;padding:8px 10px;background:linear-gradient(135deg,#2f5bea,#1e3fb8);color:#fff}
+.jp-mini{width:58px;height:52px;flex:none;background:#fff;border-radius:14px;padding:2px}
+.jp-mini .jp-svg{width:100%;height:100%}
+.jp-titulo{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.2}.jp-titulo b{font-size:15px}.jp-titulo span{font-size:11px;opacity:.85}
+.jp-ico{border:0;background:rgba(255,255,255,.15);color:inherit;border-radius:8px;min-width:30px;height:30px;font-size:15px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
+.jp-entrada .jp-ico{background:#f3f4f6;color:#111827}
+.jp-ico:disabled{opacity:.4;cursor:default}
+.jp-admin{padding:6px 10px;font-size:12px;background:#eff6ff;border-bottom:1px solid #dbeafe}.jp-admin select{border:1px solid #cbd5e1;border-radius:6px;padding:2px 4px;font-size:12px}
+.jp-aviso{font-size:10px;color:#6b7280;text-align:center;padding:4px 8px;border-bottom:1px solid #f3f4f6}
+.jp-msgs{flex:1;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:8px;background:#f8fafc}
+.jp-carregando{color:#6b7280;font-size:12px;text-align:center}
+.jp-msg{display:flex;flex-direction:column;max-width:86%}
+.jp-pessoa{align-self:flex-end;align-items:flex-end}.jp-jeepelson{align-self:flex-start}
+.jp-bolha{padding:8px 11px;border-radius:14px;font-size:13px;line-height:1.4;white-space:normal;word-wrap:break-word}
+.jp-pessoa .jp-bolha{background:#2f5bea;color:#fff;border-bottom-right-radius:4px}
+.jp-jeepelson .jp-bolha{background:#fff;border:1px solid #e5e7eb;border-bottom-left-radius:4px}
+.jp-pensando .jp-bolha{color:#2f5bea;font-weight:700;letter-spacing:2px;animation:jpPisca 1s infinite}
+.jp-meta{font-size:10px;color:#9ca3af;margin-top:2px}
+.jp-card{margin-top:6px;background:#f8fafc;border:1px solid #c7d2fe;border-radius:10px;padding:8px 10px;font-size:12px}
+.jp-card ul{margin:4px 0 4px 16px;list-style:disc}.jp-card p{margin:4px 0}
+.jp-ruim{color:#b91c1c}.jp-bom{color:#15803d;font-weight:700}
+.jp-acoes{display:flex;gap:6px;align-items:center;margin-top:6px}
+.jp-acoes button{border:0;border-radius:8px;padding:5px 10px;font-size:12px;font-weight:700;cursor:pointer}
+.jp-sim{background:#2f5bea;color:#fff}.jp-nao{background:#e5e7eb;color:#111827}
+.jp-thumbs{display:flex;gap:6px;padding:0 10px}.jp-thumbs:empty{display:none}
+.jp-thumb{position:relative;margin-top:6px}.jp-thumb img{width:44px;height:44px;object-fit:cover;border-radius:6px;border:1px solid #d1d5db}
+.jp-thumb button{position:absolute;top:-6px;right:-6px;width:16px;height:16px;border-radius:50%;border:0;background:#dc2626;color:#fff;font-size:10px;line-height:16px}
+.jp-entrada{display:flex;align-items:flex-end;gap:6px;padding:8px;border-top:1px solid #e5e7eb;background:#fff}
+.jp-entrada textarea{flex:1;resize:none;border:1px solid #d1d5db;border-radius:12px;padding:7px 10px;font-size:13px;max-height:110px;outline:none}
+.jp-entrada textarea:focus{border-color:#2f5bea;box-shadow:0 0 0 2px rgba(47,91,234,.2)}
+.jp-enviar{border:0;background:#2f5bea;color:#fff;border-radius:50%;width:34px;height:34px;font-size:14px;cursor:pointer;flex:none}
+.jp-enviar:disabled{opacity:.4}
+.jp-gravando{background:#dc2626!important;color:#fff!important;animation:jpPisca 1s infinite}
+@keyframes jpPisca{50%{opacity:.45}}
+/* estados do carrinho */
+.jp-mascote .jp-boca,.jp-mascote .jp-pontos{display:none}
+.jp-mascote .jp-luz{fill:#9aa3b2}.jp-mascote .jp-brilho{fill:transparent}
+.jp-mascote[data-st=parado] .jp-boca-sorriso{display:inline}
+.jp-mascote[data-st=ouvindo] .jp-boca-o{display:inline}
+.jp-mascote[data-st=ouvindo] .jp-luz{fill:#22c55e}.jp-mascote[data-st=ouvindo] .jp-brilho{fill:rgba(34,197,94,.35);animation:jpPisca .9s infinite}
+.jp-mascote[data-st=ouvindo] .jp-branco{transform:scale(1.1);transform-box:fill-box;transform-origin:center}
+.jp-mascote[data-st=pensando] .jp-boca-sorriso,.jp-mascote[data-st=pensando] .jp-pontos{display:inline}
+.jp-mascote[data-st=pensando] .jp-pontos circle{animation:jpPisca 1.2s infinite}
+.jp-mascote[data-st=pensando] .jp-pontos circle:nth-child(2){animation-delay:.2s}.jp-mascote[data-st=pensando] .jp-pontos circle:nth-child(3){animation-delay:.4s}
+.jp-mascote[data-st=pensando] .jp-pupila{transform:translateY(-4px)}
+.jp-mascote[data-st=pensando] .jp-luz{fill:#f59e0b}.jp-mascote[data-st=pensando] .jp-brilho{fill:rgba(245,158,11,.35)}
+.jp-mascote[data-st=falando] .jp-boca-aberta{display:inline;animation:jpFala .28s infinite alternate}
+.jp-mascote[data-st=falando] .jp-boca-sorriso{display:inline;animation:jpFala .28s infinite alternate-reverse}
+.jp-mascote[data-st=falando] .jp-luz{fill:#3b82f6}.jp-mascote[data-st=falando] .jp-brilho{fill:rgba(59,130,246,.35)}
+@keyframes jpFala{from{opacity:1}to{opacity:0}}
+.jp-palpebra{transition:height .08s}
+.jp-piscar .jp-palpebra{height:30px}
+@media (prefers-reduced-motion:reduce){.jp-mascote *{animation:none!important}}
 /* Vistas personalizáveis (aba Inspeções) */
 #vistasGrid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:1.25rem;align-items:start}
 .vista{grid-column:1/-1;position:relative;min-width:0}
@@ -210,6 +277,7 @@ html.escuro .text-black{color:#f1f5f9}
     <button data-act="tab" data-tab="equipe" id="btn-equipe" class="py-3 px-4 border-b-2 text-xs font-bold flex items-center gap-2 transition whitespace-nowrap text-gray-500 border-transparent hover:text-kavak-blue"><i data-ic="users"></i> Equipe</button>
     <button data-act="tab" data-tab="lojas" id="btn-lojas" class="py-3 px-4 border-b-2 text-xs font-bold flex items-center gap-2 transition whitespace-nowrap text-gray-500 border-transparent hover:text-kavak-blue"><i data-ic="store"></i> Lojas</button>
     <button data-act="tab" data-tab="inspecoes" id="btn-inspecoes" class="py-3 px-4 border-b-2 text-xs font-bold flex items-center gap-2 transition whitespace-nowrap text-gray-500 border-transparent hover:text-kavak-blue"><i data-ic="chart"></i> Inspeções</button>
+    <button data-act="tab" data-tab="chat" id="btn-chat" style="display:none" class="py-3 px-4 border-b-2 text-xs font-bold flex items-center gap-2 transition whitespace-nowrap text-gray-500 border-transparent hover:text-kavak-blue"><span aria-hidden="true">🚙</span> Jeepelson</button>
     <button data-act="tab" data-tab="acessos" id="btn-acessos" style="display:none" class="py-3 px-4 border-b-2 text-xs font-bold flex items-center gap-2 transition whitespace-nowrap text-gray-500 border-transparent hover:text-kavak-blue"><i data-ic="users"></i> Acessos</button>
   </div>
 </nav>
@@ -434,6 +502,10 @@ html.escuro .text-black{color:#f1f5f9}
     </div>
     <div id="achConteudo" class="hidden"></div>
   </section>
+  <section id="aba-chat" class="space-y-4 hidden">
+    <div id="jpAbaCorpo" class="max-w-3xl mx-auto"></div>
+  </section>
+
   <section id="aba-acessos" class="space-y-4 hidden">
     <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200 max-w-xl space-y-3">
       <h2 class="font-bold text-sm text-gray-900">Criar / atualizar acesso</h2>
@@ -731,7 +803,7 @@ async function api(acao, corpo) {
   // Tempo limite: o servidor (Apps Script) às vezes demora na primeira chamada; sem limite a tela ficava presa.
   const ctrl = new AbortController();
   const LENTAS = ['rejeicoes', 'tempoSlack', 'tempoInsp', 'consultarPlacas', 'semInsp', 'coincidencias'];   // leem planilhas grandes: esperam mais
-  const limite = setTimeout(() => ctrl.abort(), acao === 'ia_escala' ? 120000 : LENTAS.includes(acao) ? 90000 : 30000);
+  const limite = setTimeout(() => ctrl.abort(), (acao === 'ia_escala' || acao === 'ia_chat') ? 120000 : LENTAS.includes(acao) ? 90000 : 30000);
   let j;
   try {
     const resp = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ acao, token: SESSAO && SESSAO.token, ...(corpo || {}) }), signal: ctrl.signal });
@@ -3736,10 +3808,12 @@ const INATIVA = 'py-3 px-4 border-b-2 text-xs font-bold flex items-center gap-2 
 function mudarAba(aba) {
   if (!podeEditar() && (aba === 'equipe' || aba === 'lojas')) aba = 'home';
   if (aba === 'acessos' && (!ehSupervisor() || MODO_LOCAL)) aba = 'home';
-  ['home','escala','equipe','lojas','inspecoes','acessos'].forEach(a => {
+  if (aba === 'chat' && (!SESSAO || typeof jpMontar !== 'function')) aba = 'home';
+  ['home','escala','equipe','lojas','inspecoes','acessos','chat'].forEach(a => {
     $('aba-' + a).classList.toggle('hidden', a !== aba);
     $('btn-' + a).className = a === aba ? ATIVA : INATIVA;
   });
+  if (typeof jpMontar === 'function' && SESSAO) { jpMontar(); jpNaAba(aba === 'chat'); }
   atualizarTudo();
   painelAcessosAbriu(aba === 'acessos');
   if (aba === 'acessos') carregarUsuarios();
@@ -5976,6 +6050,339 @@ document.addEventListener('drop', e => {
   recMostrar(o);
 });
 document.addEventListener('dragend', () => { setTimeout(() => { REC.origem = null; }, 0); });
+
+// ======================================================================
+// JEEPELSON — assistente com IA (Groq pelo Apps Script, ação 'ia_chat')
+// Botão no canto (todo mundo vê) + aba "Jeepelson". Conversa salva por usuário na aba "Chat IA".
+// Para DESLIGAR tudo: JP.LIGADO = false.
+// ======================================================================
+const JP = { LIGADO: true, aberto: false, naAba: false, carregou: false, msgs: [], imgs: [], som: true, ouvindo: false,
+             rec: null, enviando: false, verUsuario: '', admin: false, saudou: false };
+try { JP.som = localStorage.getItem('jp_som') !== '0'; } catch (e) {}
+
+// ---------- o carrinho (desenho próprio do EscalaPro) ----------
+function jpSVG() {
+  const olho = x => `
+    <g class="jp-olho">
+      <circle cx="${x}" cy="106" r="15" fill="#e2e8f0" stroke="#0b0b0f" stroke-width="3"/>
+      <ellipse cx="${x}" cy="106" rx="11" ry="12" fill="#fff" class="jp-branco"/>
+      <g class="jp-pupila"><circle cx="${x + 1}" cy="107" r="6" fill="#0b0b0f"/><circle cx="${x + 3}" cy="104" r="2" fill="#fff"/></g>
+      <rect x="${x - 15}" y="91" width="30" height="0" fill="#2f5bea" class="jp-palpebra"/>
+    </g>`;
+  return `<svg viewBox="0 0 200 180" class="jp-svg" aria-hidden="true">
+    <ellipse cx="100" cy="168" rx="74" ry="7" fill="rgba(0,0,0,.15)"/>
+    <rect x="150" y="70" width="34" height="56" rx="14" fill="#0b0b0f"/><rect x="157" y="80" width="20" height="36" rx="9" fill="#3a3f4b"/>
+    <path d="M48 50 h86 a6 6 0 0 1 6 6 v20 h-98 v-20 a6 6 0 0 1 6 -6z" fill="#0b0b0f"/><rect x="54" y="56" width="74" height="18" rx="4" fill="#cfe0ff"/>
+    <g class="jp-antena"><line x1="62" y1="52" x2="62" y2="18" stroke="#0b0b0f" stroke-width="4" stroke-linecap="round"/>
+      <circle cx="62" cy="14" r="13" class="jp-brilho"/><circle cx="62" cy="14" r="7" class="jp-luz"/></g>
+    <rect x="22" y="74" width="140" height="66" rx="16" fill="#2f5bea"/><rect x="22" y="74" width="140" height="16" rx="8" fill="#4a72f5"/>
+    <rect x="22" y="92" width="140" height="5" fill="#fff" opacity=".9"/>
+    <g fill="#1e3fb8">${[66, 78, 90, 102, 114].map(x => `<rect x="${x}" y="102" width="6" height="20" rx="3"/>`).join('')}</g>
+    ${olho(44)}${olho(140)}
+    <path class="jp-boca jp-boca-sorriso" d="M76 127 q16 14 32 0" stroke="#0b0b0f" stroke-width="4" fill="none" stroke-linecap="round"/>
+    <circle class="jp-boca jp-boca-o" cx="92" cy="131" r="5" fill="#7f1d1d"/>
+    <g class="jp-boca jp-boca-aberta"><rect x="78" y="124" width="28" height="14" rx="7" fill="#7f1d1d"/><rect x="83" y="132" width="18" height="4" rx="2" fill="#f87171"/></g>
+    <rect x="16" y="134" width="152" height="10" rx="5" fill="#0b0b0f"/>
+    <circle cx="52" cy="148" r="19" fill="#0b0b0f"/><circle cx="52" cy="148" r="8" fill="#9aa3b2"/>
+    <circle cx="136" cy="148" r="19" fill="#0b0b0f"/><circle cx="136" cy="148" r="8" fill="#9aa3b2"/>
+    <g class="jp-pontos" fill="#94a3b8"><circle cx="18" cy="36" r="5"/><circle cx="32" cy="26" r="6"/><circle cx="48" cy="18" r="7"/></g>
+  </svg>`;
+}
+function jpEstado(st) { document.querySelectorAll('.jp-mascote').forEach(m => m.dataset.st = st); }
+
+// ---------- montagem da tela ----------
+function jpMontar() {
+  if ($('jpBtn')) return;
+  document.body.insertAdjacentHTML('beforeend', `
+    <button type="button" id="jpBtn" class="jp-btn jp-mascote" data-st="parado" title="Falar com o Jeepelson">${jpSVG()}
+      <span id="jpEsconder" class="jp-esconder" title="Esconder o Jeepelson">×</span></button>
+    <button type="button" id="jpVolta" class="jp-volta" title="Mostrar o Jeepelson">🚙</button>
+    <div id="jpPainel" class="jp-painel"></div>`);
+  $('jpPainel').innerHTML = `
+    <div id="jpChat" class="jp-chat">
+      <div class="jp-topo">
+        <div class="jp-mascote jp-mini" data-st="parado">${jpSVG()}</div>
+        <div class="jp-titulo"><b>Jeepelson</b><span id="jpStatus">pronto pra ajudar</span></div>
+        <button type="button" id="jpSom" class="jp-ico" title="Ligar/desligar a voz"></button>
+        <button type="button" id="jpTela" class="jp-ico" title="Abrir na aba Jeepelson">⤢</button>
+        <button type="button" id="jpFechar" class="jp-ico" title="Fechar">—</button>
+      </div>
+      <div id="jpAdmin" class="jp-admin hidden">Ver conversa de: <select id="jpVer"></select></div>
+      <div class="jp-aviso">As conversas ficam salvas e podem ser vistas pelo administrador.</div>
+      <div id="jpMsgs" class="jp-msgs"></div>
+      <div id="jpThumbs" class="jp-thumbs"></div>
+      <div class="jp-entrada">
+        <label id="jpAnexo" class="jp-ico hidden" title="Anexar print (até 3)">📎<input type="file" id="jpArq" accept="image/*" multiple class="hidden"></label>
+        <textarea id="jpTexto" rows="1" maxlength="2000" placeholder="Pergunte ou peça algo…"></textarea>
+        <button type="button" id="jpMic" class="jp-ico" title="Falar">🎤</button>
+        <button type="button" id="jpEnviar" class="jp-enviar" title="Enviar">➤</button>
+      </div>
+    </div>`;
+
+  let escondido = false;
+  try { escondido = localStorage.getItem('jp_escondido') === '1'; } catch (e) {}
+  jpEsconder(escondido);
+  $('jpBtn').onclick = e => { if (e.target.id === 'jpEsconder') return; jpAbrir(!JP.aberto); };
+  $('jpEsconder').onclick = e => { e.stopPropagation(); jpAbrir(false); jpEsconder(true); };
+  $('jpVolta').onclick = () => jpEsconder(false);
+  $('jpFechar').onclick = () => JP.naAba ? mudarAba('home') : jpAbrir(false);
+  $('jpTela').onclick = () => JP.naAba ? mudarAba('home') : mudarAba('chat');
+  $('jpSom').onclick = () => { JP.som = !JP.som; try { localStorage.setItem('jp_som', JP.som ? '1' : '0'); } catch (e) {} if (!JP.som && window.speechSynthesis) speechSynthesis.cancel(); jpPintaSom(); };
+  $('jpEnviar').onclick = () => jpEnviar();
+  $('jpTexto').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); jpEnviar(); } });
+  $('jpTexto').addEventListener('input', () => { const t = $('jpTexto'); t.style.height = 'auto'; t.style.height = Math.min(110, t.scrollHeight) + 'px'; });
+  $('jpMic').onclick = () => jpOuvir();
+  $('jpArq').onchange = async e => {
+    for (const f of [...e.target.files]) {
+      if (JP.imgs.length >= 3) { toast('Máximo de 3 prints.'); break; }
+      try { JP.imgs.push(await lerImagem(f)); } catch (er) { toast('Não consegui ler um dos arquivos.'); }
+    }
+    e.target.value = ''; jpThumbs();
+  };
+  $('jpChat').addEventListener('paste', async e => {
+    if (!podeEditar()) return;
+    const fs = [...(e.clipboardData && e.clipboardData.files || [])].filter(f => /^image\//.test(f.type));
+    if (!fs.length) return;
+    e.preventDefault();
+    for (const f of fs) { if (JP.imgs.length < 3) try { JP.imgs.push(await lerImagem(f)); } catch (er) {} }
+    jpThumbs();
+  });
+  $('jpVer').onchange = () => { JP.verUsuario = $('jpVer').value; jpCarregarHistorico(); };
+  if (!(window.SpeechRecognition || window.webkitSpeechRecognition)) $('jpMic').classList.add('hidden');
+  jpPintaSom();
+  // pisca de vez em quando
+  setInterval(() => document.querySelectorAll('.jp-mascote').forEach(m => { m.classList.add('jp-piscar'); setTimeout(() => m.classList.remove('jp-piscar'), 180); }), 4200);
+}
+function jpPintaSom() { if ($('jpSom')) $('jpSom').textContent = JP.som ? '🔊' : '🔇'; }
+function jpEsconder(sim) {
+  try { localStorage.setItem('jp_escondido', sim ? '1' : '0'); } catch (e) {}
+  $('jpBtn').classList.toggle('hidden', sim); $('jpVolta').classList.toggle('hidden', !sim);
+}
+function jpThumbs() {
+  $('jpThumbs').innerHTML = JP.imgs.map((im, i) => `<span class="jp-thumb"><img src="${im.url}"><button type="button" data-rm="${i}">×</button></span>`).join('');
+  $('jpThumbs').querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { JP.imgs.splice(+b.dataset.rm, 1); jpThumbs(); });
+}
+
+// abre/fecha o painel flutuante
+function jpAbrir(abrir) {
+  JP.aberto = abrir;
+  $('jpPainel').classList.toggle('aberto', abrir && !JP.naAba);
+  if (abrir) jpPreparar();
+}
+// a aba "Jeepelson" usa o mesmo chat (ele muda de lugar)
+function jpNaAba(sim) {
+  if (!$('jpChat')) return;
+  JP.naAba = sim;
+  (sim ? $('jpAbaCorpo') : $('jpPainel')).appendChild($('jpChat'));
+  $('jpChat').classList.toggle('jp-cheio', sim);
+  $('jpPainel').classList.toggle('aberto', !sim && JP.aberto);
+  $('jpTela').textContent = sim ? '⤡' : '⤢';
+  $('jpTela').title = sim ? 'Voltar para o botão' : 'Abrir na aba Jeepelson';
+  if (sim) jpPreparar();
+}
+
+async function jpPreparar() {
+  $('jpAnexo').classList.toggle('hidden', !podeEditar());
+  if (MODO_LOCAL) { if (!JP.carregou) { JP.carregou = true; jpBolha('jeepelson', 'Eu só funciono com o servidor ligado (modo local não tem IA). 😅'); } return; }
+  if (typeof recCarregar === 'function') recCarregar();   // números de movimento/tempo para os conselhos
+  if (!JP.carregou) { JP.carregou = true; await jpCarregarHistorico(); }
+  if (!JP.saudou) { JP.saudou = true; jpSaudar(); }
+  setTimeout(() => $('jpTexto').focus(), 50);
+}
+
+async function jpCarregarHistorico() {
+  $('jpMsgs').innerHTML = '<p class="jp-carregando">⏳ Carregando a conversa…</p>';
+  try {
+    const r = await api('ia_chat_historico', { usuario: JP.verUsuario || '' });
+    if (!r || !r.ok) throw new Error(r && r.erro);
+    JP.admin = !!r.admin;
+    if (JP.admin) {
+      $('jpAdmin').classList.remove('hidden');
+      const atual = r.usuario;
+      const lista = r.usuarios.some(u => u.usuario === SESSAO.usuario) ? r.usuarios : [{ usuario: SESSAO.usuario, nome: SESSAO.nome }].concat(r.usuarios);
+      $('jpVer').innerHTML = lista.map(u => `<option value="${esc(u.usuario)}" ${u.usuario === atual ? 'selected' : ''}>${esc(u.nome || u.usuario)}${u.usuario === SESSAO.usuario ? ' (você)' : ''}</option>`).join('');
+    }
+    const outro = JP.verUsuario && JP.verUsuario !== SESSAO.usuario;
+    ['jpTexto', 'jpEnviar', 'jpMic'].forEach(id => $(id).disabled = outro);
+    $('jpTexto').placeholder = outro ? 'Só leitura: conversa de outra pessoa' : 'Pergunte ou peça algo…';
+    $('jpMsgs').innerHTML = '';
+    (r.msgs || []).forEach(m => jpBolha(m.quem === 'pessoa' ? 'pessoa' : 'jeepelson', m.texto, { em: m.em, alt: m.alt, antigo: true }));
+    if (!r.msgs || !r.msgs.length) jpBolha('jeepelson', 'Fala! Eu sou o Jeepelson 🚙. Pergunta qualquer coisa da escala: quem folga, quem está onde, se a loja dá conta do movimento…' + (podeEditar() ? ' E se quiser, eu altero a escala pra você (você confirma antes).' : ''));
+  } catch (e) {
+    if (e.sessaoExpirada) return;
+    $('jpMsgs').innerHTML = '';
+    jpBolha('jeepelson', 'Não consegui carregar a conversa agora. Mas pode perguntar que eu respondo! 😉');
+  }
+}
+
+// avisos na hora de abrir (sem IA, na hora)
+function jpSaudar() {
+  if (JP.verUsuario && JP.verUsuario !== SESSAO.usuario) return;
+  try {
+    const falhas = conferirMinimo([semanaAtiva]).filter(x => x.iso >= hoje());
+    if (!falhas.length) return;
+    const itens = falhas.slice(0, 4).map(x => `${x.loja} ${REC_NA ? REC_NA[diaIdx(x.iso)] : fmtDiaSemana(x.iso)} (${x.n} de ${S.cfg.min})`);
+    jpBolha('jeepelson', `⚠️ Olha só: na semana ${semanaAtiva}, ${falhas.length === 1 ? 'uma loja fica' : falhas.length + ' dias ficam'} abaixo do mínimo: ${itens.join('; ')}${falhas.length > 4 ? '…' : ''}. Quer que eu sugira quem cobre?`);
+  } catch (e) {}
+}
+
+function jpHora(ms) { const d = ms ? new Date(ms) : new Date(); return d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }); }
+function jpBolha(quem, texto, o) {
+  o = o || {};
+  const div = document.createElement('div');
+  div.className = 'jp-msg jp-' + quem;
+  div.innerHTML = `<div class="jp-bolha">${esc(texto).replace(/\n/g, '<br>')}</div><div class="jp-meta">${quem === 'pessoa' ? 'você' : 'Jeepelson'} · ${jpHora(o.em)}${o.antigo && o.alt ? ' · 📝 propôs alterações' : ''}</div>`;
+  $('jpMsgs').appendChild(div);
+  $('jpMsgs').scrollTop = $('jpMsgs').scrollHeight;
+  return div;
+}
+
+// ---------- contexto que vai para a IA ----------
+function jpSemanaDeHoje() {
+  const h = hoje();
+  for (let s = 1; s <= 5; s++) { const seg = getDataDaSemana(s); if (h >= seg && h <= somaDias(seg, 6)) return s; }
+  return semanaAtiva;
+}
+function jpContexto() {
+  const semanas = [...new Set([semanaAtiva, jpSemanaDeHoje()])].sort();
+  const ctx = contextoIA(semanas);
+  ctx.hoje = hoje(); ctx.semanaAberta = semanaAtiva; ctx.usuario = SESSAO ? SESSAO.nome : '';
+  ctx.minimoPorDia = S.cfg.min;
+  ctx.cobertura = {};
+  semanas.forEach(s => {
+    const seg = getDataDaSemana(s);
+    S.lojas.forEach(l => {
+      if (!lojaTemCadastro(l)) return;
+      DIAS.forEach((_, i) => {
+        const iso = somaDias(seg, i);
+        if (!lojaAbre(l, iso)) return;
+        const n = trabalhandoEm(l, iso).length;
+        const num = typeof recNumeros === 'function' ? recNumeros(l, iso) : null;
+        (ctx.cobertura[l] = ctx.cobertura[l] || []).push(Object.assign({ dia: iso, pessoas: n }, num ? { carrosMedia: num.c, tempoSlackMin: num.t, idealPessoas: num.ideal } : {}));
+      });
+    });
+  });
+  ctx.abaixoDoMinimo = conferirMinimo(semanas);
+  return ctx;
+}
+
+// ---------- enviar ----------
+async function jpEnviar() {
+  if (JP.enviando) return;
+  const texto = $('jpTexto').value.trim();
+  if (!texto && !JP.imgs.length) return;
+  if (MODO_LOCAL) return toast('A IA exige o modo servidor.');
+  JP.enviando = true;
+  if (JP.ouvindo && JP.rec) try { JP.rec.stop(); } catch (e) {}
+  jpBolha('pessoa', texto + (JP.imgs.length ? `\n📎 ${JP.imgs.length} print(s)` : ''));
+  $('jpTexto').value = ''; $('jpTexto').style.height = 'auto';
+  const imagens = JP.imgs.map(i => ({ mime: i.mime, data: i.data })); JP.imgs = []; jpThumbs();
+  const pensando = jpBolha('jeepelson', '…'); pensando.classList.add('jp-pensando');
+  jpEstado('pensando'); $('jpStatus').textContent = 'pensando…';
+  try {
+    const r = await api('ia_chat', { pergunta: texto, imagens, contexto: jpContexto(), hoje: hoje() + ' (' + DIAS[diaIdx(hoje())] + ')' });
+    pensando.remove();
+    if (!r || !r.ok) throw new Error((r && (MSG_ERRO[r.erro] || r.erro)) || 'erro');
+    const txt = r.resposta + ((r.avisos || []).length ? '\n⚠️ ' + r.avisos.join('\n⚠️ ') : '');
+    const bolha = jpBolha('jeepelson', txt || '(sem resposta)');
+    if (podeEditar()) jpPrevia(bolha, r);
+    jpFalar(r.resposta);
+  } catch (e) {
+    pensando.remove();
+    if (e.sessaoExpirada) return;
+    jpBolha('jeepelson', '⚠️ ' + (e.message === 'timeout' ? 'Demorei demais pra pensar. Tenta de novo?' : (e.message || 'Deu ruim aqui. Tenta de novo?')));
+    jpEstado('parado');
+  } finally {
+    JP.enviando = false; $('jpStatus').textContent = 'pronto pra ajudar';
+    if (!(JP.som && window.speechSynthesis && speechSynthesis.speaking)) jpEstado('parado');
+  }
+}
+
+// ---------- prévia das alterações (só supervisor) ----------
+function jpPrevia(bolha, r) {
+  const ops = Array.isArray(r.ops) ? r.ops : [], ri = r.regras || {};
+  const RG = { folgas: +ri.folgas || null, consecutivas: !!ri.consecutivas, diasSemFolga: (ri.diasSemFolga || []).map(Number).filter(n => n >= 0 && n <= 6) };
+  const temRegra = !!(RG.folgas || RG.consecutivas || RG.diasSemFolga.length);
+  if (!ops.length && !temRegra) return;
+  const todas = [1, 2, 3, 4, 5];
+  const aplicarTudo = () => {
+    let regras = [];
+    if (temRegra) regras = gerarEscalaLocal([semanaAtiva], RG).regras;
+    return { regras, ...aplicarOpsIA(ops, todas) };
+  };
+  const antes = JSON.stringify(S);
+  let sim, falhas;
+  try { sim = aplicarTudo(); falhas = conferirMinimo([semanaAtiva]); } finally { S = JSON.parse(antes); normalizar(); }
+  const card = document.createElement('div');
+  card.className = 'jp-card';
+  card.innerHTML = `
+    <b>📝 O que vai mudar</b>
+    ${temRegra ? `<p>🔄 Redistribui as folgas da semana ${semanaAtiva}: ${RG.folgas ? RG.folgas + ' folga(s)' : 'folgas padrão'}${RG.consecutivas ? ', seguidas' : ''}${RG.diasSemFolga.length ? ', sem folga em ' + RG.diasSemFolga.map(i => DIAS[i]).join('/') : ''}.</p>` : ''}
+    ${sim.detalhes.length ? `<ul>${sim.detalhes.map(x => `<li>${x}</li>`).join('')}</ul>` : ''}
+    ${sim.ignoradas.length ? `<p class="jp-ruim">Não dá para aplicar:</p><ul class="jp-ruim">${sim.ignoradas.map(x => `<li>${x}</li>`).join('')}</ul>` : ''}
+    ${falhas.length ? `<p class="jp-ruim">⛔ Depois disso, ${falhas.length} dia(s) abaixo do mínimo na semana ${semanaAtiva}.</p>` : '<p class="jp-bom">✅ Nenhuma loja abaixo do mínimo na semana ' + semanaAtiva + '.</p>'}
+    <div class="jp-acoes">${sim.aplicadas || temRegra ? '<button type="button" class="jp-sim">✅ Aplicar</button>' : ''}<button type="button" class="jp-nao">Descartar</button></div>`;
+  bolha.appendChild(card);
+  $('jpMsgs').scrollTop = $('jpMsgs').scrollHeight;
+  const sim1 = card.querySelector('.jp-sim');
+  if (sim1) sim1.onclick = () => {
+    snapshot('alteração pedida ao Jeepelson');
+    aplicarTudo();
+    atualizarTudo();
+    card.querySelector('.jp-acoes').innerHTML = '<span class="jp-bom">✔ Aplicado!</span><button type="button" class="jp-nao">↩ Desfazer</button>';
+    card.querySelector('.jp-nao').onclick = () => { desfazer(); card.querySelector('.jp-acoes').innerHTML = '<span>↩ Desfeito.</span>'; };
+    toast('✅ Alterações do Jeepelson aplicadas (dá para desfazer)');
+  };
+  card.querySelector('.jp-nao').onclick = () => { card.querySelector('.jp-acoes').innerHTML = '<span>Descartado. Nada mudou.</span>'; };
+}
+
+// ---------- voz ----------
+function jpOuvir() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) return toast('Seu navegador não tem reconhecimento de voz. Digite a pergunta 😉');
+  if (JP.ouvindo) { try { JP.rec.stop(); } catch (e) {} return; }
+  if (window.speechSynthesis) speechSynthesis.cancel();
+  const rec = new SR(); JP.rec = rec;
+  rec.lang = 'pt-BR'; rec.interimResults = true; rec.continuous = false;
+  let final = '';
+  rec.onstart = () => { JP.ouvindo = true; jpEstado('ouvindo'); $('jpStatus').textContent = 'ouvindo…'; $('jpMic').classList.add('jp-gravando'); };
+  rec.onresult = ev => {
+    let parcial = '';
+    for (let i = ev.resultIndex; i < ev.results.length; i++) {
+      if (ev.results[i].isFinal) final += ev.results[i][0].transcript; else parcial += ev.results[i][0].transcript;
+    }
+    $('jpTexto').value = (final + ' ' + parcial).trim();
+  };
+  rec.onerror = ev => { if (ev.error === 'not-allowed') toast('Libere o microfone no navegador para falar comigo 🎤'); };
+  rec.onend = () => {
+    JP.ouvindo = false; $('jpMic').classList.remove('jp-gravando');
+    if (!JP.enviando) { jpEstado('parado'); $('jpStatus').textContent = 'pronto pra ajudar'; }
+    if (final.trim()) jpEnviar();
+  };
+  try { rec.start(); } catch (e) {}
+}
+function jpFalar(texto) {
+  if (!JP.som || !window.speechSynthesis || !texto) return;
+  const limpo = String(texto).replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/gu, '').replace(/[*_#`>]/g, '').trim();
+  if (!limpo) return;
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(limpo.slice(0, 600));
+  u.lang = 'pt-BR'; u.rate = 1.05;
+  const voz = speechSynthesis.getVoices().find(v => /^pt(-|_)BR/i.test(v.lang)) || speechSynthesis.getVoices().find(v => /^pt/i.test(v.lang));
+  if (voz) u.voice = voz;
+  u.onstart = () => { jpEstado('falando'); $('jpStatus').textContent = 'falando…'; };
+  u.onend = u.onerror = () => { jpEstado('parado'); $('jpStatus').textContent = 'pronto pra ajudar'; };
+  speechSynthesis.speak(u);
+}
+
+// aparece só depois do login
+setInterval(() => {
+  if (!JP.LIGADO) return;
+  const logado = !!SESSAO;
+  if (logado && !$('jpBtn')) jpMontar();
+  if ($('jpBtn')) document.body.classList.toggle('jp-off', !logado);
+  if ($('btn-chat')) $('btn-chat').style.display = logado ? '' : 'none';
+}, 800);
 
 // ---------- Login, senha e sincronização ----------
 $('formLogin').onsubmit = async e => {
