@@ -497,6 +497,8 @@ html.escuro .text-black{color:#f1f5f9}
         <div class="vista" data-vista="semi"><div class="vista-corpo"><div id="semiConteudo"></div></div></div>
         <div class="vista" data-vista="cpl"><div class="vista-corpo"><div id="cplConteudo"></div></div></div>
         <div class="vista" data-vista="rej"><div class="vista-corpo"><div id="rejConteudo"></div></div></div>
+        <div class="vista" data-vista="rep"><div class="vista-corpo"><div id="repConteudo"></div></div></div>
+        <div class="vista" data-vista="div"><div class="vista-corpo"><div id="divConteudo"></div></div></div>
         <div class="vista" data-vista="coin"><div class="vista-corpo"><div id="coinConteudo"></div></div></div>
       </div>
     </div>
@@ -802,7 +804,7 @@ function setSync(estado) {
 async function api(acao, corpo) {
   // Tempo limite: o servidor (Apps Script) às vezes demora na primeira chamada; sem limite a tela ficava presa.
   const ctrl = new AbortController();
-  const LENTAS = ['rejeicoes', 'tempoSlack', 'tempoInsp', 'consultarPlacas', 'semInsp', 'coincidencias'];   // leem planilhas grandes: esperam mais
+  const LENTAS = ['rejeicoes', 'reprovacoes', 'divergencias', 'tempoSlack', 'tempoInsp', 'consultarPlacas', 'semInsp', 'coincidencias'];   // leem planilhas grandes: esperam mais
   const limite = setTimeout(() => ctrl.abort(), (acao === 'ia_escala' || acao === 'ia_chat') ? 120000 : LENTAS.includes(acao) ? 90000 : 30000);
   let j;
   try {
@@ -1347,7 +1349,7 @@ async function carregarInspecoes() {
   carregarEspeciais(iv);
   carregarSemInsp(iv);
   if (ehSupervisor()) montarConsultarPlacas();
-  if (ehSupervisor()) carregarRejeicoes(iv);
+  if (ehSupervisor()) { carregarRejeicoes(iv, 'rej'); carregarRejeicoes(iv, 'rep'); carregarDivergencias(iv); }
   if (ehSupervisor()) carregarCoincidencias(iv);
   carregarTotalSla(iv, d.canais.reduce((t, c) => t + c.total, 0));
   if (!MOV.dados) carregarMovimento();   // movimento usa as últimas semanas, não o filtro: carrega 1 vez
@@ -2758,8 +2760,14 @@ function semiModal(motivo) {
 
 // ---------- Rejeições ----------
 // Fonte: api('rejeicoes') (Rejeicoes.gs): planilha do Bruno (aba REJEITADAS) + Dados Veículos (carros que chegaram, para a %).
-const REJ = { seq: 0, dados: null, hub: '', motivo: '', tipo: 'rej', iv: null };
-// (18/11) ❌ Reprovados: api('reprovacoes') (aba REPROVADAS = IMPORTRANGE da INSPEÇÕES 2.0, aba REPROVAS). Mesma tela, outro botão.
+// (18/11) ❌ Reprovações: vista PRÓPRIA com o mesmo código: api('reprovacoes') (aba REPROVADAS = IMPORTRANGE da INSPEÇÕES 2.0).
+// As funções abaixo usam "REJ" = a vista da vez; cada entrada (carregar, filtros, cliques) aponta para a certa com rejUsar().
+const REJS = {
+  rej: { seq: 0, dados: null, hub: '', motivo: '', tipo: 'rej', iv: null, box: 'rejConteudo' },
+  rep: { seq: 0, dados: null, hub: '', motivo: '', tipo: 'rep', iv: null, box: 'repConteudo' }
+};
+let REJ = REJS.rej;
+const rejUsar = t => (REJ = REJS[t] || REJS.rej);
 const REJ_TXT = {
   rej: { titulo: '🔴 Rejeições', nome: 'Rejeitados', taxa: 'Taxa de rejeição', pal: 'rejeição', pl: 'rejeitados', pls: 'rejeições', acao: 'rejeicoes' },
   rep: { titulo: '❌ Reprovações', nome: 'Reprovados', taxa: 'Taxa de reprovação', pal: 'reprovação', pl: 'reprovados', pls: 'reprovações', acao: 'reprovacoes' }
@@ -2801,52 +2809,75 @@ const rejNorm = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g
 const rejTemas = x => { const t = rejNorm(x.m + ' ' + x.t); const r = (REJ.tipo === 'rep' ? REP_TEMAS : REJ_TEMAS).filter(([, re]) => re.test(t)).map(([n]) => n); return r.length ? r : ['Outros']; };
 const rejKm = k => k >= 0 ? Math.round(k / 1000).toLocaleString('pt-BR') + ' mil' : '—';
 
-async function carregarRejeicoes(iv) {
-  const box = $('rejConteudo'); if (!box) return;
+async function carregarRejeicoes(iv, tipo) {
+  const st = rejUsar(tipo || 'rej'), T = rejT();
+  const box = $(st.box); if (!box) return;
   if (MODO_LOCAL || !ehSupervisor()) { box.innerHTML = ''; return; }
-  if (iv) REJ.iv = iv; else iv = REJ.iv;
-  const seq = ++REJ.seq;
-  box.innerHTML = '<p class="text-xs text-gray-500">Carregando ' + rejT().pls + '…</p>';
+  if (iv) st.iv = iv; else iv = st.iv;
+  const seq = ++st.seq;
+  box.innerHTML = rejCabecalho() + '<p class="text-xs text-gray-500 mt-2">Carregando ' + T.pls + '…</p>';
   let r;
-  try { r = await api(rejT().acao, iv); } catch (e) { if (e && e.sessaoExpirada) return; r = { erro: e && e.message === 'timeout' ? 'demorou demais' : 'rede' }; }
-  if (seq !== REJ.seq) return;
+  try { r = await api(T.acao, iv); } catch (e) { if (e && e.sessaoExpirada) return; r = { erro: e && e.message === 'timeout' ? 'demorou demais' : 'rede' }; }
+  if (seq !== st.seq) return;
+  rejUsar(st.tipo);
   if (!r || r.erro || !Array.isArray(r.rejeitados)) {
     const m = {
-      acao_desconhecida: 'O Apps Script ainda não tem a ação <b>rejeicoes</b>: cole o Rejeicoes.gs, troque a rotear_ e publique uma nova versão.',
+      acao_desconhecida: `O Apps Script ainda não tem a ação <b>${T.acao}</b>: cole o Rejeicoes.gs, troque a rotear_ e publique uma nova versão.`,
       rej_acesso: 'O EscalaPro não conseguiu abrir a planilha base.',
       rej_aba: 'Não achei a aba <b>REJEITADAS</b> (IMPORTRANGE da planilha do Bruno) na planilha base do EscalaPro.',
       rej_colunas: 'A aba REJEITADAS mudou de formato (não achei as colunas DATA e PLACA).',
       rep_aba: 'Não achei a aba <b>REPROVADAS</b> (IMPORTRANGE da INSPEÇÕES 2.0, aba REPROVAS) na planilha base do EscalaPro.',
       rep_colunas: 'A aba REPROVADAS mudou de formato (não achei as colunas DATA e PLACA).'
     };
-    box.innerHTML = rejBotoesTipo() + `<div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-4 text-xs mt-3">Não foi possível carregar as ${rejT().pls}. ${m[r && r.erro] || 'Tente atualizar em instantes.' + (r && r.erro ? ' <span class="text-amber-600">(' + esc(String(r.erro)) + ')</span>' : '')}</div>`;
-    rejLigarTipo();
+    box.innerHTML = rejCabecalho() + `<div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-4 text-xs mt-3">Não foi possível carregar as ${rejT().pls}. ${m[r && r.erro] || 'Tente atualizar em instantes.' + (r && r.erro ? ' <span class="text-amber-600">(' + esc(String(r.erro)) + ')</span>' : '')}</div>`;
     return;
   }
   r.rejeitados.forEach(x => { x.i = inspNomePadrao(x.i) || x.i; x.temas = rejTemas(x); });
-  REJ.dados = r;
+  st.dados = r;
   renderRejeicoes();
 }
 
-// botões 🔴 Rejeitados | ❌ Reprovados (troca a fonte e recarrega)
-function rejBotoesTipo() {
-  const b = (t, txt) => `<button type="button" data-rejtipo="${t}" class="px-3 py-1.5 text-xs font-bold ${REJ.tipo === t ? 'bg-rose-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}">${txt}</button>`;
-  return `<div class="flex flex-wrap items-center gap-3"><h2 class="text-xl font-extrabold text-gray-900">${rejT().titulo}</h2>
-    <div class="inline-flex rounded-md border border-gray-300 overflow-hidden">${b('rej', '🔴 Rejeitados')}${b('rep', '❌ Reprovados')}</div></div>`;
+const rejCabecalho = () => `<h2 class="text-xl font-extrabold text-gray-900">${rejT().titulo}</h2>`;
+
+// "Hoje no Slack" (ao vivo, pela Fila): só aparece se o período do painel inclui hoje
+function rejHojeSlack() {
+  const v = DIV.dados, d = REJ.dados;
+  if (!v || !d || !v.hoje || v.periodo.inicio !== d.periodo.inicio || v.periodo.fim !== d.periodo.fim) return null;
+  if (v.hojeIso < d.periodo.inicio || v.hojeIso > d.periodo.fim) return null;
+  return v.hoje[REJ.tipo === 'rep' ? 'REP' : 'REJ'] || [];
 }
-function rejLigarTipo() {
-  document.querySelectorAll('#rejConteudo [data-rejtipo]').forEach(el => { el.onclick = () => {
-    if (REJ.tipo === el.dataset.rejtipo) return;
-    REJ.tipo = el.dataset.rejtipo; REJ.hub = ''; REJ.motivo = ''; REJ.dados = null;
-    carregarRejeicoes();
-  }; });
+// 🔴❌ carros rejeitados E reprovados (o mesmo bloco nas 2 vistas; conta pelo evento desta vista dentro do período)
+function rejAmbos() {
+  const v = DIV.dados, d = REJ.dados;
+  if (!v || !d || v.periodo.inicio !== d.periodo.inicio || v.periodo.fim !== d.periodo.fim) return null;
+  const rep = REJ.tipo === 'rep', vistos = {};
+  return (v.ambos || []).filter(x => {
+    const dia = rep ? x.dRep : x.dRej;
+    if (dia < d.periodo.inicio || dia > d.periodo.fim) return false;
+    if (REJ.hub && x.h !== REJ.hub && x.hRep !== REJ.hub) return false;
+    if (vistos[x.p]) return false;
+    return (vistos[x.p] = true);
+  });
+}
+function rejAmbosHtml(lista) {
+  const amb = rejAmbos(), T = rejT();
+  if (!amb) return `<p class="text-xs text-gray-500">${DIV.erro ? 'Não carregou (' + esc(DIV.erro) + ').' : 'Carregando…'}</p>`;
+  const pct = lista.length ? ' (' + (Math.round(amb.length / lista.length * 1000) / 10).toString().replace('.', ',') + '%)' : '';
+  const dm = iso => esc(fmtData(iso).slice(0, 5));
+  const linhas = amb.slice(0, 6).map(x => `<tr class="border-t border-gray-100 align-top"><td class="py-1 pr-2 font-mono font-bold">${esc(x.p)}</td>
+      <td class="py-1 pr-2 text-gray-600">${esc(x.ma ? x.ma + ' ' + x.mo : '—')}</td>
+      <td class="py-1 pr-2">🔴 ${dm(x.dRej)} <span class="text-gray-500">${esc(x.mRej).slice(0, 60)}</span></td>
+      <td class="py-1">❌ ${dm(x.dRep)} <span class="text-gray-500">${esc(x.mRep).slice(0, 60)}</span></td></tr>`).join('');
+  return `<p class="text-xs text-gray-700 mb-2"><b>${amb.length}</b> de ${lista.length} ${T.pl}${pct} também foram ${REJ.tipo === 'rep' ? 'rejeitados' : 'reprovados'} (até ${DIV.dados.ambosDias || 7} dias de diferença).</p>
+    ${amb.length ? `<div class="overflow-x-auto"><table class="w-full text-xs">${linhas}</table></div>
+    <button type="button" data-rej="ambos" data-v="" class="mt-2 text-xs font-bold text-rose-700 hover:underline">Ver os ${amb.length} carros</button>` : ''}`;
 }
 
 // lista com os filtros de hub e motivo
 const rejLista = () => (REJ.dados ? REJ.dados.rejeitados : []).filter(x => (!REJ.hub || x.h === REJ.hub) && (!REJ.motivo || x.m === REJ.motivo));
 
 function renderRejeicoes() {
-  const d = REJ.dados, box = $('rejConteudo'); if (!d || !box) return;
+  const d = REJ.dados, box = $(REJ.box), P = REJ.tipo; if (!d || !box) return;
   const todos = d.rejeitados, lista = rejLista();
   const pct = (a, b) => b ? (Math.round(a / b * 1000) / 10).toString().replace('.', ',') + '%' : '—';
   const comBase = !REJ.hub && !REJ.motivo && d.base.length > 0;   // a % só faz sentido sem filtro (a base não tem hub)
@@ -2873,30 +2904,33 @@ function renderRejeicoes() {
       <div class="text-2xl font-bold mt-1 ${cor || 'text-gray-900'}">${val}</div><div class="text-[11px] text-gray-500 mt-0.5">${sub}</div></div>`;
   const bloco = (titulo, corpo) => `<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-3"><h3 class="text-xs font-bold text-gray-700 mb-2 pr-14">${titulo}</h3>${corpo}</div>`;
   const T = rejT(), rep = REJ.tipo === 'rep';
-  const ate = rep && d.atualizadoAte ? ` · <b>Reprovados atualizados até ${esc(fmtData(d.atualizadoAte).slice(0, 5))}</b> (a planilha de reprovas é atualizada no fim ou começo do dia)` : '';
+  const ate = d.atualizadoAte ? ` · <b>Planilha atualizada até ${esc(fmtData(d.atualizadoAte).slice(0, 5))}</b>${rep ? ' (a de reprovas é atualizada no fim ou começo do dia)' : ''}` : '';
   const fonte = rep ? `Reprovados da INSPEÇÕES 2.0 (aba REPROVAS), no período do painel${ate}. O motivo é texto livre: o EscalaPro separa por peça/tema.`
-                    : 'Rejeitados da planilha do Bruno (aba REJEITADAS), no período do painel.';
+                    : `Rejeitados da planilha do Bruno (aba REJEITADAS), no período do painel${ate}.`;
+  const hj = rejHojeSlack();
+  const hojeTxt = hj ? ` · <button type="button" data-rej="slackhoje" data-v="" class="font-bold text-emerald-700 hover:underline">hoje no Slack: ${hj.length}${REJ.hub ? ' (todos os hubs)' : ''} 🟢</button>` : '';
   const temaTop1 = temas.filter(([t]) => t !== 'Outros')[0] || temas[0];
 
   box.innerHTML = `<div class="space-y-4">
-    ${rejBotoesTipo()}
+    ${rejCabecalho()}
     <div class="flex flex-wrap items-center gap-2">
-      ${sel('rejHub', [['', 'Todos os hubs'], ...[...new Set(todos.map(x => x.h).filter(Boolean))].sort().map(h => [h, h])], REJ.hub)}
-      ${rep ? '' : sel('rejMotivo', [['', 'Todos os motivos'], ...[...new Set(todos.map(x => x.m))].sort().map(m => [m, m])], REJ.motivo)}
-      <button id="rejLista" class="border border-gray-300 rounded-md px-2.5 py-1.5 text-xs font-bold hover:bg-gray-50">Ver lista completa</button>
-      <button id="rejCopiar" class="border border-gray-300 rounded-md px-2.5 py-1.5 text-xs font-bold hover:bg-gray-50">Copiar lista</button>
-      <span id="rejInfo" class="text-xs text-gray-500"></span>
+      ${sel(P + 'Hub', [['', 'Todos os hubs'], ...[...new Set(todos.map(x => x.h).filter(Boolean))].sort().map(h => [h, h])], REJ.hub)}
+      ${rep ? '' : sel(P + 'Motivo', [['', 'Todos os motivos'], ...[...new Set(todos.map(x => x.m))].sort().map(m => [m, m])], REJ.motivo)}
+      <button id="${P}Lista" class="border border-gray-300 rounded-md px-2.5 py-1.5 text-xs font-bold hover:bg-gray-50">Ver lista completa</button>
+      <button id="${P}Copiar" class="border border-gray-300 rounded-md px-2.5 py-1.5 text-xs font-bold hover:bg-gray-50">Copiar lista</button>
+      <span id="${P}Info" class="text-xs text-gray-500"></span>
     </div>
     <p class="text-[11px] text-gray-500">${fonte} Carro "Sem dados": ano e KM vêm do Kavaki.
       ${comBase ? `A <b>% de ${T.pal}</b> é ${T.pl} ÷ carros que chegaram naquela faixa (pelo Kavaki)${baseCobre ? '' : ` · <b>atenção:</b> os carros que chegaram só estão completos a partir de ${esc(fmtData(d.baseDe))}`}.` : `Com filtro de hub${rep ? '' : ' ou motivo'}, a % de ${T.pal} não aparece (a base de carros que chegaram não tem hub).`}
       Clique em qualquer linha para ver as placas.</p>
     <div class="grid gap-3" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr))">
-      ${card(T.nome, lista.length, 'carros no período', 'text-rose-600')}
+      ${card(T.nome, lista.length, 'carros no período (planilha)' + hojeTxt, 'text-rose-600')}
       ${card(T.taxa, comBase ? pct(lista.length, d.base.length) : '—', comBase ? 'dos ' + d.base.length + ' carros que chegaram' : 'só sem filtro')}
       ${rep ? card('Tema mais comum', temaTop1 ? esc(temaTop1[0]) : '—', temaTop1 ? temaTop1[1] + ' carros (' + pct(temaTop1[1], lista.length) + ')' : '')
             : card('Motivo mais comum', motivos.length ? esc(motivos[0][0]) : '—', motivos.length ? motivos[0][1] + ' carros (' + pct(motivos[0][1], lista.length) + ')' : '')}
     </div>
     ${bloco('💡 Destaques', rejDestaques(d, lista, comBase))}
+    ${bloco('🔴❌ Rejeitado e reprovado', rejAmbosHtml(lista))}
     <div class="grid gap-4" style="grid-template-columns:repeat(auto-fit,minmax(340px,1fr))">
       ${rep ? '' : bloco('Por motivo (categoria)', barras(motivos, 'motivo'))}
       ${bloco(rep ? 'Por peça / tema (do motivo escrito)' : 'Por tema (o que foi escrito)', barras(temas, 'tema'))}
@@ -2907,12 +2941,11 @@ function renderRejeicoes() {
       ${bloco('Por inspetor', barras(insps, 'insp', 15))}
     </div></div>`;
 
-  $('rejHub').onchange = e => { REJ.hub = e.target.value; renderRejeicoes(); };
-  if ($('rejMotivo')) $('rejMotivo').onchange = e => { REJ.motivo = e.target.value; renderRejeicoes(); };
-  rejLigarTipo();
-  $('rejLista').onclick = () => rejModal('todos', '');
-  $('rejCopiar').onclick = rejCopiar;
-  box.querySelectorAll('[data-rej]').forEach(b => { b.onclick = () => rejModal(b.dataset.rej, b.dataset.v); });
+  $(P + 'Hub').onchange = e => { rejUsar(P); REJ.hub = e.target.value; renderRejeicoes(); };
+  if ($(P + 'Motivo')) $(P + 'Motivo').onchange = e => { rejUsar(P); REJ.motivo = e.target.value; renderRejeicoes(); };
+  $(P + 'Lista').onclick = () => { rejUsar(P); rejModal('todos', ''); };
+  $(P + 'Copiar').onclick = () => { rejUsar(P); rejCopiar(); };
+  box.querySelectorAll('[data-rej]').forEach(b => { b.onclick = () => { rejUsar(P); rejModal(b.dataset.rej, b.dataset.v); }; });
 }
 
 // ---------- Destaques: o que está fora da curva no período ----------
@@ -2990,6 +3023,28 @@ function rejFiltro(tipo, v) {
 
 function rejModal(tipo, v) {
   const d = REJ.dados; if (!d) return;
+  const dm = iso => esc(fmtData(iso).slice(0, 5));
+  if (tipo === 'ambos') {
+    const amb = rejAmbos() || [];
+    modalTabela('🔴❌ Rejeitado e reprovado', `${amb.length} carro${amb.length === 1 ? '' : 's'} · ${esc(fmtData(d.periodo.inicio))} a ${esc(fmtData(d.periodo.fim))}${REJ.hub ? ' · ' + esc(REJ.hub) : ''}`,
+      ['#', 'Placa', 'Hub', 'Carro', 'Ano', 'KM', '🔴 Rejeitado', 'Motivo da rejeição', '❌ Reprovado', 'Motivo da reprovação'],
+      amb.map((x, i) => `<tr class="border-t border-gray-100 align-top"><td class="py-1.5 pr-3 text-gray-400">${i + 1}</td>
+        <td class="py-1.5 pr-3 font-mono font-bold text-gray-900">${esc(x.p)}</td><td class="py-1.5 pr-3 whitespace-nowrap">${esc(x.h || x.hRep)}</td>
+        <td class="py-1.5 pr-3">${esc(x.ma ? x.ma + ' ' + x.mo : '—')}</td><td class="py-1.5 pr-3 tabular-nums">${x.a || '—'}</td>
+        <td class="py-1.5 pr-3 tabular-nums whitespace-nowrap">${rejKm(x.km)}</td>
+        <td class="py-1.5 pr-3 whitespace-nowrap">${dm(x.dRej)} · ${esc(x.iRej)}</td><td class="py-1.5 pr-3">${esc(x.mRej)}</td>
+        <td class="py-1.5 pr-3 whitespace-nowrap">${dm(x.dRep)} · ${esc(x.iRep)}</td><td class="py-1.5">${esc(x.mRep)}</td></tr>`), 'Nenhum carro.');
+    const m = document.querySelector('#modalTabela > div'); if (m) m.classList.replace('max-w-3xl', 'max-w-6xl');
+    return;
+  }
+  if (tipo === 'slackhoje') {
+    const hj = rejHojeSlack() || [];
+    modalTabela(`Hoje no Slack · ${rejT().nome}`, `${hj.length} carro${hj.length === 1 ? '' : 's'} com ${REJ.tipo === 'rep' ? '❌' : '🔴'} no post do Kavaki hoje (ao vivo, pela Fila: atualiza a cada 5 min)`,
+      ['#', 'Hora', 'Placa', 'Loja', 'Inspetor'],
+      hj.map((x, i) => `<tr class="border-t border-gray-100"><td class="py-1.5 pr-3 text-gray-400">${i + 1}</td><td class="py-1.5 pr-3">${esc(x.hora)}</td>
+        <td class="py-1.5 pr-3 font-mono font-bold">${esc(x.p)}</td><td class="py-1.5 pr-3">${esc(x.loja)}</td><td class="py-1.5">${esc(x.insp)}</td></tr>`), 'Nenhum carro hoje.');
+    return;
+  }
   const lista = rejLista().filter(rejFiltro(tipo, v)), rep = REJ.tipo === 'rep';
   const nome = tipo === 'ano' ? REJ_FAIXAS_ANO[+v][0] : tipo === 'km' ? REJ_FAIXAS_KM[+v][0] : v;
   const linhas = lista.map((x, i) => `<tr class="border-t border-gray-100 align-top">
@@ -3013,8 +3068,150 @@ function rejCopiar() {
                                           : [fmtData(x.d), x.p, x.h, x.i, x.ma, x.mo, x.a || '', x.km >= 0 ? x.km : '', x.m, x.t, x.temas.join(', '), x.b])
     .map(c => String(c).replace(/[\t\n]+/g, ' ')).join('\t'));
   const txt = [cab.join('\t')].concat(linhas).join('\n');
-  const ok = () => { $('rejInfo').textContent = linhas.length + ' linha(s) copiada(s): cole numa planilha.'; };
+  const info = $(REJ.tipo + 'Info');
+  const ok = () => { if (info) info.textContent = linhas.length + ' linha(s) copiada(s): cole numa planilha.'; };
   if (navigator.clipboard) navigator.clipboard.writeText(txt).then(ok, () => prompt('Copie:', txt)); else prompt('Copie:', txt);
+}
+
+// ---------- ⚠️ Divergências (Slack × planilha) ----------
+// Fonte: api('divergencias') (Divergencias.gs). Slack = reações no post do Kavaki, lidas pela Fila ao vivo
+// (🔴 carrinho com bolinha vermelha = rejeitado · ❌ = reprovado). Planilha = REJEITADAS (Bruno) e REPROVADAS (INSPEÇÕES 2.0).
+// Botão ✅ Tratado grava na aba "Divergências tratadas" da planilha base (api divTratar / divReabrir).
+const DIV = { seq: 0, dados: null, erro: '', iv: null, ver: 'abertas', sinal: '', tp: '' };
+const DIV_TP = {
+  so_slack:    { nome: 'Só no Slack',     cor: 'text-rose-600',  dica: 'Tem a reação no Slack, mas não está na planilha' },
+  so_planilha: { nome: 'Só na planilha',  cor: 'text-amber-600', dica: 'Está na planilha, mas o post do Kavaki não tem a reação' },
+  trocado:     { nome: 'Trocado',         cor: 'text-violet-600', dica: 'Slack e planilha dizem coisas diferentes' },
+  aguardando:  { nome: 'Aguardando planilha', cor: 'text-gray-500', dica: 'Só no Slack, mas a planilha ainda não foi lançada até esse dia' }
+};
+const divSinal = s => s === 'REJ' ? '🔴 Rejeitado' : s === 'REP' ? '❌ Reprovado' : '';
+function divFazer(x) {
+  const onde = t => t === 'REJ' ? 'na planilha do Bruno (REJEITADAS)' : 'na planilha de reprovas (INSPEÇÕES 2.0)';
+  const emoji = t => t === 'REJ' ? 'a reação 🔴' : 'o ❌';
+  if (x.tp === 'so_slack') return `Lançar ${onde(x.s)} ou tirar ${emoji(x.s)} do post`;
+  if (x.tp === 'so_planilha') return `Colocar ${emoji(x.pl)} no post do Kavaki (ou corrigir a planilha)`;
+  if (x.tp === 'trocado') return `Slack diz ${x.s === 'REJ' ? 'rejeitado' : 'reprovado'}, planilha diz ${x.pl === 'REJ' ? 'rejeitado' : 'reprovado'}: conferir qual está certo`;
+  return 'A planilha ainda não chegou nesse dia';
+}
+
+async function carregarDivergencias(iv) {
+  const box = $('divConteudo'); if (!box) return;
+  if (MODO_LOCAL || !ehSupervisor()) { box.innerHTML = ''; return; }
+  if (iv) DIV.iv = iv; else iv = DIV.iv;
+  const seq = ++DIV.seq;
+  DIV.dados = null; DIV.erro = '';
+  box.innerHTML = '<h2 class="text-xl font-extrabold text-gray-900">⚠️ Divergências</h2><p class="text-xs text-gray-500 mt-2">Comparando o Slack com as planilhas…</p>';
+  let r;
+  try { r = await api('divergencias', iv); } catch (e) { if (e && e.sessaoExpirada) return; r = { erro: e && e.message === 'timeout' ? 'demorou demais' : 'rede' }; }
+  if (seq !== DIV.seq) return;
+  if (!r || r.erro || !Array.isArray(r.itens)) {
+    DIV.erro = (r && r.erro) || 'erro';
+    const m = { acao_desconhecida: 'O Apps Script ainda não tem a ação <b>divergencias</b>: cole o Divergencias.gs, troque a rotear_ e publique uma nova versão.',
+                div_fila: 'O EscalaPro não conseguiu abrir a planilha da Fila ao vivo.' };
+    box.innerHTML = `<h2 class="text-xl font-extrabold text-gray-900">⚠️ Divergências</h2><div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-4 text-xs mt-3">Não foi possível comparar. ${m[DIV.erro] || 'Tente atualizar em instantes. <span class="text-amber-600">(' + esc(String(DIV.erro)) + ')</span>'}</div>`;
+  } else {
+    r.itens.forEach(x => { x.insp = inspNomePadrao(x.insp) || x.insp; });
+    DIV.dados = r;
+    renderDivergencias();
+  }
+  // as 2 vistas usam o "hoje no Slack" e o bloco "Rejeitado e reprovado"
+  ['rej', 'rep'].forEach(t => { if (REJS[t].dados) { rejUsar(t); renderRejeicoes(); } });
+}
+
+function divFiltrados() {
+  const d = DIV.dados; if (!d) return [];
+  return d.itens.filter(x => {
+    if (DIV.sinal && x.s !== DIV.sinal && x.pl !== DIV.sinal) return false;
+    if (DIV.tp && x.tp !== DIV.tp) return false;
+    if (DIV.ver === 'aguardando') return x.tp === 'aguardando';
+    if (x.tp === 'aguardando') return false;
+    return DIV.ver === 'tratadas' ? !!x.tr : !x.tr;
+  });
+}
+
+function renderDivergencias() {
+  const d = DIV.dados, box = $('divConteudo'); if (!d || !box) return;
+  const dm = iso => iso ? esc(fmtData(iso).slice(0, 5)) : '?';
+  const abertas = d.itens.filter(x => x.tp !== 'aguardando' && !x.tr), tratadas = d.itens.filter(x => x.tr);
+  const n = tp => abertas.filter(x => x.tp === tp).length;
+  const card = (rot, val, sub, cor, attrs) => `<button type="button" ${attrs} class="text-left bg-white rounded-lg shadow-sm border border-gray-200 p-4 hover:border-gray-400"><h3 class="text-[11px] font-bold uppercase tracking-wider text-gray-500 pr-14">${rot}</h3>
+      <div class="text-2xl font-bold mt-1 ${cor}">${val}</div><div class="text-[11px] text-gray-500 mt-0.5">${sub}</div></button>`;
+  const lista = divFiltrados();
+  const btn = (v, txt) => `<button type="button" data-divver="${v}" class="px-3 py-1.5 text-xs font-bold ${DIV.ver === v ? 'bg-gray-800 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}">${txt}</button>`;
+  const errosTxt = Object.keys(d.erros || {}).map(t => (t === 'REJ' ? 'REJEITADAS' : 'REPROVADAS') + ' (' + esc(d.erros[t]) + ')').join(', ');
+  const linhas = lista.map(x => {
+    const acao = x.tp === 'aguardando' ? '' : x.tr
+      ? `<div class="text-[11px] text-emerald-700 font-bold">✅ ${esc(x.tr.por)} · ${esc(x.tr.em)}</div>${x.tr.obs ? `<div class="text-[11px] text-gray-600">${esc(x.tr.obs)}</div>` : ''}<button type="button" data-divreabrir="${esc(x.k)}" class="text-[11px] text-gray-500 hover:underline mt-0.5">Reabrir</button>`
+      : `<button type="button" data-divtratar="${esc(x.k)}" class="border border-emerald-300 text-emerald-700 rounded-md px-2 py-1 text-[11px] font-bold hover:bg-emerald-50 whitespace-nowrap">✅ Tratado</button>`;
+    return `<tr class="border-t border-gray-100 align-top">
+      <td class="py-1.5 pr-3 whitespace-nowrap">${dm(x.d)}${x.hora ? ' <span class="text-gray-400">' + esc(x.hora) + '</span>' : ''}</td>
+      <td class="py-1.5 pr-3 font-mono font-bold whitespace-nowrap">${x.lk ? `<a href="${esc(x.lk)}" target="_blank" rel="noopener" class="text-blue-700 hover:underline" title="Abrir o post no Slack">${esc(x.p)} 🔗</a>` : esc(x.p)}</td>
+      <td class="py-1.5 pr-3">${esc(x.loja || x.canal || x.hub || '—')}</td>
+      <td class="py-1.5 pr-3 whitespace-nowrap">${esc(x.insp || '—')}</td>
+      <td class="py-1.5 pr-3 whitespace-nowrap">${divSinal(x.s) || '<span class="text-gray-400">sem reação</span>'}</td>
+      <td class="py-1.5 pr-3 whitespace-nowrap">${divSinal(x.pl) ? divSinal(x.pl) + (x.dPl && x.dPl !== x.d ? ' <span class="text-gray-400">' + dm(x.dPl) + '</span>' : '') : '<span class="text-gray-400">não lançado</span>'}</td>
+      <td class="py-1.5 pr-3"><b class="${DIV_TP[x.tp].cor}">${DIV_TP[x.tp].nome}</b><div class="text-[11px] text-gray-600">${esc(divFazer(x))}</div>${x.mot ? `<div class="text-[11px] text-gray-500 mt-0.5">Motivo: ${esc(x.mot).slice(0, 140)}</div>` : ''}</td>
+      <td class="py-1.5">${acao}</td></tr>`;
+  }).join('');
+
+  box.innerHTML = `<div class="space-y-4">
+    <div class="flex flex-wrap items-center gap-3"><h2 class="text-xl font-extrabold text-gray-900">⚠️ Divergências</h2>
+      <button type="button" id="divAtualizar" class="border border-gray-300 rounded-md px-2.5 py-1.5 text-xs font-bold hover:bg-gray-50">Atualizar</button>
+      <span id="divInfo" class="text-xs text-gray-500"></span></div>
+    <p class="text-[11px] text-gray-500">Compara as reações no post do Kavaki (🔴 rejeitado · ❌ reprovado, lidas pela Fila ao vivo) com as planilhas.
+      Planilha de rejeitados até <b>${dm(d.rejAte)}</b> · reprovados até <b>${dm(d.repAte)}</b>. Aceita até ${d.folga} dias de diferença.
+      Só entram carros dos canais da Fila (hubs sem canal não dá para comparar). Reação colocada depois das 19h aparece no dia seguinte.</p>
+    ${errosTxt ? `<div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-3 text-xs">Não consegui ler: ${errosTxt}. Esse lado ficou de fora.</div>` : ''}
+    <div class="grid gap-3" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr))">
+      ${card('Só no Slack', n('so_slack'), 'falta lançar na planilha', 'text-rose-600', 'data-divtp="so_slack"')}
+      ${card('Só na planilha', n('so_planilha'), 'falta a reação no Slack', 'text-amber-600', 'data-divtp="so_planilha"')}
+      ${card('Trocado', n('trocado'), 'rejeitado × reprovado', 'text-violet-600', 'data-divtp="trocado"')}
+      ${card('Tratadas', tratadas.length, 'no período', 'text-emerald-600', 'data-divver2="tratadas"')}
+      ${card('Aguardando planilha', d.itens.filter(x => x.tp === 'aguardando').length, 'ainda não é divergência', 'text-gray-500', 'data-divver2="aguardando"')}
+    </div>
+    <div class="flex flex-wrap items-center gap-2">
+      <div class="inline-flex rounded-md border border-gray-300 overflow-hidden">${btn('abertas', 'Abertas (' + abertas.length + ')')}${btn('tratadas', 'Tratadas (' + tratadas.length + ')')}${btn('aguardando', 'Aguardando')}</div>
+      <select id="divSinal" class="border border-gray-300 rounded-md px-2 py-1.5 text-xs bg-white">
+        <option value="">🔴 e ❌</option><option value="REJ" ${DIV.sinal === 'REJ' ? 'selected' : ''}>Só 🔴 rejeitados</option><option value="REP" ${DIV.sinal === 'REP' ? 'selected' : ''}>Só ❌ reprovados</option></select>
+      ${DIV.tp ? `<button type="button" id="divLimparTp" class="text-xs font-bold text-gray-600 border border-gray-300 rounded-md px-2 py-1.5 hover:bg-gray-50">${esc(DIV_TP[DIV.tp].nome)} ✕</button>` : ''}
+    </div>
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-3"><h3 class="text-xs font-bold text-gray-700 mb-2 pr-14">Lista para tratar (${lista.length})</h3>
+      ${lista.length ? `<div class="overflow-x-auto"><table class="w-full text-xs"><thead><tr class="text-gray-500 text-left">
+        <th class="font-semibold pb-1 pr-3">Dia</th><th class="font-semibold pb-1 pr-3">Placa</th><th class="font-semibold pb-1 pr-3">Loja</th><th class="font-semibold pb-1 pr-3">Inspetor</th>
+        <th class="font-semibold pb-1 pr-3">Slack</th><th class="font-semibold pb-1 pr-3">Planilha</th><th class="font-semibold pb-1 pr-3">O que fazer</th><th class="font-semibold pb-1"></th></tr></thead>
+        <tbody>${linhas}</tbody></table></div>` : `<p class="text-xs text-gray-500">${DIV.ver === 'abertas' ? 'Nenhuma divergência aberta. 🎉' : 'Nenhuma.'}</p>`}
+    </div></div>`;
+
+  box.querySelectorAll('[data-divver]').forEach(b => { b.onclick = () => { DIV.ver = b.dataset.divver; renderDivergencias(); }; });
+  box.querySelectorAll('[data-divver2]').forEach(b => { b.onclick = () => { DIV.ver = b.dataset.divver2; DIV.tp = ''; renderDivergencias(); }; });
+  box.querySelectorAll('[data-divtp]').forEach(b => { b.onclick = () => { DIV.ver = 'abertas'; DIV.tp = DIV.tp === b.dataset.divtp ? '' : b.dataset.divtp; renderDivergencias(); }; });
+  $('divSinal').onchange = e => { DIV.sinal = e.target.value; renderDivergencias(); };
+  if ($('divLimparTp')) $('divLimparTp').onclick = () => { DIV.tp = ''; renderDivergencias(); };
+  $('divAtualizar').onclick = () => carregarDivergencias();
+  box.querySelectorAll('[data-divtratar]').forEach(b => { b.onclick = () => divTratar(b.dataset.divtratar, b); });
+  box.querySelectorAll('[data-divreabrir]').forEach(b => { b.onclick = () => divReabrir(b.dataset.divreabrir, b); });
+}
+
+async function divTratar(chave, botao) {
+  const x = DIV.dados && DIV.dados.itens.find(i => i.k === chave); if (!x) return;
+  const obs = prompt(`${x.p} · ${DIV_TP[x.tp].nome}\nO que foi feito? (opcional)`, '');
+  if (obs === null) return;
+  botao.disabled = true; botao.textContent = 'Salvando…';
+  let r;
+  try { r = await api('divTratar', { chave, placa: x.p, obs: obs.slice(0, 300) }); } catch (e) { if (e && e.sessaoExpirada) return; r = { erro: 'rede' }; }
+  if (!r || r.erro) { botao.disabled = false; botao.textContent = '✅ Tratado'; const i = $('divInfo'); if (i) i.textContent = 'Não salvou (' + ((r && r.erro) || 'erro') + '). Tente de novo.'; return; }
+  const agora = new Date();
+  x.tr = { por: (SESSAO && (SESSAO.nome || SESSAO.usuario)) || 'você', em: agora.toLocaleDateString('pt-BR').slice(0, 5) + ' ' + agora.toTimeString().slice(0, 5), obs: obs.trim() };
+  renderDivergencias();
+}
+async function divReabrir(chave, botao) {
+  const x = DIV.dados && DIV.dados.itens.find(i => i.k === chave); if (!x) return;
+  botao.disabled = true;
+  let r;
+  try { r = await api('divReabrir', { chave }); } catch (e) { if (e && e.sessaoExpirada) return; r = { erro: 'rede' }; }
+  if (!r || r.erro) { botao.disabled = false; const i = $('divInfo'); if (i) i.textContent = 'Não reabriu (' + ((r && r.erro) || 'erro') + ').'; return; }
+  delete x.tr;
+  renderDivergencias();
 }
 
 // ---------- 💡 Coincidências ----------
@@ -3453,6 +3650,8 @@ const VST = {
     { id: 'semi', titulo: 'Chegaram sem inspeção', c: 12 },
     { id: 'cpl', titulo: 'Consultar placas', c: 12, sup: true },
     { id: 'rej', titulo: 'Rejeições', c: 12, min: 6, sup: true },
+    { id: 'rep', titulo: 'Reprovações', c: 12, min: 6, sup: true },
+    { id: 'div', titulo: 'Divergências (Slack × planilha)', c: 12, min: 6, sup: true },
     { id: 'coin', titulo: 'Coincidências', c: 12, min: 6, sup: true }
   ],
   SPANS: [3, 4, 6, 8, 12]
