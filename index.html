@@ -1360,6 +1360,7 @@ async function carregarInspecoes() {
 function renderInspecoes(d, fonte) {
   INSP.d = d;
   INSP.charts.forEach(c => c.destroy()); INSP.charts = [];
+  if (INSP.chDias) { try { INSP.chDias.destroy(); } catch (e) {} INSP.chDias = null; }
   const soma = (a, f) => a.reduce((s, x) => s + (f ? f(x) : x.total), 0);
   const total = soma(d.canais);
   const grupo = g => soma(d.canais.filter(c => c.grupo === g));
@@ -1373,21 +1374,8 @@ function renderInspecoes(d, fonte) {
   f.classList.add(...(fonte === 'servidor' ? ['bg-green-100', 'text-green-800'] : ['bg-amber-100', 'text-amber-800']));
   f.textContent = fonte === 'servidor' ? 'Dados da planilha' : 'Dados de exemplo';
 
-  const diaSem = r => { const m = /\(([^)]+)\)/.exec(r); return m ? m[1].trim() : ''; };   // "24/10 (Sáb)" → "Sáb"
-  const maxD = Math.max(0, ...d.dias.map(x => x.total));
-  const picoDia = maxD > 0 ? d.dias.find(x => x.total === maxD) : null;
-  const iniDados = d.dias.findIndex(x => x.total > 0);
-  let mediaSemana = '';
-  if (iniDados >= 0 && d.dias.length > 7) {
-    const ordem = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'], ac = {};
-    // média só nos dias que tiveram inspeção (dia sem nenhum carro não puxa a média para baixo)
-    d.dias.slice(iniDados).forEach(x => { if (!x.total) return; const s = diaSem(x.rotulo); (ac[s] = ac[s] || { t: 0, n: 0 }); ac[s].t += x.total; ac[s].n++; });
-    const med = ordem.map(s => ({ s, m: ac[s] && ac[s].n ? ac[s].t / ac[s].n : null, n: ac[s] ? ac[s].n : 0 }));
-    const mm = Math.max(0, ...med.map(x => x.m || 0));
-    mediaSemana = `<p class="text-[11px] font-bold text-gray-400 uppercase tracking-wider mt-4 mb-1">Média de carros por dia da semana</p>
-      <p class="text-[11px] text-gray-400 mb-2">Só conta os dias que tiveram inspeção. "—" = nenhum dia com inspeção no período.</p>
-      <div class="grid grid-cols-7 gap-1.5">${med.map(x => `<div title="${x.n} dia(s) com inspeção" class="rounded-md text-center py-1.5 ${x.m !== null && x.m === mm && mm > 0 ? 'bg-kavak-blue text-white' : 'bg-gray-100 text-gray-700'}"><div class="text-[10px] font-bold opacity-80">${x.s}</div><div class="text-sm font-extrabold">${x.m === null ? '—' : Math.round(x.m)}</div></div>`).join('')}</div>`;
-  }
+  if (INSP.hub && !d.canais.some(c => c.nome === INSP.hub)) INSP.hub = '';   // loja escolhida não existe no novo período
+  // (18/11) pico e média por dia da semana foram para inspCardDias (mudam quando clica numa loja)
   const kpi = (t, n, p) => `<div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200">\n    <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">${esc(t)}</p>\n    <div class="flex items-baseline justify-between mt-2"><span class="text-3xl font-extrabold text-gray-900">${n}</span><span class="text-xs font-bold text-kavak-blue bg-blue-50 rounded px-2 py-1">${p}</span></div>
     <div class="w-full bg-gray-100 h-1.5 rounded-full mt-3 overflow-hidden"><div class="bg-kavak-blue h-1.5 rounded-full" style="width:${total ? n / total * 100 : 0}%"></div></div></div>`;
   const card = (t, sub, id, h) => `<div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
@@ -1406,13 +1394,7 @@ function renderInspecoes(d, fonte) {
     </div>
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
       ${card('Carros por loja / canal', 'Carros inspecionados por canal de atendimento', 'chInspCanais', 340)}
-      <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
-        <h3 class="text-base font-bold text-gray-900">Carros por dia</h3>
-        <p class="text-xs text-gray-500 mb-1">${picoDia ? `Dia com mais carros: <b>${esc(picoDia.rotulo)}</b> · ${picoDia.total} carros` : 'Carros inspecionados ao longo do período'}</p>
-        <p class="text-[11px] text-gray-400 mb-3"><span class="inline-block w-2.5 h-2.5 rounded-sm align-middle" style="background:#0036cc"></span> pico · <span class="inline-block w-2.5 h-2.5 rounded-sm align-middle" style="background:#F59E0B"></span> domingo · <span class="inline-block w-2.5 h-2.5 rounded-sm align-middle" style="background:#6b93ff"></span> demais dias</p>
-        <div class="relative w-full" style="height:300px"><canvas id="chInspDias"></canvas></div>
-        ${mediaSemana}
-      </div>
+      <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200"><div id="inspDiasBox"></div></div>
     </div>
     ${card('Inspetores', `${top.length} inspetor${top.length === 1 ? '' : 'es'} · total de <b>${totTop}</b> inspeções no período. Clique na barra para ver as placas.`, 'chInspTop', Math.max(400, top.length * 30 + 60))}
   </div>`;
@@ -1427,12 +1409,16 @@ function renderInspecoes(d, fonte) {
       plugins: { legend: { display: false }, tooltip: { ...tooltip, callbacks: { label: c => `${c.parsed[horizontal ? 'x' : 'y']} carros` } } },
       scales: { [horizontal ? 'x' : 'y']: { grid: { color: '#F1F5F9' }, beginAtZero: true }, [horizontal ? 'y' : 'x']: { grid: { display: false }, ticks: { color: '#334155' } } } }
   }));
-  const maxDia = Math.max(...d.dias.map(x => x.total));
-  mk('chInspCanais', true, d.canais.map(x => x.nome), d.canais.map(x => x.total), '#0047FF', 16);
-  mk('chInspDias', false, d.dias.map(x => d.dias.length <= 31 ? [x.rotulo.slice(0, 2), diaSem(x.rotulo)] : x.rotulo.slice(0, 5)), d.dias.map(x => x.total),
-     d.dias.map(x => x.total === maxDia && maxDia > 0 ? '#0036cc' : diaSem(x.rotulo) === 'Dom' ? '#F59E0B' : '#6b93ff'), d.dias.length > 14 ? undefined : 30);
-  { const g = INSP.charts[INSP.charts.length - 1]; g.options.scales.x.ticks = { color: '#334155', autoSkip: true, autoSkipPadding: 2, maxRotation: 0, font: { size: d.dias.length > 20 ? 10 : 11 } };
-    g.options.plugins.tooltip.callbacks.title = it => d.dias[it[0].dataIndex].rotulo; g.update(); }
+  mk('chInspCanais', true, d.canais.map(x => x.nome), d.canais.map(x => x.total), d.canais.map(x => !INSP.hub || x.nome === INSP.hub ? '#0047FF' : '#0047FF40'), 16);
+  // (18/11) clique na loja (barra ou nome) -> "Carros por dia" mostra só essa loja; clique de novo -> volta para todas
+  { const gC = INSP.charts[INSP.charts.length - 1], cvC = gC.canvas;
+    const linhaC = e => { const pos = Chart.helpers.getRelativePosition(e, gC), a = gC.chartArea;
+      if (pos.y < a.top || pos.y > a.bottom) return -1;
+      const i = Math.floor((pos.y - a.top) / ((a.bottom - a.top) / d.canais.length)); return d.canais[i] ? i : -1; };
+    cvC.onclick = e => { const i = linhaC(e); if (i < 0) return; inspEscolherHub(INSP.hub === d.canais[i].nome ? '' : d.canais[i].nome); };
+    cvC.onmousemove = e => { cvC.style.cursor = linhaC(e) >= 0 ? 'pointer' : 'default'; };
+    gC.options.plugins.tooltip.callbacks.footer = () => 'Clique para ver o dia a dia dessa loja'; gC.update(); }
+  inspCardDias(d);
   mk('chInspTop', true, top.map(x => x.nome), top.map(x => x.total), top.map((x, i) => i === 0 ? '#002a99' : '#0047FF'), 20);
 
   // Clique na linha do inspetor (barra ou nome) -> abre as placas que ele fez no período
@@ -1445,6 +1431,60 @@ function renderInspecoes(d, fonte) {
   };
   cvTop.onclick = e => { const i = linhaDe(e); if (i >= 0) abrirPlacasInspetor(top[i], d.periodo); };
   cvTop.onmousemove = e => { cvTop.style.cursor = linhaDe(e) >= 0 ? 'pointer' : 'default'; };
+}
+
+// "Carros por dia": todas as lojas ou só a loja clicada (INSP.hub). O servidor manda dias[].c = { canal: carros }.
+function inspCardDias(d) {
+  const box = $('inspDiasBox'); if (!box) return;
+  if (INSP.chDias) { try { INSP.chDias.destroy(); } catch (e) {} INSP.chDias = null; }
+  const hub = INSP.hub || '';
+  const temPorLoja = d.dias.some(x => x.c && typeof x.c === 'object');
+  const serie = d.dias.map(x => ({ rotulo: x.rotulo, total: !hub ? x.total : (x.c && x.c[hub]) || 0 }));
+  const diaSem = r => { const m = /\(([^)]+)\)/.exec(r); return m ? m[1].trim() : ''; };   // "24/10 (Sáb)" → "Sáb"
+  const maxD = Math.max(0, ...serie.map(x => x.total));
+  const picoDia = maxD > 0 ? serie.find(x => x.total === maxD) : null;
+  const totHub = serie.reduce((t, x) => t + x.total, 0);
+  const iniDados = serie.findIndex(x => x.total > 0);
+  let mediaSemana = '';
+  if (iniDados >= 0 && serie.length > 7) {
+    const ordem = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'], ac = {};
+    // média só nos dias que tiveram inspeção (dia sem nenhum carro não puxa a média para baixo)
+    serie.slice(iniDados).forEach(x => { if (!x.total) return; const s = diaSem(x.rotulo); (ac[s] = ac[s] || { t: 0, n: 0 }); ac[s].t += x.total; ac[s].n++; });
+    const med = ordem.map(s => ({ s, m: ac[s] && ac[s].n ? ac[s].t / ac[s].n : null, n: ac[s] ? ac[s].n : 0 }));
+    const mm = Math.max(0, ...med.map(x => x.m || 0));
+    mediaSemana = `<p class="text-[11px] font-bold text-gray-400 uppercase tracking-wider mt-4 mb-1">Média de carros por dia da semana${hub ? ' · ' + esc(hub) : ''}</p>
+      <p class="text-[11px] text-gray-400 mb-2">Só conta os dias que tiveram inspeção. "—" = nenhum dia com inspeção no período.</p>
+      <div class="grid grid-cols-7 gap-1.5">${med.map(x => `<div title="${x.n} dia(s) com inspeção" class="rounded-md text-center py-1.5 ${x.m !== null && x.m === mm && mm > 0 ? 'bg-kavak-blue text-white' : 'bg-gray-100 text-gray-700'}"><div class="text-[10px] font-bold opacity-80">${x.s}</div><div class="text-sm font-extrabold">${x.m === null ? '—' : Math.round(x.m)}</div></div>`).join('')}</div>`;
+  }
+  const semDados = hub && !temPorLoja;
+  box.innerHTML = `<div class="flex flex-wrap items-center gap-2 pr-14"><h3 class="text-base font-bold text-gray-900">Carros por dia</h3>
+      ${hub ? `<span class="text-xs font-bold text-white bg-kavak-blue rounded px-2 py-0.5">${esc(hub)}</span>
+      <button type="button" id="inspDiasTodas" class="text-xs font-bold text-gray-600 border border-gray-300 rounded-md px-2 py-0.5 hover:bg-gray-50">✕ todas as lojas</button>` : ''}</div>
+    <p class="text-xs text-gray-500 mb-1">${semDados ? '<b class="text-amber-700">Para ver por loja, publique a função dadosInspecoes nova no Apps Script.</b>'
+      : (picoDia ? `${hub ? `<b>${totHub}</b> carros no período · ` : ''}Dia com mais carros: <b>${esc(picoDia.rotulo)}</b> · ${picoDia.total} carros` : (hub ? 'Nenhum carro dessa loja no período' : 'Carros inspecionados ao longo do período'))}</p>
+    <p class="text-[11px] text-gray-400 mb-3"><span class="inline-block w-2.5 h-2.5 rounded-sm align-middle" style="background:#0036cc"></span> pico · <span class="inline-block w-2.5 h-2.5 rounded-sm align-middle" style="background:#F59E0B"></span> domingo · <span class="inline-block w-2.5 h-2.5 rounded-sm align-middle" style="background:#6b93ff"></span> demais dias${hub ? '' : ' · <span class="text-gray-500">clique numa loja ao lado para ver só ela</span>'}</p>
+    <div class="relative w-full" style="height:300px"><canvas id="chInspDias"></canvas></div>
+    ${semDados ? '' : mediaSemana}`;
+  if ($('inspDiasTodas')) $('inspDiasTodas').onclick = () => inspEscolherHub('');
+  INSP.chDias = new Chart($('chInspDias'), {
+    type: 'bar',
+    data: { labels: serie.map(x => serie.length <= 31 ? [x.rotulo.slice(0, 2), diaSem(x.rotulo)] : x.rotulo.slice(0, 5)),
+      datasets: [{ data: semDados ? serie.map(() => 0) : serie.map(x => x.total),
+        backgroundColor: serie.map(x => x.total === maxD && maxD > 0 ? '#0036cc' : diaSem(x.rotulo) === 'Dom' ? '#F59E0B' : '#6b93ff'),
+        borderRadius: 5, borderSkipped: false, barThickness: serie.length > 14 ? undefined : 30, maxBarThickness: 30 }] },
+    options: { responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { backgroundColor: '#111827', padding: 10, cornerRadius: 6, displayColors: false,
+        callbacks: { title: it => serie[it[0].dataIndex].rotulo + (hub ? ' · ' + hub : ''), label: c => `${c.parsed.y} carros` } } },
+      scales: { y: { grid: { color: '#F1F5F9' }, beginAtZero: true, ticks: { precision: 0 } },
+                x: { grid: { display: false }, ticks: { color: '#334155', autoSkip: true, autoSkipPadding: 2, maxRotation: 0, font: { size: serie.length > 20 ? 10 : 11 } } } } }
+  });
+}
+function inspEscolherHub(nome) {
+  INSP.hub = nome || '';
+  const d = INSP.d; if (!d) return;
+  const gC = INSP.charts.find(c => c.canvas && c.canvas.id === 'chInspCanais');
+  if (gC) { gC.data.datasets[0].backgroundColor = d.canais.map(x => !INSP.hub || x.nome === INSP.hub ? '#0047FF' : '#0047FF40'); gC.update(); }
+  inspCardDias(d);
 }
 
 function abrirPlacasInspetor(x, periodo) {
