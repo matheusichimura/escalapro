@@ -3257,71 +3257,184 @@ async function divReabrir(chave, botao) {
 }
 
 // ---------- 🔌 Scanners ----------
-// Fonte: api('scanners') (Scanners.gs): abas SCANNERS_RESUMO e SCANNERS_MODELOS da base (IMPORTRANGE da planilha de scanners).
-const SCAN = { seq: 0, dados: null, todosModelos: false };
+// Fonte: api('scanners') (Scanners.gs): abas SCANNERS_RESUMO / SCANNERS_MODELOS / SCANNERS_TESTES da base (IMPORTRANGE da planilha de scanners).
+// (18/11) Visão por CARRO (os scanners são todos iguais): gráfico por montadora -> clique = modelos -> clique = anos e placas.
+const SCAN = { seq: 0, dados: null, f: { ma: '', mo: '', a: '' }, met: 'km', charts: [], todos: false };
+const SCAN_MET = {
+  km:  { nome: 'Leu a quilometragem', curto: 'leu a quilometragem',
+         cats: [['Leu certo', '#10b981'], ['Leu diferente do painel', '#f59e0b'], ['Não leu', '#ef4444'], ['Não conectou', '#94a3b8']],
+         cat: x => x.con !== 'Sim' ? 3 : x.km === 'Sim' ? 0 : /diferente/i.test(x.km) ? 1 : 2 },
+  con: { nome: 'Conectou no carro', curto: 'conectou no carro',
+         cats: [['Conectou', '#10b981'], ['Não conectou', '#ef4444']],
+         cat: x => x.con === 'Sim' ? 0 : 1 },
+  dtc: { nome: 'Leu os códigos de falha', curto: 'leu os códigos de falha',
+         cats: [['Leu', '#10b981'], ['Não leu', '#ef4444'], ['Não conectou', '#94a3b8']],
+         cat: x => x.con !== 'Sim' ? 2 : /^leu/i.test(x.dtc) ? 0 : 1 }
+};
 async function carregarScanners() {
   const box = $('scanConteudo'); if (!box) return;
   if (MODO_LOCAL) { box.innerHTML = ''; return; }
   const seq = ++SCAN.seq;
-  box.innerHTML = '<h2 class="text-xl font-extrabold text-gray-900">🔌 Scanners</h2><p class="text-xs text-gray-500 mt-2">Carregando o placar dos scanners…</p>';
+  box.innerHTML = '<h2 class="text-xl font-extrabold text-gray-900">🔌 Scanners</h2><p class="text-xs text-gray-500 mt-2">Carregando os testes dos scanners…</p>';
   let r;
   try { r = await api('scanners', {}); } catch (e) { if (e && e.sessaoExpirada) return; r = { erro: 'rede' }; }
   if (seq !== SCAN.seq) return;
   if (!r || r.erro || !Array.isArray(r.scanners)) {
     const m = {
       acao_desconhecida: 'O Apps Script ainda não tem a ação <b>scanners</b>: cole o Scanners.gs, troque a rotear_ e publique uma nova versão.',
-      scan_aba: 'Falta a aba <b>SCANNERS_RESUMO</b> na planilha base: crie a aba e cole <code>=IMPORTRANGE("ID da planilha de scanners";"Resumo!A:N")</code> (e a <b>SCANNERS_MODELOS</b> com <code>"Modelos!A:G"</code>).',
-      scan_acesso: 'O IMPORTRANGE da planilha de scanners ainda não tem acesso: abra a aba SCANNERS_RESUMO e clique em <b>Permitir acesso</b>.',
+      scan_aba: 'Falta a aba <b>SCANNERS_RESUMO</b> na planilha base: crie a aba e cole <code>=IMPORTRANGE("ID da planilha de scanners";"Resumo!A:N")</code>.',
+      scan_acesso: 'O IMPORTRANGE da planilha de scanners ainda não tem acesso: abra a aba na base e clique em <b>Permitir acesso</b>.',
       scan_vazio: 'A aba SCANNERS_RESUMO está vazia (o IMPORTRANGE ainda não trouxe nada).'
     };
     box.innerHTML = `<h2 class="text-xl font-extrabold text-gray-900">🔌 Scanners</h2><div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-4 text-xs mt-3">Não foi possível carregar os scanners. ${m[r && r.erro] || 'Tente atualizar em instantes. <span class="text-amber-600">(' + esc(String((r && r.erro) || 'erro')) + ')</span>'}</div>`;
     return;
   }
+  r.testes = (r.testes || []).map(x => ({ ...x, insp: inspNomePadrao(x.insp) || x.insp }));
   SCAN.dados = r;
+  try { await carregarChartJs(); } catch (e) {}
   renderScanners();
+}
+const scanMin = s => s ? Math.floor(s / 60) + ' min' + (s % 60 ? ' ' + String(s % 60).padStart(2, '0') + ' s' : '') : '—';
+const scanPct = (a, b) => b ? Math.round(a / b * 100) + '%' : '—';
+function scanLista() {
+  const f = SCAN.f;
+  return (SCAN.dados.testes || []).filter(x => (!f.ma || x.ma === f.ma) && (!f.mo || x.mo === f.mo) && (!f.a || x.a === f.a));
 }
 function renderScanners() {
   const d = SCAN.dados, box = $('scanConteudo'); if (!d || !box) return;
-  const ordemV = v => /trocar/i.test(v) ? 0 : /aten/i.test(v) ? 1 : /ok/i.test(v) ? 2 : 3;
-  const lista = d.scanners.slice().sort((a, b) => ordemV(a.veredito) - ordemV(b.veredito) || (a.nota ?? 999) - (b.nota ?? 999));
-  const corV = v => /trocar/i.test(v) ? 'bg-rose-100 text-rose-800 border-rose-200' : /aten/i.test(v) ? 'bg-amber-100 text-amber-800 border-amber-200' : /ok/i.test(v) ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : 'bg-gray-100 text-gray-600 border-gray-200';
-  const barra = (rot, v) => `<div class="mt-1.5"><div class="flex justify-between text-[11px]"><span class="text-gray-600">${rot}</span><b class="tabular-nums">${v === null || v === undefined ? '—' : v + '%'}</b></div>
-      <div class="h-1.5 bg-gray-100 rounded mt-0.5"><div class="h-1.5 rounded ${v >= 90 ? 'bg-emerald-500' : v >= 70 ? 'bg-amber-400' : 'bg-rose-500'}" style="width:${v || 0}%"></div></div></div>`;
-  const cont = { t: 0, a: 0, o: 0 }; lista.forEach(s => { const o = ordemV(s.veredito); if (o === 0) cont.t++; else if (o === 1) cont.a++; else if (o === 2) cont.o++; });
-  const cards = lista.map(s => `<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-      <div class="flex items-start justify-between gap-2 pr-14"><div><h3 class="text-sm font-extrabold text-gray-900">${esc(s.id)}</h3>
-        <p class="text-[11px] text-gray-500">${esc(s.aparelho)}${s.loja ? ' · ' + esc(s.loja) : ''}</p></div></div>
-      <div class="flex items-center gap-2 mt-2"><span class="text-3xl font-extrabold text-gray-900 tabular-nums">${s.nota === null || isNaN(s.nota) ? '—' : s.nota}</span>
-        <span class="text-xs font-bold border rounded px-2 py-0.5 ${corV(s.veredito)}">${esc(s.veredito || 'Sem testes')}</span></div>
-      <p class="text-[11px] text-gray-500 mt-0.5">${s.testes} teste${s.testes === 1 ? '' : 's'}${s.tempo ? ' · tempo médio ' + esc(s.tempo) : ''}</p>
-      ${barra('Conectou', s.con)}${barra('Leu KM', s.km)}${barra('Leu DTC', s.dtc)}
-      <p class="text-[11px] mt-2 ${/^n[aã]o/i.test(s.atualizado) ? 'text-rose-700 font-bold' : 'text-gray-500'}">Atualizado: ${esc(s.atualizado || '—')}${s.ultAtual ? ' · última ' + esc(s.ultAtual) : ''}</p>
-      ${s.naoLe ? `<p class="text-[11px] text-gray-600 mt-1"><b>Falhou em:</b> ${esc(s.naoLe)}</p>` : ''}
-    </div>`).join('');
-  const ruins = d.modelos.filter(m => [m.con, m.km, m.dtc].some(v => v !== null && v < 100));
-  const mods = SCAN.todosModelos ? d.modelos : ruins.slice(0, 15);
-  const pc = v => v === null || v === undefined ? '—' : `<span class="${v < 70 ? 'text-rose-700 font-bold' : v < 90 ? 'text-amber-700 font-bold' : ''}">${v}%</span>`;
+  SCAN.charts.forEach(c => { try { c.destroy(); } catch (e) {} }); SCAN.charts = [];
+  const M = SCAN_MET[SCAN.met], f = SCAN.f, L = scanLista();
+  const ok = arr => arr.filter(x => M.cat(x) === 0).length;
+  // nível: sem montadora -> por montadora; com montadora -> por modelo; com modelo -> por ano
+  const nivel = !f.ma ? 'ma' : !f.mo ? 'mo' : 'a';
+  const nomeNivel = { ma: 'montadora', mo: 'modelo', a: 'ano do carro' }[nivel];
+  const grupos = {};
+  L.forEach(x => { const k = (nivel === 'a' ? x.a : x[nivel]) || 'Sem ' + (nivel === 'a' ? 'ano' : nivel === 'ma' ? 'marca' : 'modelo'); (grupos[k] = grupos[k] || []).push(x); });
+  const ordem = Object.keys(grupos).sort((a, b) => nivel === 'a' ? (b > a ? 1 : -1) : grupos[b].length - grupos[a].length || a.localeCompare(b));
+  // frase de 1 olhada
+  const nOk = ok(L);
+  const piores = ordem.filter(k => grupos[k].length >= 2).map(k => ({ k, n: grupos[k].length, ruim: grupos[k].length - ok(grupos[k]) }))
+    .filter(x => x.ruim > 0).sort((a, b) => b.ruim / b.n - a.ruim / a.n || b.n - a.n);
+  const onde = [f.ma, f.mo, f.a].filter(Boolean).join(' ');
+  const frase = L.length
+    ? `${onde ? 'No <b>' + esc(onde) + '</b>, o' : 'O'} scanner <b>${M.curto}</b> em <b>${nOk} de ${L.length}</b> testes (<b>${scanPct(nOk, L.length)}</b>).` +
+      (piores.length && nivel !== 'a' ? ` Onde mais falha: <b>${esc(piores[0].k)}</b> (${piores[0].ruim} de ${piores[0].n} sem ${SCAN.met === 'con' ? 'conectar' : 'ler'}).` : '')
+    : 'Nenhum teste com esse filtro.';
+  const caminho = [['Todas as montadoras', {}], f.ma && [f.ma, { ma: f.ma }], f.mo && [f.mo, { ma: f.ma, mo: f.mo }], f.a && [f.a, { ma: f.ma, mo: f.mo, a: f.a }]].filter(Boolean);
+  const chip = (txt, attrs, ativo) => `<button type="button" ${attrs} class="px-3 py-1.5 text-xs font-bold ${ativo ? 'bg-gray-800 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}">${txt}</button>`;
+  const kpi = (rot, val, sub) => `<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-3"><h3 class="text-[11px] font-bold uppercase tracking-wider text-gray-500 pr-14">${rot}</h3>
+      <div class="text-2xl font-extrabold text-gray-900 mt-1">${val}</div><div class="text-[11px] text-gray-500">${sub}</div></div>`;
+  const nCon = L.filter(x => x.con === 'Sim').length, nKm = L.filter(x => x.km === 'Sim').length, nDtc = L.filter(x => /^leu/i.test(x.dtc)).length;
+  const comTempo = L.filter(x => x.seg > 0), tMed = comTempo.length ? Math.round(comTempo.reduce((t, x) => t + x.seg, 0) / comTempo.length) : 0;
+  const ic = (x, campo) => {
+    if (campo === 'con') return x.con === 'Sim' ? '✅' : '❌';
+    if (x.con !== 'Sim') return '<span class="text-gray-400">—</span>';
+    if (campo === 'km') return x.km === 'Sim' ? '✅' : /diferente/i.test(x.km) ? '⚠️ diferente' : '❌';
+    return /com c/i.test(x.dtc) ? '✅ com códigos' : /sem c/i.test(x.dtc) ? '✅ sem códigos' : '❌';
+  };
+  const lista = SCAN.todos || nivel !== 'ma' ? L : L.slice(0, 10);
+  const linhas = lista.map(x => `<tr class="border-t border-gray-100 align-top">
+      <td class="py-1.5 pr-3 whitespace-nowrap">${esc(fmtData(x.d).slice(0, 5))}</td>
+      <td class="py-1.5 pr-3 font-mono font-bold whitespace-nowrap">${x.lk ? `<a href="${esc(x.lk)}" target="_blank" rel="noopener" class="text-blue-700 hover:underline" title="Abrir o post do Kavaki no Slack">${esc(x.p)} 🔗</a>` : esc(x.p)}</td>
+      <td class="py-1.5 pr-3">${esc(x.ma + ' ' + x.mo)}</td><td class="py-1.5 pr-3 tabular-nums">${esc(x.a || '—')}</td>
+      <td class="py-1.5 pr-3 whitespace-nowrap">${esc(x.loja || '—')}</td><td class="py-1.5 pr-3 whitespace-nowrap">${esc(x.insp || '—')}</td>
+      <td class="py-1.5 pr-3 whitespace-nowrap">${ic(x, 'con')}</td><td class="py-1.5 pr-3 whitespace-nowrap">${ic(x, 'km')}</td><td class="py-1.5 pr-3 whitespace-nowrap">${ic(x, 'dtc')}</td>
+      <td class="py-1.5 pr-3 whitespace-nowrap tabular-nums">${x.seg ? Math.floor(x.seg / 60) + ':' + String(x.seg % 60).padStart(2, '0') : '—'}</td>
+      <td class="py-1.5 text-gray-600">${esc(x.obs || '')}</td></tr>`).join('');
+  // lojas (só na visão geral)
+  const lojas = {};
+  d.scanners.forEach(s => { if (s.loja) lojas[s.loja] = { loja: s.loja, sc: s, t: [] }; });
+  (d.testes || []).forEach(x => { const k = x.loja || 'Sem loja'; (lojas[k] = lojas[k] || { loja: k, sc: null, t: [] }).t.push(x); });
+  const linhasLoja = Object.values(lojas).sort((a, b) => b.t.length - a.t.length).map(o => {
+    const t = o.t, tt = t.filter(x => x.seg > 0), med = tt.length ? Math.round(tt.reduce((s, x) => s + x.seg, 0) / tt.length) : 0;
+    const atu = o.sc ? o.sc.atualizado : '';
+    return `<tr class="border-t border-gray-100"><td class="py-1.5 pr-3 font-semibold">${esc(o.loja)}</td>
+      <td class="py-1.5 pr-3 tabular-nums">${t.length ? t.length + ' teste' + (t.length === 1 ? '' : 's') : '<span class="text-amber-700 font-bold">⚠️ ainda não testou</span>'}</td>
+      <td class="py-1.5 pr-3 tabular-nums">${t.length ? scanPct(t.filter(x => x.km === 'Sim').length, t.length) : '—'}</td>
+      <td class="py-1.5 pr-3 tabular-nums">${t.length ? scanMin(med) : '—'}</td>
+      <td class="py-1.5">${/^sim/i.test(atu) ? '✅ em dia' : /^n[aã]o/i.test(atu) ? '<span class="text-rose-700 font-bold">⚠️ desatualizado</span>' : '<span class="text-gray-400">não informado</span>'}</td></tr>`;
+  }).join('');
+
   box.innerHTML = `<div class="space-y-4">
     <div class="flex flex-wrap items-center gap-3"><h2 class="text-xl font-extrabold text-gray-900">🔌 Scanners</h2>
       <button type="button" id="scanAtualizar" class="border border-gray-300 rounded-md px-2.5 py-1.5 text-xs font-bold hover:bg-gray-50">Atualizar</button></div>
-    <p class="text-[11px] text-gray-500">Placar da planilha de avaliação (últimos 60 dias, recalculado a cada teste)${d.atualizadoEm ? ' · atualizado em <b>' + esc(d.atualizadoEm) + '</b>' : ''}.
-      Nota = conectou 40 + leu KM 25 + leu DTC 25 + tempo 10 (−10 se desatualizado) · 🟢 80+ · 🟡 60–79 · 🔴 abaixo de 60 · precisa de 3 testes.</p>
-    <div class="flex flex-wrap gap-2 text-xs font-bold">
-      <span class="rounded px-2 py-1 bg-rose-100 text-rose-800">🔴 Trocar: ${cont.t}</span><span class="rounded px-2 py-1 bg-amber-100 text-amber-800">🟡 Atenção: ${cont.a}</span>
-      <span class="rounded px-2 py-1 bg-emerald-100 text-emerald-800">🟢 OK: ${cont.o}</span><span class="rounded px-2 py-1 bg-gray-100 text-gray-600">Sem veredito: ${lista.length - cont.t - cont.a - cont.o}</span></div>
-    <div class="grid gap-3" style="grid-template-columns:repeat(auto-fit,minmax(230px,1fr))">${cards || '<p class="text-xs text-gray-500">Nenhum scanner no resumo.</p>'}</div>
-    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-3"><h3 class="text-xs font-bold text-gray-700 mb-2 pr-14">Modelos que não leem (${ruins.length} com alguma falha · piores primeiro)</h3>
-      ${d.semModelos ? '<p class="text-xs text-gray-500">Crie a aba <b>SCANNERS_MODELOS</b> (IMPORTRANGE da aba Modelos) para ver esta lista.</p>' : mods.length ? `<div class="overflow-x-auto"><table class="w-full text-xs"><thead><tr class="text-gray-500 text-left">
-        <th class="font-semibold pb-1 pr-3">Carro</th><th class="font-semibold pb-1 pr-3 text-right">Testes</th><th class="font-semibold pb-1 pr-3 text-right">Conectou</th>
-        <th class="font-semibold pb-1 pr-3 text-right">Leu KM</th><th class="font-semibold pb-1 pr-3 text-right">Leu DTC</th><th class="font-semibold pb-1">Scanners que falharam</th></tr></thead><tbody>
-        ${mods.map(m => `<tr class="border-t border-gray-100"><td class="py-1.5 pr-3 font-semibold">${esc((m.marca + ' ' + m.modelo).trim() || '—')}</td><td class="py-1.5 pr-3 text-right tabular-nums">${m.testes}</td>
-          <td class="py-1.5 pr-3 text-right tabular-nums">${pc(m.con)}</td><td class="py-1.5 pr-3 text-right tabular-nums">${pc(m.km)}</td><td class="py-1.5 pr-3 text-right tabular-nums">${pc(m.dtc)}</td>
-          <td class="py-1.5 text-gray-600">${esc(m.falharam || '—')}</td></tr>`).join('')}</tbody></table></div>
-        ${d.modelos.length > mods.length || SCAN.todosModelos ? `<button type="button" id="scanTodos" class="mt-2 text-xs font-bold text-blue-700 hover:underline">${SCAN.todosModelos ? 'Mostrar só os com falha' : 'Ver todos os ' + d.modelos.length + ' modelos'}</button>` : ''}`
-        : '<p class="text-xs text-gray-500">Nenhum modelo com falha. 🎉</p>'}
-    </div></div>`;
+    ${d.semTestes ? '<div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-3 text-xs">Para ver os carros testados, crie a aba <b>SCANNERS_TESTES</b> na planilha base com <code>=IMPORTRANGE("ID da planilha de scanners";"Testes!A:R")</code>.</div>' : ''}
+    <div class="flex flex-wrap items-center gap-2">
+      <span class="text-xs font-bold text-gray-500">Ver:</span>
+      <div class="inline-flex rounded-md border border-gray-300 overflow-hidden">${Object.keys(SCAN_MET).map(k => chip(SCAN_MET[k].nome, `data-scanmet="${k}"`, SCAN.met === k)).join('')}</div>
+    </div>
+    <div class="flex flex-wrap items-center gap-1 text-xs">${caminho.map(([t, alvo], i) => i === caminho.length - 1
+        ? `<b class="text-gray-900">${esc(t)}</b>` : `<button type="button" data-scanir='${esc(JSON.stringify(alvo))}' class="text-blue-700 hover:underline font-semibold">${esc(t)}</button><span class="text-gray-400 px-1">›</span>`).join('')}</div>
+    <p class="text-sm text-gray-800">${frase}</p>
+    <div class="grid gap-3" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
+      ${kpi('Testes', L.length, 'carros testados')}
+      ${kpi('Conectou', scanPct(nCon, L.length), nCon + ' de ' + L.length)}
+      ${kpi('Leu a quilometragem', scanPct(nKm, L.length), nKm + ' de ' + L.length)}
+      ${kpi('Leu os códigos', scanPct(nDtc, L.length), nDtc + ' de ' + L.length)}
+      ${kpi('Tempo médio', tMed ? scanMin(tMed) : '—', 'para ler o carro')}
+    </div>
+    <div class="grid gap-4" style="grid-template-columns:repeat(auto-fit,minmax(340px,1fr))">
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-3"><h3 class="text-xs font-bold text-gray-700 mb-1 pr-14">${esc(M.nome)} · por ${nomeNivel}</h3>
+        <p class="text-[11px] text-gray-500 mb-2">${nivel === 'a' ? 'Clique num ano para ver só as placas dele.' : 'Clique numa barra para abrir ' + (nivel === 'ma' ? 'os modelos dessa montadora' : 'os anos e as placas desse modelo') + '.'}</p>
+        <div class="relative w-full" style="height:${Math.max(160, ordem.length * 30 + 50)}px"><canvas id="scanCh1"></canvas></div></div>
+      ${nivel !== 'a' ? `<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-3"><h3 class="text-xs font-bold text-gray-700 mb-1 pr-14">${esc(M.nome)} · por ano do carro</h3>
+        <p class="text-[11px] text-gray-500 mb-2">Clique num ano para filtrar.</p>
+        <div class="relative w-full" style="height:${Math.max(160, new Set(L.map(x => x.a)).size * 30 + 50)}px"><canvas id="scanCh2"></canvas></div></div>` : ''}
+    </div>
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-3"><h3 class="text-xs font-bold text-gray-700 mb-2 pr-14">Placas testadas (${L.length})</h3>
+      ${L.length ? `<div class="overflow-x-auto"><table class="w-full text-xs"><thead><tr class="text-gray-500 text-left">
+        <th class="font-semibold pb-1 pr-3">Dia</th><th class="font-semibold pb-1 pr-3">Placa</th><th class="font-semibold pb-1 pr-3">Carro</th><th class="font-semibold pb-1 pr-3">Ano</th>
+        <th class="font-semibold pb-1 pr-3">Loja</th><th class="font-semibold pb-1 pr-3">Inspetor</th><th class="font-semibold pb-1 pr-3">Conectou</th>
+        <th class="font-semibold pb-1 pr-3">Quilometragem</th><th class="font-semibold pb-1 pr-3">Códigos de falha</th><th class="font-semibold pb-1 pr-3">Tempo</th><th class="font-semibold pb-1">Observação</th></tr></thead>
+        <tbody>${linhas}</tbody></table></div>
+        ${lista.length < L.length ? `<button type="button" id="scanTodos" class="mt-2 text-xs font-bold text-blue-700 hover:underline">Ver as ${L.length} placas</button>` : ''}` : '<p class="text-xs text-gray-500">Nenhum teste.</p>'}
+    </div>
+    ${nivel === 'ma' && !f.a ? `<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-3"><h3 class="text-xs font-bold text-gray-700 mb-2 pr-14">Por loja</h3>
+      <div class="overflow-x-auto"><table class="w-full text-xs"><thead><tr class="text-gray-500 text-left"><th class="font-semibold pb-1 pr-3">Loja</th><th class="font-semibold pb-1 pr-3">Testes</th>
+        <th class="font-semibold pb-1 pr-3">Leu a quilometragem</th><th class="font-semibold pb-1 pr-3">Tempo médio</th><th class="font-semibold pb-1">Software do scanner</th></tr></thead><tbody>${linhasLoja}</tbody></table></div>
+      <p class="text-[11px] text-gray-400 mt-1">Placar da planilha atualizado em ${esc(d.atualizadoEm || '—')}.</p></div>` : ''}
+  </div>`;
+
+  // gráficos (barras empilhadas: verde = deu certo)
+  const grafico = (id, rotulos, gruposArr, aoClicar) => {
+    const cv = $(id); if (!cv || typeof Chart === 'undefined') return;
+    const ch = new Chart(cv, {
+      type: 'bar',
+      data: { labels: rotulos.map((k, i) => k + ' (' + gruposArr[i].length + ')'),
+        datasets: M.cats.map(([nome, cor], ci) => ({ label: nome, backgroundColor: cor, borderRadius: 3, maxBarThickness: 22,
+          data: gruposArr.map(g => g.filter(x => M.cat(x) === ci).length) })).filter(ds => ds.data.some(v => v > 0)) },
+      options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 11 } } },
+          tooltip: { callbacks: { label: c => ` ${c.dataset.label}: ${c.parsed.x} de ${gruposArr[c.dataIndex].length}` } } },
+        scales: { x: { stacked: true, beginAtZero: true, ticks: { precision: 0 }, grid: { color: '#F1F5F9' } }, y: { stacked: true, grid: { display: false } } },
+        onClick: (e, els) => { if (els.length) aoClicar(rotulos[els[0].index]); },
+        onHover: (e, els) => { e.native.target.style.cursor = els.length ? 'pointer' : 'default'; } }
+    });
+    // clique no nome (eixo da esquerda) também abre
+    cv.addEventListener('click', e => {
+      const pos = Chart.helpers.getRelativePosition(e, ch), a = ch.chartArea;
+      if (pos.x >= a.left || pos.y < a.top || pos.y > a.bottom) return;
+      const i = Math.floor((pos.y - a.top) / ((a.bottom - a.top) / rotulos.length));
+      if (rotulos[i] !== undefined) aoClicar(rotulos[i]);
+    });
+    SCAN.charts.push(ch);
+  };
+  const semX = k => /^Sem /.test(k) ? '' : k;
+  grafico('scanCh1', ordem, ordem.map(k => grupos[k]), k => {
+    if (nivel === 'ma') SCAN.f = { ma: k, mo: '', a: '' };
+    else if (nivel === 'mo') SCAN.f = { ...f, mo: k, a: '' };
+    else SCAN.f = { ...f, a: semX(k) };
+    SCAN.todos = false; renderScanners();
+  });
+  if (nivel !== 'a') {
+    const porAno = {}; L.forEach(x => { const k = x.a || 'Sem ano'; (porAno[k] = porAno[k] || []).push(x); });
+    const anos = Object.keys(porAno).sort((a, b) => b > a ? 1 : -1);
+    grafico('scanCh2', anos, anos.map(k => porAno[k]), k => { SCAN.f = { ...f, a: f.a === semX(k) ? '' : semX(k) }; renderScanners(); });
+  }
+  box.querySelectorAll('[data-scanmet]').forEach(b => { b.onclick = () => { SCAN.met = b.dataset.scanmet; renderScanners(); }; });
+  box.querySelectorAll('[data-scanir]').forEach(b => { b.onclick = () => { const a = JSON.parse(b.dataset.scanir); SCAN.f = { ma: a.ma || '', mo: a.mo || '', a: a.a || '' }; SCAN.todos = false; renderScanners(); }; });
   $('scanAtualizar').onclick = () => carregarScanners();
-  if ($('scanTodos')) $('scanTodos').onclick = () => { SCAN.todosModelos = !SCAN.todosModelos; renderScanners(); };
+  if ($('scanTodos')) $('scanTodos').onclick = () => { SCAN.todos = true; renderScanners(); };
 }
 
 // ---------- 💡 Coincidências ----------
