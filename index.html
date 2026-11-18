@@ -3312,30 +3312,54 @@ function saudeDivAbertas(canal) {
   if (!DIV.dados) return null;
   return DIV.dados.itens.filter(x => x.tp !== 'aguardando' && !x.tr && (x.canal === canal || x.loja === canal)).length;
 }
+// grupo do canal: loja física (entra na média), Online e B2B/KUNA/outros (ficam de fora da média)
+const saudeGrupo = n => { const c = rejNorm(n); return c === 'ONLINE' ? 'online' : /^(B2B|KUNA|SEM CANAL)$/.test(c) ? 'b2b' : 'loja'; };
+// junta várias lojas num só cartão (média ponderada pelo nº de carros com dado)
+function saudeJuntar(lista, nome) {
+  const o = { loja: nome, carros: 0, rej: 0, rep: 0, espera: null, total: null, maiorEsp: null };
+  let eN = 0, eS = 0, tN = 0, tS = 0, tMeta = 0;
+  lista.forEach(x => {
+    o.carros += x.carros; o.rej += x.rej; o.rep += x.rep;
+    if (x.espera) { eN += x.espera.n; eS += x.espera.media * x.espera.n; }
+    if (x.total) { tN += x.total.n; tS += x.total.media * x.total.n; tMeta += x.total.naMeta || 0; }
+    if (x.maiorEsp && (!o.maiorEsp || x.maiorEsp.min > o.maiorEsp.min)) o.maiorEsp = x.maiorEsp;
+  });
+  if (eN) o.espera = { n: eN, media: Math.round(eS / eN), mediana: null };
+  if (tN) o.total = { n: tN, media: Math.round(tS / tN), naMeta: tMeta };
+  return o;
+}
+function saudeGrupos() {
+  const d = SAUDE.dados; if (!d) return null;
+  const por = g => d.lojas.filter(x => saudeGrupo(x.loja) === g);
+  return { fis: por('loja'), online: por('online'), b2b: por('b2b') };
+}
 function renderSaude() {
   const d = SAUDE.dados, box = $('saudeConteudo'); if (!d || !box) return;
-  const g = d.geral, mEsp = g.espera ? g.espera.media : null, mTot = g.total ? g.total.media : null;
-  const pRej = g.carros ? g.rej / g.carros : 0, pRep = g.carros ? g.rep / g.carros : 0;
+  const G = saudeGrupos(), fis = saudeJuntar(G.fis, 'Só lojas físicas (média de comparação)');
+  const g = d.geral, mEsp = fis.espera ? fis.espera.media : null;
+  const pRej = fis.carros ? fis.rej / fis.carros : 0, pRep = fis.carros ? fis.rep / fis.carros : 0;
   // comparação neutra com a média das lojas
   const cmp = (v, media, un) => {
     if (v === null || v === undefined || media === null || media === undefined) return '';
-    const dif = Math.round((v - media) * (un === '%' ? 1000 : 1)) / (un === '%' ? 10 : 1);
+    const dif = Math.round((v - media) * (un === '%' ? 10 : 1)) / (un === '%' ? 10 : 1);
     if (Math.abs(dif) < (un === '%' ? 0.5 : 1)) return '<span class="text-[11px] text-gray-400">na média</span>';
     return `<span class="text-[11px] text-gray-500">${dif > 0 ? '▲' : '▼'} ${String(Math.abs(dif)).replace('.', ',')}${un === '%' ? ' p.p.' : ' min'} ${dif > 0 ? 'acima' : 'abaixo'} da média</span>`;
   };
   const linha = (ico, rot, val, extra) => `<div class="flex items-baseline justify-between gap-2 py-1 border-t border-gray-100"><span class="text-xs text-gray-600">${ico} ${rot}</span>
       <span class="text-right"><b class="text-sm text-gray-900 tabular-nums">${val}</b>${extra ? '<br>' + extra : ''}</span></div>`;
   const nDias = Math.max(1, Math.round((Date.parse(d.periodo.fim) - Date.parse(d.periodo.inicio)) / 86400000) + 1);
-  const card = (x, eGeral) => {
+  const card = (x, modo) => {
+    const eGeral = modo === 'geral' || modo === 'ref', fora = modo === 'fora';
     const abaixo = eGeral ? null : saudeAbaixoMinimo(x.loja), div = eGeral ? null : saudeDivAbertas(x.loja);
-    return `<button type="button" ${eGeral ? '' : `data-saude="${esc(x.loja)}"`} class="text-left bg-white rounded-lg shadow-sm border ${eGeral ? 'border-gray-400' : 'border-gray-200 hover:border-gray-400'} p-4">
-      <div class="flex items-baseline justify-between gap-2 pr-14"><h3 class="text-sm font-extrabold text-gray-900">${esc(x.loja)}</h3></div>
+    const cmp2 = (...a) => fora ? '<span class="text-[11px] text-gray-400">fora da média</span>' : cmp(...a);
+    return `<button type="button" ${eGeral ? '' : `data-saude="${esc(x.loja)}"`} class="text-left bg-white rounded-lg shadow-sm border ${eGeral ? 'border-gray-400' : 'border-gray-200 hover:border-gray-400'} p-4${eGeral ? '' : ' cursor-pointer'}">
+      <div class="flex items-baseline justify-between gap-2 pr-14"><h3 class="text-sm font-extrabold text-gray-900">${esc(modo === 'geral' ? 'Total (todos os canais)' : x.loja)}</h3></div>
       <div class="flex items-baseline gap-2 mt-1"><span class="text-3xl font-extrabold text-gray-900 tabular-nums">${x.carros}</span><span class="text-xs text-gray-500">carros · ${(Math.round(x.carros / nDias * 10) / 10).toString().replace('.', ',')}/dia</span></div>
       <div class="mt-2">
-        ${linha('⏳', 'Espera pra inspeção', x.espera ? saudeMin(x.espera.media) : '—', eGeral ? (x.espera ? `<span class="text-[11px] text-gray-500">metade espera até ${saudeMin(x.espera.mediana)}</span>` : '') : cmp(x.espera && x.espera.media, mEsp, 'min'))}
+        ${linha('⏳', 'Espera pra inspeção', x.espera ? saudeMin(x.espera.media) : '—', eGeral ? (x.espera && x.espera.mediana !== null ? `<span class="text-[11px] text-gray-500">metade espera até ${saudeMin(x.espera.mediana)}</span>` : '') : cmp2(x.espera && x.espera.media, mEsp, 'min'))}
         ${linha('⏱️', 'Tempo total', x.total ? saudeMin(x.total.media) : '—', x.total ? `<span class="text-[11px] text-gray-500">${saudePct(x.total.naMeta, x.total.n)} até ${d.meta} min</span>` : '')}
-        ${linha('🔴', 'Rejeitados', x.rej + ' <span class="text-xs font-normal text-gray-500">(' + saudePct(x.rej, x.carros) + ')</span>', eGeral ? '' : cmp(x.carros ? x.rej / x.carros * 100 : null, pRej * 100, '%'))}
-        ${linha('❌', 'Reprovados', x.rep + ' <span class="text-xs font-normal text-gray-500">(' + saudePct(x.rep, x.carros) + ')</span>', eGeral ? '' : cmp(x.carros ? x.rep / x.carros * 100 : null, pRep * 100, '%'))}
+        ${linha('🔴', 'Rejeitados', x.rej + ' <span class="text-xs font-normal text-gray-500">(' + saudePct(x.rej, x.carros) + ')</span>', eGeral ? '' : cmp2(x.carros ? x.rej / x.carros * 100 : null, pRej * 100, '%'))}
+        ${linha('❌', 'Reprovados', x.rep + ' <span class="text-xs font-normal text-gray-500">(' + saudePct(x.rep, x.carros) + ')</span>', eGeral ? '' : cmp2(x.carros ? x.rep / x.carros * 100 : null, pRep * 100, '%'))}
         ${div !== null ? linha('⚠️', 'Divergências abertas', div) : ''}
         ${abaixo !== null ? linha('👥', 'Dias abaixo do mínimo', abaixo) : ''}
         ${x.maiorEsp ? `<p class="text-[11px] text-gray-500 mt-1">Maior espera: <b>${saudeMin(x.maiorEsp.min)}</b> (${esc(x.maiorEsp.placa)} · ${esc(fmtData(x.maiorEsp.dia).slice(0, 5))} ${esc(x.maiorEsp.hora)})</p>` : ''}
@@ -3346,8 +3370,12 @@ function renderSaude() {
       <button type="button" id="saudeAtualizar" class="border border-gray-300 rounded-md px-2.5 py-1.5 text-xs font-bold hover:bg-gray-50">Atualizar</button></div>
     <p class="text-[11px] text-gray-500">Período do painel. <b>Espera</b> = do post do Kavaki até o "Inspeção iniciada" · <b>Tempo total</b> = do Kavaki até "Inspeção finalizada" (meta do time: ${d.meta} min).
       Espera e tempo vão até <b>${d.esperaAte ? esc(fmtData(d.esperaAte).slice(0, 5)) : '—'}</b> (o Raio-X é refeito no dia seguinte). Rejeitados e reprovados pelas reações no Slack.
-      Sem cores por enquanto: cada loja é comparada com a média das lojas. Clique numa loja para ver dia a dia.</p>
-    <div class="grid gap-3" style="grid-template-columns:repeat(auto-fit,minmax(240px,1fr))">${card(g, true)}${d.lojas.map(x => card(x, false)).join('')}</div>
+      Sem cores por enquanto: cada loja é comparada com a média das <b>lojas físicas</b> (Online e B2B/KUNA ficam de fora da conta, mas aparecem no total). Clique numa loja para ver dia a dia.</p>
+    <div class="grid gap-3" style="grid-template-columns:repeat(auto-fit,minmax(240px,1fr))">${card(g, 'geral')}${card(fis, 'ref')}</div>
+    <h3 class="text-sm font-extrabold text-gray-700 pt-1">🏬 Lojas físicas</h3>
+    <div class="grid gap-3" style="grid-template-columns:repeat(auto-fit,minmax(240px,1fr))">${G.fis.map(x => card(x, 'loja')).join('') || '<p class="text-xs text-gray-500">Nenhuma loja física no período.</p>'}</div>
+    ${G.online.length || G.b2b.length ? `<h3 class="text-sm font-extrabold text-gray-700 pt-1">🌐 Fora da comparação</h3>
+    <div class="grid gap-3" style="grid-template-columns:repeat(auto-fit,minmax(240px,1fr))">${G.online.concat(G.b2b).map(x => card(x, 'fora')).join('')}</div>` : ''}
   </div>`;
   $('saudeAtualizar').onclick = () => carregarSaude();
   box.querySelectorAll('[data-saude]').forEach(b => { b.onclick = () => saudeModal(b.dataset.saude); });
@@ -6762,6 +6790,7 @@ async function jpPreparar() {
   $('jpAnexo').classList.toggle('hidden', !podeEditar());
   if (MODO_LOCAL) { if (!JP.carregou) { JP.carregou = true; jpBolha('jeepelson', 'Eu só funciono com o servidor ligado (modo local não tem IA). 😅'); } return; }
   if (typeof recCarregar === 'function') recCarregar();   // números de movimento/tempo para os conselhos
+  try { jpGarantirDados().catch(() => {}); } catch (e) {}   // já puxa as abas enquanto a pessoa digita
   if (!JP.carregou) { JP.carregou = true; await jpCarregarHistorico(); }
   if (!JP.saudou) { JP.saudou = true; jpSaudar(); }
   setTimeout(() => $('jpTexto').focus(), 50);
@@ -6828,7 +6857,7 @@ const JP_GRAFICOS = {
     return { tipo: 'barras', rotulos: d.canais.map(c => c.nome), series: [{ nome: 'Carros', valores: d.canais.map(c => c.total) }] }; } },
   carros_por_dia: { desc: 'carros por dia no período (todas as lojas ou uma loja: use "loja")', monta: loja => {
     const d = INSP.d; if (!d) return { erro: 'Abra a aba Inspeções para eu ver os carros.' };
-    const l = loja ? jpAcha(d.canais.map(c => c.nome), loja) : null;
+    const l = loja ? jpCanal(loja) : null;
     return { tipo: 'barras', rotulos: d.dias.map(x => x.rotulo), series: [{ nome: l || 'Todas as lojas', valores: d.dias.map(x => l ? ((x.c || {})[l] || 0) : x.total) }] }; } },
   inspecoes_por_inspetor: { desc: 'inspeções feitas por inspetor no período', monta: () => {
     const d = INSP.d; if (!d) return { erro: 'Abra a aba Inspeções para eu ver os inspetores.' };
@@ -6883,6 +6912,27 @@ const JP_GRAFICOS = {
     return { tipo: 'barras', empilhado: true, horizontal: true, rotulos: k, series: [{ nome: 'Leu a quilometragem', valores: k.map(x => m[x][0]), cor: '#10b981' }, { nome: 'Não leu', valores: k.map(x => m[x][1]), cor: '#ef4444' }] }; } }
 };
 // Cartões de número (também do cardápio)
+// nomes de loja: escala ("Morumbi Petz") <-> canal do Slack ("Morumbi") <-> hub da planilha
+function jpCanal(nome) {
+  if (!nome) return null;
+  const canais = [...new Set([].concat(INSP.d ? INSP.d.canais.map(c => c.nome) : [], SAUDE.dados ? SAUDE.dados.lojas.map(x => x.loja) : []))];
+  const n = rejNorm(nome);
+  // 1º o mapa explícito (Morumbi Petz = Slack "Morumbi"; Morumbi = Slack "Kavak Morumbi"); depois mesmo nome no Slack
+  const expl = typeof coinCanalDaEscala === 'function' ? coinCanalDaEscala(nome) : '';
+  if (expl && canais.some(x => rejNorm(x) === rejNorm(expl))) return canais.find(x => rejNorm(x) === rejNorm(expl));
+  const igual = canais.find(x => rejNorm(x) === n); if (igual) return igual;
+  let c = expl || (/^KC$|BARUERI/.test(n) ? 'Kavak City Barueri' : '');
+  if (!c) { const l = jpLojaEscala(nome, true); if (l && typeof coinCanalDaEscala === 'function') c = coinCanalDaEscala(l) || (/^KC$/.test(rejNorm(l)) ? 'Kavak City Barueri' : ''); }
+  return c || jpAcha(canais, nome);
+}
+function jpLojaEscala(nome, semCanal) {
+  if (!nome) return null;
+  const lojas = S.lojas.filter(l => lojaTemCadastro(l));
+  const direto = jpAcha(lojas, nome); if (direto) return direto;
+  if (semCanal || typeof coinCanalDaEscala !== 'function') return null;
+  const canal = coinCanalDaEscala(nome) || jpAcha(INSP.d ? INSP.d.canais.map(c => c.nome) : [], nome);
+  return canal ? lojas.find(l => coinCanalDaEscala(l) === canal || (/^KC$/.test(rejNorm(l)) && canal === 'Kavak City Barueri')) || null : null;
+}
 const jpPer = p => p && p.inicio ? fmtData(p.inicio).slice(0, 5) + ' a ' + fmtData(p.fim).slice(0, 5) : 'período do painel';
 // com até 3 carros, um gráfico não diz nada: mostra os carros
 const jpPoucos = (lista, txt) => lista.length && lista.length <= 3 ? lista.map(x => [fmtData(x.d).slice(0, 5), x.p, txt(x)]) : null;
@@ -6911,14 +6961,26 @@ const JP_NUMEROS = {
   saude_loja: { sup: true, desc: 'números de saúde de uma loja (ou todas): carros, espera, tempo total, rejeitados, reprovados', monta: loja => {
     const d = SAUDE.dados; if (!d) return { erro: 'Abra a vista Saúde das lojas.' };
     let x = d.geral;
-    if (loja) { const n = jpAcha(d.lojas.map(l => l.loja), loja); if (!n) return { erro: 'Não achei a loja "' + loja + '".' }; x = d.lojas.find(l => l.loja === n); }
-    return { titulo: x.loja, itens: [['🚗 Carros', x.carros], ['⏳ Espera média', x.espera ? saudeMin(x.espera.media) : '—'], ['⏱️ Tempo total', x.total ? saudeMin(x.total.media) : '—'],
+    if (loja) { const n = jpCanal(loja); x = d.lojas.find(l => l.loja === n); if (!x) return { erro: 'Não achei a loja "' + loja + '" nos dados de saúde.' }; }
+    else { const f = saudeJuntar(saudeGrupos().fis, 'Só lojas físicas'); x = { ...d.geral, titulo2: f }; }
+    return { titulo: x.titulo2 ? 'Total · lojas físicas: ' + x.titulo2.carros + ' carros, espera ' + (x.titulo2.espera ? saudeMin(x.titulo2.espera.media) : '—') : x.loja, itens: [['🚗 Carros', x.carros], ['⏳ Espera média', x.espera ? saudeMin(x.espera.media) : '—'], ['⏱️ Tempo total', x.total ? saudeMin(x.total.media) : '—'],
       ['🔴 Rejeitados', x.rej + ' (' + saudePct(x.rej, x.carros) + ')'], ['❌ Reprovados', x.rep + ' (' + saudePct(x.rep, x.carros) + ')']] }; } },
-  escala_hoje: { desc: 'escala de hoje: quantos trabalham, folgam e lojas abaixo do mínimo', monta: () => {
+  loja_hoje: { desc: 'UMA loja hoje: quem trabalha, quem folga, carros de hoje e espera/rejeitados/reprovados do período (use "loja")', monta: loja => {
+    const l = jpLojaEscala(loja); if (!l) return { erro: 'Não achei a loja "' + (loja || '') + '" na escala.' };
+    const h = hoje(), canal = jpCanal(l);
+    const trab = trabalhandoEm(l, h).map(f => f.nome);   // mesma conta da Cobertura por Loja
+    const folga = S.funcs.filter(f => !f.afastado && !f.isInspetor && f.loja === l && statusDia(f, h) === 'F').map(f => f.nome);
+    const itens = [['👷 Trabalhando hoje', trab.length ? trab.length + ' · ' + trab.join(', ') : '0'], ['🏝️ De folga hoje', folga.length ? folga.length + ' · ' + folga.join(', ') : '0']];
+    const dHoje = INSP.d && INSP.d.dias && INSP.d.periodo && INSP.d.periodo.fim === h ? INSP.d.dias[INSP.d.dias.length - 1] : null;
+    if (dHoje && canal) itens.push(['🚗 Carros hoje', (dHoje.c || {})[canal] || 0]);
+    const sd = SAUDE.dados && canal ? SAUDE.dados.lojas.find(x => x.loja === canal) : null;
+    if (sd) itens.push(['⏳ Espera média (' + jpPer(SAUDE.dados.periodo) + ')', sd.espera ? saudeMin(sd.espera.media) : '—'], ['🔴 Rejeitados · ❌ Reprovados', sd.rej + ' · ' + sd.rep + ' de ' + sd.carros + ' carros']);
+    return { titulo: l + ' · hoje ' + DIAS[diaIdx(h)] + ' ' + fmtData(h).slice(0, 5) + (canal && rejNorm(canal) !== rejNorm(l) ? ' (Slack: ' + canal + ')' : ''), itens }; } },
+  escala_hoje: { desc: 'EQUIPE TODA hoje (todas as lojas somadas): quantos trabalham e folgam. NÃO use para uma loja: para uma loja use loja_hoje', monta: () => {
     const h = hoje(), ativos = S.funcs.filter(f => !f.afastado);
     const t = ativos.filter(f => statusDia(f, h) === 'T').length, fo = ativos.filter(f => statusDia(f, h) === 'F').length;
     const ab = conferirMinimo([jpSemanaDeHoje()]).filter(x => x.iso === h).length;
-    return { titulo: 'Hoje · ' + DIAS[diaIdx(h)] + ' ' + fmtData(h).slice(0, 5), itens: [['👷 Trabalhando', t], ['🏝️ De folga', fo], ['⚠️ Lojas abaixo do mínimo', ab]] }; } },
+    return { titulo: 'Equipe toda · hoje ' + DIAS[diaIdx(h)] + ' ' + fmtData(h).slice(0, 5), itens: [['👷 Trabalhando (todas as lojas)', t], ['🏝️ De folga (todas as lojas)', fo], ['⚠️ Lojas abaixo do mínimo', ab]] }; } },
   inspecoes_periodo: { desc: 'totais de inspeção do período: carros, inspeções da equipe, loja com mais carros', monta: () => {
     const d = INSP.d; if (!d) return { erro: 'Abra a aba Inspeções.' };
     const tot = d.canais.reduce((t, c) => t + c.total, 0), top = d.canais[0];
@@ -6936,9 +6998,13 @@ function jpNumPlanilha(d, loja, tipo) {
              top.map(([k, q], i) => [(i + 1) + 'º ' + k, q + ' carro' + (q === 1 ? '' : 's') + ' (' + saudePct(q, n) + ')'])) };
 }
 // Garante que os dados das abas estão carregados (o Jeepelson pode ser aberto sem passar pela aba Inspeções)
-async function jpGarantirDados() {
+// Carrega as abas UMA vez (compartilhado entre o "pré-carregar ao abrir" e a 1ª pergunta); espera no máx. 25 s e segue com o que veio
+let JP_CARGA = null;
+function jpGarantirDados() {
   const iv = (INSP.d && INSP.d.periodo && INSP.d.periodo.inicio) ? { inicio: INSP.d.periodo.inicio, fim: INSP.d.periodo.fim } : (typeof intervaloInsp === 'function' ? intervaloInsp() : null);
-  if (!iv || MODO_LOCAL) return;
+  if (!iv || MODO_LOCAL) return Promise.resolve();
+  const chave = iv.inicio + '|' + iv.fim;
+  if (JP_CARGA && JP_CARGA.chave === chave && Date.now() - JP_CARGA.t < 600000) return JP_CARGA.p;
   const tarefas = [];
   if (!INSP.d) tarefas.push((async () => { const r = await api('inspecoes', iv); if (r && !r.erro && Array.isArray(r.canais)) { r.inspetores = inspJuntarNomes(r.inspetores || []); INSP.d = r; } })());
   if (!SCAN.dados) tarefas.push(carregarScanners());
@@ -6948,9 +7014,17 @@ async function jpGarantirDados() {
     if (!DIV.dados) tarefas.push(carregarDivergencias(iv));
     if (!SAUDE.dados) tarefas.push(carregarSaude(iv));
   }
-  if (!tarefas.length) return;
-  $('jpStatus').textContent = 'juntando os dados das abas…';
-  await Promise.race([Promise.allSettled(tarefas), new Promise(ok => setTimeout(ok, 90000))]);
+  const p = tarefas.length ? Promise.race([Promise.allSettled(tarefas), new Promise(ok => setTimeout(ok, 25000))]) : Promise.resolve();
+  JP_CARGA = { chave, t: Date.now(), p };
+  return p;
+}
+// o que ainda não chegou (a IA avisa em vez de inventar)
+function jpFaltam() {
+  const f = [];
+  if (!INSP.d) f.push('inspeções por loja');
+  if (!SCAN.dados) f.push('scanners');
+  if (jpSup()) { if (!REJS.rej.dados) f.push('rejeições'); if (!REJS.rep.dados) f.push('reprovações'); if (!DIV.dados) f.push('divergências'); if (!SAUDE.dados) f.push('saúde das lojas'); }
+  return f;
 }
 function jpCardapio() {
   const s = jpSup(), linha = (id, o) => (!o.sup || s) ? id + ': ' + o.desc : null;
@@ -6959,11 +7033,14 @@ function jpCardapio() {
 // Totais que vão para a IA comentar (sem placa)
 function jpResumos() {
   const r = {}, s = jpSup();
+  try { const f = jpFaltam(); if (f.length) r.aindaNaoCarregou = f; } catch (e) {}
+  try { r.nomesDasLojas = S.lojas.filter(l => lojaTemCadastro(l)).map(l => ({ escala: l, slack: jpCanal(l) || '' })); } catch (e) {}
   try { const d = INSP.d; if (d) r.inspecoes = { periodo: d.periodo, porLoja: Object.fromEntries(d.canais.map(c => [c.nome, c.total])), porDia: d.dias.map(x => x.rotulo + ': ' + x.total).join(' | '), equipe: d.totalEquipe, porInspetor: Object.fromEntries(d.inspetores.slice(0, 20).map(x => [x.nome, x.total])) }; } catch (e) {}
   try { const d = SCAN.dados; if (d && d.testes) { const t = d.testes; r.scanners = { testes: t.length, leuKm: t.filter(x => x.km === 'Sim').length, conectou: t.filter(x => x.con === 'Sim').length, naoLeuKmPorMontadora: Object.fromEntries(jpConta(t.filter(x => x.km !== 'Sim'), x => x.ma)) }; } } catch (e) {}
   if (s) {
     try { const d = SAUDE.dados; if (d) r.saude = { esperaVaiAte: d.esperaAte, metaTempoTotal: d.meta, geral: { carros: d.geral.carros, rej: d.geral.rej, rep: d.geral.rep, esperaMedia: d.geral.espera && d.geral.espera.media, tempoMedio: d.geral.total && d.geral.total.media },
-      lojas: d.lojas.map(x => ({ loja: x.loja, carros: x.carros, rej: x.rej, rep: x.rep, esperaMedia: x.espera && x.espera.media, esperaMaior: x.espera && x.espera.max, tempoMedio: x.total && x.total.media, naMeta: x.total ? x.total.naMeta + ' de ' + x.total.n : null })) }; } catch (e) {}
+      lojasFisicas: (() => { const f = saudeJuntar(saudeGrupos().fis, 'x'); return { carros: f.carros, rej: f.rej, rep: f.rep, esperaMedia: f.espera && f.espera.media, tempoMedio: f.total && f.total.media }; })(),
+      lojas: d.lojas.map(x => ({ loja: x.loja, grupo: saudeGrupo(x.loja), carros: x.carros, rej: x.rej, rep: x.rep, esperaMedia: x.espera && x.espera.media, esperaMaior: x.espera && x.espera.max, tempoMedio: x.total && x.total.media, naMeta: x.total ? x.total.naMeta + ' de ' + x.total.n : null })) }; } catch (e) {}
     try { const d = REJS.rej.dados; if (d) r.rejeicoes = { total: d.rejeitados.length, porMotivo: Object.fromEntries(jpConta(d.rejeitados, x => x.m, 8)), porHub: Object.fromEntries(jpConta(d.rejeitados, x => x.h, 10)),
       motivosPorHub: Object.fromEntries(jpConta(d.rejeitados, x => x.h, 10).map(([h]) => [h, Object.fromEntries(jpConta(d.rejeitados.filter(x => x.h === h), x => x.m, 3))])) }; } catch (e) {}
     try { const d = REJS.rep.dados; if (d) r.reprovacoes = { total: d.rejeitados.length, porTema: Object.fromEntries(jpConta(d.rejeitados, x => x.temas || [], 8)), porHub: Object.fromEntries(jpConta(d.rejeitados, x => x.h, 10)),
@@ -7142,6 +7219,7 @@ async function jpEnviar() {
   jpEstado('pensando'); $('jpStatus').textContent = 'pensando…';
   try {
     let resumos = {}, cardapio = {};
+    if (jpFaltam().length) $('jpStatus').textContent = 'juntando os dados das abas…';
     try { await jpGarantirDados(); } catch (e) {}
     $('jpStatus').textContent = 'pensando…';
     try { resumos = jpResumos(); cardapio = jpCardapio(); } catch (e) {}
