@@ -6853,13 +6853,17 @@ const JP_GRAFICOS = {
   saude_rejeitados_reprovados: { sup: true, desc: 'rejeitados (🔴) e reprovados (❌) por loja, pelo Slack', monta: () => {
     const d = SAUDE.dados; if (!d) return { erro: 'Abra a vista Saúde das lojas.' };
     return { tipo: 'barras', empilhado: true, rotulos: d.lojas.map(x => x.loja), series: [{ nome: 'Rejeitados', valores: d.lojas.map(x => x.rej), cor: '#ef4444' }, { nome: 'Reprovados', valores: d.lojas.map(x => x.rep), cor: '#7c3aed' }] }; } },
-  rejeicoes_por_motivo: { sup: true, desc: 'rejeições por motivo (planilha do Bruno)', monta: () => {
+  rejeicoes_por_motivo: { sup: true, desc: 'rejeições por motivo (planilha do Bruno); para UMA loja/hub use "loja"', monta: loja => {
     const d = REJS.rej.dados; if (!d) return { erro: 'As rejeições ainda não carregaram.' };
-    const c = jpConta(d.rejeitados, x => x.m, 10);
+    const l = jpFiltraHub(d.rejeitados, loja); if (l.erro) return l;
+    const c = jpConta(l.lista, x => x.m, 10);
+    if (!c.length) return { erro: 'Nenhuma rejeição' + (l.hub ? ' em ' + l.hub : '') + ' no período.' };
     return { tipo: 'pizza', rotulos: c.map(x => x[0]), series: [{ nome: 'Rejeições', valores: c.map(x => x[1]) }] }; } },
-  reprovacoes_por_tema: { sup: true, desc: 'reprovações por peça/tema (longarina, coluna, solda...)', monta: () => {
+  reprovacoes_por_tema: { sup: true, desc: 'reprovações por peça/tema (longarina, coluna, solda...); para UMA loja/hub use "loja"', monta: loja => {
     const d = REJS.rep.dados; if (!d) return { erro: 'As reprovações ainda não carregaram.' };
-    const c = jpConta(d.rejeitados, x => x.temas || [], 10);
+    const l = jpFiltraHub(d.rejeitados, loja); if (l.erro) return l;
+    const c = jpConta(l.lista, x => x.temas || [], 10);
+    if (!c.length) return { erro: 'Nenhuma reprovação' + (l.hub ? ' em ' + l.hub : '') + ' no período.' };
     return { tipo: 'barras', horizontal: true, rotulos: c.map(x => x[0]), series: [{ nome: 'Reprovações', valores: c.map(x => x[1]) }] }; } },
   divergencias_por_tipo: { sup: true, desc: 'divergências abertas entre Slack e planilha, por tipo', monta: () => {
     const d = DIV.dados; if (!d) return { erro: 'As divergências ainda não carregaram.' };
@@ -6873,7 +6877,18 @@ const JP_GRAFICOS = {
     return { tipo: 'barras', empilhado: true, horizontal: true, rotulos: k, series: [{ nome: 'Leu a quilometragem', valores: k.map(x => m[x][0]), cor: '#10b981' }, { nome: 'Não leu', valores: k.map(x => m[x][1]), cor: '#ef4444' }] }; } }
 };
 // Cartões de número (também do cardápio)
+// filtra rejeições/reprovações por hub da planilha ("arena" acha "ARENA STO ANDRÉ")
+function jpFiltraHub(lista, loja) {
+  if (!loja) return { lista };
+  const hubs = [...new Set(lista.map(x => x.h).filter(Boolean))];
+  let hub = jpAcha(hubs, loja);
+  if (!hub) { const n = rejNorm(loja).split(' ').filter(w => w.length >= 4 && !/KAVAK|LOJA|SHOPPING/.test(w)); hub = hubs.find(h => n.some(w => rejNorm(h).includes(w))) || null; }
+  if (!hub) return { erro: 'Não achei "' + loja + '" na planilha. Hubs: ' + hubs.slice(0, 12).join(', ') };
+  return { lista: lista.filter(x => x.h === hub), hub };
+}
 const JP_NUMEROS = {
+  rejeicoes_loja: { sup: true, desc: 'rejeições (planilha) de uma loja/hub ou de todas: total e principais motivos', monta: loja => jpNumPlanilha(REJS.rej.dados, loja, 'rej') },
+  reprovacoes_loja: { sup: true, desc: 'reprovações (planilha) de uma loja/hub ou de todas: total e principais peças/temas', monta: loja => jpNumPlanilha(REJS.rep.dados, loja, 'rep') },
   saude_loja: { sup: true, desc: 'números de saúde de uma loja (ou todas): carros, espera, tempo total, rejeitados, reprovados', monta: loja => {
     const d = SAUDE.dados; if (!d) return { erro: 'Abra a vista Saúde das lojas.' };
     let x = d.geral;
@@ -6891,6 +6906,30 @@ const JP_NUMEROS = {
     return { titulo: 'Inspeções ' + fmtData(d.periodo.inicio).slice(0, 5) + ' a ' + fmtData(d.periodo.fim).slice(0, 5),
              itens: [['🚗 Carros', tot], ['👷 Inspeções da equipe', d.totalEquipe], ['🏆 Loja com mais carros', top ? top.nome + ' (' + top.total + ')' : '—']] }; } }
 };
+function jpNumPlanilha(d, loja, tipo) {
+  if (!d) return { erro: (tipo === 'rep' ? 'As reprovações' : 'As rejeições') + ' ainda não carregaram.' };
+  const l = jpFiltraHub(d.rejeitados, loja); if (l.erro) return l;
+  const top = jpConta(l.lista, x => tipo === 'rep' ? (x.temas || []) : x.m, 3);
+  const nome = tipo === 'rep' ? 'Reprovações' : 'Rejeições';
+  return { titulo: nome + ' · ' + (l.hub || 'todos os hubs'), itens: [[(tipo === 'rep' ? '❌ ' : '🔴 ') + nome, l.lista.length]].concat(top.map(([k, n], i) => [(i + 1) + 'º ' + k, n + ' (' + saudePct(n, l.lista.length) + ')'])) };
+}
+// Garante que os dados das abas estão carregados (o Jeepelson pode ser aberto sem passar pela aba Inspeções)
+async function jpGarantirDados() {
+  const iv = (INSP.d && INSP.d.periodo && INSP.d.periodo.inicio) ? { inicio: INSP.d.periodo.inicio, fim: INSP.d.periodo.fim } : (typeof intervaloInsp === 'function' ? intervaloInsp() : null);
+  if (!iv || MODO_LOCAL) return;
+  const tarefas = [];
+  if (!INSP.d) tarefas.push((async () => { const r = await api('inspecoes', iv); if (r && !r.erro && Array.isArray(r.canais)) { r.inspetores = inspJuntarNomes(r.inspetores || []); INSP.d = r; } })());
+  if (!SCAN.dados) tarefas.push(carregarScanners());
+  if (jpSup()) {
+    if (!REJS.rej.dados) tarefas.push(carregarRejeicoes(iv, 'rej'));
+    if (!REJS.rep.dados) tarefas.push(carregarRejeicoes(iv, 'rep'));
+    if (!DIV.dados) tarefas.push(carregarDivergencias(iv));
+    if (!SAUDE.dados) tarefas.push(carregarSaude(iv));
+  }
+  if (!tarefas.length) return;
+  $('jpStatus').textContent = 'juntando os dados das abas…';
+  await Promise.race([Promise.allSettled(tarefas), new Promise(ok => setTimeout(ok, 90000))]);
+}
 function jpCardapio() {
   const s = jpSup(), linha = (id, o) => (!o.sup || s) ? id + ': ' + o.desc : null;
   return { graficos: Object.entries(JP_GRAFICOS).map(([k, o]) => linha(k, o)).filter(Boolean), numeros: Object.entries(JP_NUMEROS).map(([k, o]) => linha(k, o)).filter(Boolean) };
@@ -6903,8 +6942,10 @@ function jpResumos() {
   if (s) {
     try { const d = SAUDE.dados; if (d) r.saude = { esperaVaiAte: d.esperaAte, metaTempoTotal: d.meta, geral: { carros: d.geral.carros, rej: d.geral.rej, rep: d.geral.rep, esperaMedia: d.geral.espera && d.geral.espera.media, tempoMedio: d.geral.total && d.geral.total.media },
       lojas: d.lojas.map(x => ({ loja: x.loja, carros: x.carros, rej: x.rej, rep: x.rep, esperaMedia: x.espera && x.espera.media, esperaMaior: x.espera && x.espera.max, tempoMedio: x.total && x.total.media, naMeta: x.total ? x.total.naMeta + ' de ' + x.total.n : null })) }; } catch (e) {}
-    try { const d = REJS.rej.dados; if (d) r.rejeicoes = { total: d.rejeitados.length, porMotivo: Object.fromEntries(jpConta(d.rejeitados, x => x.m, 8)), porHub: Object.fromEntries(jpConta(d.rejeitados, x => x.h, 8)) }; } catch (e) {}
-    try { const d = REJS.rep.dados; if (d) r.reprovacoes = { total: d.rejeitados.length, porTema: Object.fromEntries(jpConta(d.rejeitados, x => x.temas || [], 8)), porHub: Object.fromEntries(jpConta(d.rejeitados, x => x.h, 8)) }; } catch (e) {}
+    try { const d = REJS.rej.dados; if (d) r.rejeicoes = { total: d.rejeitados.length, porMotivo: Object.fromEntries(jpConta(d.rejeitados, x => x.m, 8)), porHub: Object.fromEntries(jpConta(d.rejeitados, x => x.h, 10)),
+      motivosPorHub: Object.fromEntries(jpConta(d.rejeitados, x => x.h, 10).map(([h]) => [h, Object.fromEntries(jpConta(d.rejeitados.filter(x => x.h === h), x => x.m, 3))])) }; } catch (e) {}
+    try { const d = REJS.rep.dados; if (d) r.reprovacoes = { total: d.rejeitados.length, porTema: Object.fromEntries(jpConta(d.rejeitados, x => x.temas || [], 8)), porHub: Object.fromEntries(jpConta(d.rejeitados, x => x.h, 10)),
+      temasPorHub: Object.fromEntries(jpConta(d.rejeitados, x => x.h, 10).map(([h]) => [h, Object.fromEntries(jpConta(d.rejeitados.filter(x => x.h === h), x => x.temas || [], 3))])) }; } catch (e) {}
     try { const d = DIV.dados; if (d) r.divergenciasAbertas = Object.fromEntries(jpConta(d.itens.filter(x => x.tp !== 'aguardando' && !x.tr), x => DIV_TP[x.tp].nome)); } catch (e) {}
   }
   return r;
@@ -6949,7 +6990,9 @@ async function jpDesenhaBloco(alvo, b, grande, pdf) {
   return ch;
 }
 function jpVisuais(bolha, r) {
-  const blocos = Array.isArray(r.blocos) ? r.blocos.slice(0, 4) : [];
+  const todos = Array.isArray(r.blocos) ? r.blocos.slice(0, 4) : [];
+  const blocos = todos.filter(b => b && (b.tipo === 'texto' || (b.tipo === 'grafico' && JP_GRAFICOS[b.id]) || (b.tipo === 'numeros' && JP_NUMEROS[b.id])));
+  if (todos.length && !blocos.length) { const p = document.createElement('div'); p.className = 'jp-vis-com'; p.textContent = '😅 Tentei mostrar um gráfico que eu ainda não sei fazer. Pergunte de outro jeito (ex.: "gráfico de reprovações do Arena").'; bolha.querySelector('.jp-bolha').appendChild(p); }
   blocos.forEach(b => jpDesenhaBloco(bolha.querySelector('.jp-bolha'), b, false));
   const slides = Array.isArray(r.slides) ? r.slides.filter(s => s && (s.titulo || s.texto)).slice(0, 8) : [];
   if (slides.length) {
@@ -7064,6 +7107,8 @@ async function jpEnviar() {
   jpEstado('pensando'); $('jpStatus').textContent = 'pensando…';
   try {
     let resumos = {}, cardapio = {};
+    try { await jpGarantirDados(); } catch (e) {}
+    $('jpStatus').textContent = 'pensando…';
     try { resumos = jpResumos(); cardapio = jpCardapio(); } catch (e) {}
     const r = await api('ia_chat', { pergunta: texto, imagens, contexto: jpContexto(), resumos, cardapio, hoje: hoje() + ' (' + DIAS[diaIdx(hoje())] + ')' });
     pensando.remove();
