@@ -94,8 +94,9 @@ button:disabled{cursor:not-allowed}
 .jp-meta{font-size:10px;color:#9ca3af;margin-top:2px}
 /* (18/11) Jeepelson visual: gráficos, números e apresentação */
 .jp-msg.jp-largo{max-width:100%;width:100%}
-.jp-vis{margin-top:8px;padding:8px;border:1px solid #e5e7eb;border-radius:10px;background:#f8fafc}
-.jp-vis-tit{font-size:12px;font-weight:800;color:#111827;margin-bottom:4px}.jp-vis-com{font-size:11.5px;color:#4b5563;margin-top:4px;line-height:1.35}
+.jp-vis{margin-top:8px;padding:10px;border:1px solid #e5e7eb;border-radius:10px;background:#fff;color:#111827}
+.jp-vis-tit{font-size:12px;font-weight:800;color:#111827;margin-bottom:2px}.jp-vis-sub{font-size:10.5px;color:#6b7280;margin-bottom:6px}
+.jp-poucos{display:flex;flex-direction:column;gap:6px}.jp-poucos div{background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:6px 8px;font-size:12px;color:#111827;line-height:1.35}.jp-poucos span{color:#6b7280;font-size:11px}.jp-vis-com{font-size:11.5px;color:#4b5563;margin-top:4px;line-height:1.35}
 .jp-nums{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:6px}
 .jp-num{background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:6px 8px}.jp-num span{display:block;font-size:10.5px;color:#6b7280}.jp-num b{font-size:16px;color:#111827}
 .jp-apresentar{margin-top:8px;width:100%;border:0;border-radius:10px;padding:8px 10px;background:linear-gradient(135deg,#2f5bea,#1e3fb8);color:#fff;font-weight:800;font-size:13px;cursor:pointer}
@@ -1287,6 +1288,7 @@ function temaGraficos() {
   Chart.__temaOk = true;
   // Antes de desenhar, troca as cores de eixo/grade/legenda conforme o tema (sem mexer em cada gráfico)
   Chart.register({ id: 'temaEscalaPro', beforeUpdate(ch) {
+    if (ch.canvas && ch.canvas.dataset.semTema === '1') return;   // gráficos do Jeepelson: fundo sempre claro
     const e = temaEscuro(), sc = ch.options.scales || {};
     if (!ch.$temaOrig) ch.$temaOrig = {};
     Object.keys(sc).forEach(k => {
@@ -6857,14 +6859,18 @@ const JP_GRAFICOS = {
     const d = REJS.rej.dados; if (!d) return { erro: 'As rejeições ainda não carregaram.' };
     const l = jpFiltraHub(d.rejeitados, loja); if (l.erro) return l;
     const c = jpConta(l.lista, x => x.m, 10);
-    if (!c.length) return { erro: 'Nenhuma rejeição' + (l.hub ? ' em ' + l.hub : '') + ' no período.' };
-    return { tipo: 'pizza', rotulos: c.map(x => x[0]), series: [{ nome: 'Rejeições', valores: c.map(x => x[1]) }] }; } },
+    if (!c.length) return { erro: 'Nenhuma rejeição' + (l.hub ? ' em ' + l.hub : '') + ' no período (' + jpPer(d.periodo) + ').' };
+    return { tipo: 'barras', horizontal: true, rotulos: c.map(x => x[0]), series: [{ nome: 'Rejeições', valores: c.map(x => x[1]) }],
+             sub: jpPer(d.periodo) + ' · ' + l.lista.length + ' carro' + (l.lista.length === 1 ? '' : 's') + (l.hub ? ' · ' + l.hub : ''),
+             poucos: jpPoucos(l.lista, x => x.m + (x.t ? ' — ' + x.t : '')) }; } },
   reprovacoes_por_tema: { sup: true, desc: 'reprovações por peça/tema (longarina, coluna, solda...); para UMA loja/hub use "loja"', monta: loja => {
     const d = REJS.rep.dados; if (!d) return { erro: 'As reprovações ainda não carregaram.' };
     const l = jpFiltraHub(d.rejeitados, loja); if (l.erro) return l;
     const c = jpConta(l.lista, x => x.temas || [], 10);
-    if (!c.length) return { erro: 'Nenhuma reprovação' + (l.hub ? ' em ' + l.hub : '') + ' no período.' };
-    return { tipo: 'barras', horizontal: true, rotulos: c.map(x => x[0]), series: [{ nome: 'Reprovações', valores: c.map(x => x[1]) }] }; } },
+    if (!c.length) return { erro: 'Nenhuma reprovação' + (l.hub ? ' em ' + l.hub : '') + ' no período (' + jpPer(d.periodo) + ').' };
+    return { tipo: 'barras', horizontal: true, rotulos: c.map(x => x[0]), series: [{ nome: 'Carros', valores: c.map(x => x[1]) }],
+             sub: jpPer(d.periodo) + ' · ' + l.lista.length + ' carro' + (l.lista.length === 1 ? '' : 's') + ' reprovado' + (l.lista.length === 1 ? '' : 's') + (l.hub ? ' · ' + l.hub : '') + ' (um carro pode ter mais de uma peça)',
+             poucos: jpPoucos(l.lista, x => x.m) }; } },
   divergencias_por_tipo: { sup: true, desc: 'divergências abertas entre Slack e planilha, por tipo', monta: () => {
     const d = DIV.dados; if (!d) return { erro: 'As divergências ainda não carregaram.' };
     const c = jpConta(d.itens.filter(x => x.tp !== 'aguardando' && !x.tr), x => DIV_TP[x.tp].nome);
@@ -6877,6 +6883,19 @@ const JP_GRAFICOS = {
     return { tipo: 'barras', empilhado: true, horizontal: true, rotulos: k, series: [{ nome: 'Leu a quilometragem', valores: k.map(x => m[x][0]), cor: '#10b981' }, { nome: 'Não leu', valores: k.map(x => m[x][1]), cor: '#ef4444' }] }; } }
 };
 // Cartões de número (também do cardápio)
+const jpPer = p => p && p.inicio ? fmtData(p.inicio).slice(0, 5) + ' a ' + fmtData(p.fim).slice(0, 5) : 'período do painel';
+// com até 3 carros, um gráfico não diz nada: mostra os carros
+const jpPoucos = (lista, txt) => lista.length && lista.length <= 3 ? lista.map(x => [fmtData(x.d).slice(0, 5), x.p, txt(x)]) : null;
+// escreve o número na ponta de cada barra
+const JP_VALORES = { id: 'jpValores', afterDatasetsDraw(ch) {
+  if (ch.config.type !== 'bar' || ch.options.scales.x.stacked) return;
+  const c = ch.ctx; c.save(); c.font = 'bold 11px sans-serif'; c.fillStyle = '#111827';
+  ch.data.datasets.forEach((ds, i) => ch.getDatasetMeta(i).data.forEach((el, j) => {
+    const v = ds.data[j]; if (!v) return;
+    if (ch.options.indexAxis === 'y') { c.textAlign = 'left'; c.textBaseline = 'middle'; c.fillText(v, el.x + 4, el.y); }
+    else { c.textAlign = 'center'; c.textBaseline = 'bottom'; c.fillText(v, el.x, el.y - 2); }
+  }));
+  c.restore(); } };
 // filtra rejeições/reprovações por hub da planilha ("arena" acha "ARENA STO ANDRÉ")
 function jpFiltraHub(lista, loja) {
   if (!loja) return { lista };
@@ -6910,8 +6929,11 @@ function jpNumPlanilha(d, loja, tipo) {
   if (!d) return { erro: (tipo === 'rep' ? 'As reprovações' : 'As rejeições') + ' ainda não carregaram.' };
   const l = jpFiltraHub(d.rejeitados, loja); if (l.erro) return l;
   const top = jpConta(l.lista, x => tipo === 'rep' ? (x.temas || []) : x.m, 3);
-  const nome = tipo === 'rep' ? 'Reprovações' : 'Rejeições';
-  return { titulo: nome + ' · ' + (l.hub || 'todos os hubs'), itens: [[(tipo === 'rep' ? '❌ ' : '🔴 ') + nome, l.lista.length]].concat(top.map(([k, n], i) => [(i + 1) + 'º ' + k, n + ' (' + saudePct(n, l.lista.length) + ')'])) };
+  const nome = tipo === 'rep' ? 'Reprovações' : 'Rejeições', n = l.lista.length;
+  const poucos = jpPoucos(l.lista, x => x.m + (tipo === 'rej' && x.t ? ' — ' + x.t : ''));
+  return { titulo: nome + ' · ' + (l.hub || 'todos os hubs'), sub: jpPer(d.periodo) + (poucos ? ' · os carros:' : ''), poucos,
+           itens: [[(tipo === 'rep' ? '❌ ' : '🔴 ') + 'Carros ' + (tipo === 'rep' ? 'reprovados' : 'rejeitados'), n]].concat(poucos ? [] :
+             top.map(([k, q], i) => [(i + 1) + 'º ' + k, q + ' carro' + (q === 1 ? '' : 's') + ' (' + saudePct(q, n) + ')'])) };
 }
 // Garante que os dados das abas estão carregados (o Jeepelson pode ser aberto sem passar pela aba Inspeções)
 async function jpGarantirDados() {
@@ -6963,28 +6985,41 @@ async function jpDesenhaBloco(alvo, b, grande, pdf) {
     if (!def || (def.sup && !jpSup())) { caixa.remove(); return; }
     const n = def.monta(b.loja);
     if (n.erro) { caixa.innerHTML = titulo + `<div class="jp-vis-com">${esc(n.erro)}</div>`; return; }
-    caixa.innerHTML = (titulo || `<div class="jp-vis-tit">${esc(n.titulo)}</div>`) + `<div class="jp-nums">${n.itens.map(([r, v]) => `<div class="jp-num"><span>${esc(r)}</span><b>${esc(String(v))}</b></div>`).join('')}</div>` + coment;
+    caixa.innerHTML = (titulo || `<div class="jp-vis-tit">${esc(n.titulo)}</div>`) + (n.sub ? `<div class="jp-vis-sub">${esc(n.sub)}</div>` : '') +
+      `<div class="jp-nums">${n.itens.map(([r, v]) => `<div class="jp-num"><span>${esc(r)}</span><b>${esc(String(v))}</b></div>`).join('')}</div>` +
+      (n.poucos ? `<div class="jp-poucos" style="margin-top:6px">${n.poucos.map(([dia, placa, t]) => `<div><b>${esc(placa)}</b> <span>${esc(dia)}</span><br>${esc(t)}</div>`).join('')}</div>` : '') + coment;
     return;
   }
   const def = JP_GRAFICOS[b.id];
   if (!def || (def.sup && !jpSup())) { caixa.remove(); return; }   // id fora do cardápio: não mostra nada
   const g = def.monta(b.loja);
   if (g.erro) { caixa.innerHTML = titulo + `<div class="jp-vis-com">${esc(g.erro)}</div>`; return; }
-  const alt = grande ? 360 : (g.horizontal ? Math.max(150, g.rotulos.length * 20 + 40) : 180);
-  caixa.innerHTML = titulo + `<div style="position:relative;height:${alt}px"><canvas></canvas></div>` + coment;
+  const sub = g.sub ? `<div class="jp-vis-sub">${esc(g.sub)}</div>` : '';
+  if (g.poucos) {   // 1 a 3 carros: lista em vez de gráfico
+    caixa.innerHTML = titulo + sub + `<div class="jp-poucos">${g.poucos.map(([dia, placa, t]) => `<div><b>${esc(placa)}</b> <span>${esc(dia)}</span><br>${esc(t)}</div>`).join('')}</div>` + coment;
+    return;
+  }
+  const alt = grande ? 360 : (g.horizontal ? Math.max(130, g.rotulos.length * 26 + 30) : 180);
+  caixa.innerHTML = titulo + sub + `<div style="position:relative;height:${alt}px"><canvas></canvas></div>` + coment;
   try { await carregarChartJs(); } catch (e) { caixa.querySelector('div[style]').innerHTML = '<div class="jp-vis-com">Não consegui carregar os gráficos.</div>'; return; }
   const pizza = g.tipo === 'pizza';
-  const cv = caixa.querySelector('canvas');
+  const cv = caixa.querySelector('canvas'); cv.dataset.semTema = '1';
   if (pdf) { cv.parentElement.style.height = ''; cv.width = 900; cv.height = 420; cv.style.width = '900px'; cv.style.height = '420px'; }
   const ch = new Chart(cv, {
     type: pizza ? 'doughnut' : g.tipo === 'linha' ? 'line' : 'bar',
-    data: { labels: g.rotulos, datasets: g.series.map((s, i) => ({ label: s.nome, data: s.valores, borderRadius: pizza ? 0 : 4, maxBarThickness: 28,
+    plugins: pizza ? [] : [JP_VALORES],
+    data: { labels: g.rotulos, datasets: g.series.map((s, i) => ({ label: s.nome, data: s.valores, borderRadius: pizza ? 0 : 4, maxBarThickness: g.horizontal ? 18 : 28,
       backgroundColor: pizza ? g.rotulos.map((_, j) => JP_CORES[j % JP_CORES.length]) : (s.cor || JP_CORES[i % JP_CORES.length]), borderColor: s.cor || JP_CORES[i % JP_CORES.length] })) },
     options: { responsive: !pdf, maintainAspectRatio: false, animation: pdf ? false : { duration: grande ? 500 : 250 }, devicePixelRatio: pdf ? 2 : undefined, indexAxis: g.horizontal ? 'y' : 'x',
       plugins: { legend: { display: pizza || g.series.length > 1, position: 'bottom', labels: { boxWidth: 10, font: { size: grande ? 13 : 10 } } },
         tooltip: { callbacks: { label: c => ` ${c.dataset.label}: ${c.formattedValue}${g.un ? ' ' + g.un : ''}` } } },
-      scales: pizza ? {} : { x: { stacked: !!g.empilhado, ticks: { font: { size: grande ? 12 : 9 }, maxRotation: 0, autoSkip: true }, grid: { display: !!g.horizontal } },
-                             y: { stacked: !!g.empilhado, beginAtZero: true, ticks: { font: { size: grande ? 12 : 9 }, precision: 0 }, grid: { display: !g.horizontal } } } }
+      layout: { padding: { right: g.horizontal ? 22 : 0, top: g.horizontal ? 0 : 14 } },
+      scales: pizza ? {} : {
+        x: { stacked: !!g.empilhado, beginAtZero: true, border: { display: false }, ticks: { color: '#374151', font: { size: grande ? 12 : 10 }, maxRotation: 0, autoSkip: true, precision: 0, display: !g.horizontal || !!g.empilhado },
+             grid: { display: false } },
+        y: { stacked: !!g.empilhado, beginAtZero: true, border: { display: false }, ticks: { color: '#111827', font: { size: grande ? 13 : 11 }, precision: 0,
+               callback: function (v) { const t = g.horizontal ? String(this.getLabelForValue(v)) : v; return g.horizontal && !grande && t.length > 20 ? t.slice(0, 19) + '…' : t; } },
+             grid: { color: '#eef2f7', display: !g.horizontal } } } }
   });
   (alvo.__charts = alvo.__charts || []).push(ch);
   return ch;
