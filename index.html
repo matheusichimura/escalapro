@@ -500,6 +500,7 @@ html.escuro .text-black{color:#f1f5f9}
         <div class="vista" data-vista="rep"><div class="vista-corpo"><div id="repConteudo"></div></div></div>
         <div class="vista" data-vista="div"><div class="vista-corpo"><div id="divConteudo"></div></div></div>
         <div class="vista" data-vista="coin"><div class="vista-corpo"><div id="coinConteudo"></div></div></div>
+        <div class="vista" data-vista="scan"><div class="vista-corpo"><div id="scanConteudo"></div></div></div>
       </div>
     </div>
     <div id="achConteudo" class="hidden"></div>
@@ -1355,6 +1356,7 @@ async function carregarInspecoes() {
   if (!MOV.dados) carregarMovimento();   // movimento usa as últimas semanas, não o filtro: carrega 1 vez
   if (!PCMP.dados) carregarPrevCompras();
   if (!TINSP.dados) carregarTempoInsp();   // planilha de tempos: carrega 1 vez (botão Atualizar recarrega)
+  if (!SCAN.dados) carregarScanners();     // placar dos scanners (últimos 60 dias): não depende do período
 }
 
 function renderInspecoes(d, fonte) {
@@ -3254,6 +3256,74 @@ async function divReabrir(chave, botao) {
   renderDivergencias();
 }
 
+// ---------- 🔌 Scanners ----------
+// Fonte: api('scanners') (Scanners.gs): abas SCANNERS_RESUMO e SCANNERS_MODELOS da base (IMPORTRANGE da planilha de scanners).
+const SCAN = { seq: 0, dados: null, todosModelos: false };
+async function carregarScanners() {
+  const box = $('scanConteudo'); if (!box) return;
+  if (MODO_LOCAL) { box.innerHTML = ''; return; }
+  const seq = ++SCAN.seq;
+  box.innerHTML = '<h2 class="text-xl font-extrabold text-gray-900">🔌 Scanners</h2><p class="text-xs text-gray-500 mt-2">Carregando o placar dos scanners…</p>';
+  let r;
+  try { r = await api('scanners', {}); } catch (e) { if (e && e.sessaoExpirada) return; r = { erro: 'rede' }; }
+  if (seq !== SCAN.seq) return;
+  if (!r || r.erro || !Array.isArray(r.scanners)) {
+    const m = {
+      acao_desconhecida: 'O Apps Script ainda não tem a ação <b>scanners</b>: cole o Scanners.gs, troque a rotear_ e publique uma nova versão.',
+      scan_aba: 'Falta a aba <b>SCANNERS_RESUMO</b> na planilha base: crie a aba e cole <code>=IMPORTRANGE("ID da planilha de scanners";"Resumo!A:N")</code> (e a <b>SCANNERS_MODELOS</b> com <code>"Modelos!A:G"</code>).',
+      scan_acesso: 'O IMPORTRANGE da planilha de scanners ainda não tem acesso: abra a aba SCANNERS_RESUMO e clique em <b>Permitir acesso</b>.',
+      scan_vazio: 'A aba SCANNERS_RESUMO está vazia (o IMPORTRANGE ainda não trouxe nada).'
+    };
+    box.innerHTML = `<h2 class="text-xl font-extrabold text-gray-900">🔌 Scanners</h2><div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-4 text-xs mt-3">Não foi possível carregar os scanners. ${m[r && r.erro] || 'Tente atualizar em instantes. <span class="text-amber-600">(' + esc(String((r && r.erro) || 'erro')) + ')</span>'}</div>`;
+    return;
+  }
+  SCAN.dados = r;
+  renderScanners();
+}
+function renderScanners() {
+  const d = SCAN.dados, box = $('scanConteudo'); if (!d || !box) return;
+  const ordemV = v => /trocar/i.test(v) ? 0 : /aten/i.test(v) ? 1 : /ok/i.test(v) ? 2 : 3;
+  const lista = d.scanners.slice().sort((a, b) => ordemV(a.veredito) - ordemV(b.veredito) || (a.nota ?? 999) - (b.nota ?? 999));
+  const corV = v => /trocar/i.test(v) ? 'bg-rose-100 text-rose-800 border-rose-200' : /aten/i.test(v) ? 'bg-amber-100 text-amber-800 border-amber-200' : /ok/i.test(v) ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : 'bg-gray-100 text-gray-600 border-gray-200';
+  const barra = (rot, v) => `<div class="mt-1.5"><div class="flex justify-between text-[11px]"><span class="text-gray-600">${rot}</span><b class="tabular-nums">${v === null || v === undefined ? '—' : v + '%'}</b></div>
+      <div class="h-1.5 bg-gray-100 rounded mt-0.5"><div class="h-1.5 rounded ${v >= 90 ? 'bg-emerald-500' : v >= 70 ? 'bg-amber-400' : 'bg-rose-500'}" style="width:${v || 0}%"></div></div></div>`;
+  const cont = { t: 0, a: 0, o: 0 }; lista.forEach(s => { const o = ordemV(s.veredito); if (o === 0) cont.t++; else if (o === 1) cont.a++; else if (o === 2) cont.o++; });
+  const cards = lista.map(s => `<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+      <div class="flex items-start justify-between gap-2 pr-14"><div><h3 class="text-sm font-extrabold text-gray-900">${esc(s.id)}</h3>
+        <p class="text-[11px] text-gray-500">${esc(s.aparelho)}${s.loja ? ' · ' + esc(s.loja) : ''}</p></div></div>
+      <div class="flex items-center gap-2 mt-2"><span class="text-3xl font-extrabold text-gray-900 tabular-nums">${s.nota === null || isNaN(s.nota) ? '—' : s.nota}</span>
+        <span class="text-xs font-bold border rounded px-2 py-0.5 ${corV(s.veredito)}">${esc(s.veredito || 'Sem testes')}</span></div>
+      <p class="text-[11px] text-gray-500 mt-0.5">${s.testes} teste${s.testes === 1 ? '' : 's'}${s.tempo ? ' · tempo médio ' + esc(s.tempo) : ''}</p>
+      ${barra('Conectou', s.con)}${barra('Leu KM', s.km)}${barra('Leu DTC', s.dtc)}
+      <p class="text-[11px] mt-2 ${/^n[aã]o/i.test(s.atualizado) ? 'text-rose-700 font-bold' : 'text-gray-500'}">Atualizado: ${esc(s.atualizado || '—')}${s.ultAtual ? ' · última ' + esc(s.ultAtual) : ''}</p>
+      ${s.naoLe ? `<p class="text-[11px] text-gray-600 mt-1"><b>Falhou em:</b> ${esc(s.naoLe)}</p>` : ''}
+    </div>`).join('');
+  const ruins = d.modelos.filter(m => [m.con, m.km, m.dtc].some(v => v !== null && v < 100));
+  const mods = SCAN.todosModelos ? d.modelos : ruins.slice(0, 15);
+  const pc = v => v === null || v === undefined ? '—' : `<span class="${v < 70 ? 'text-rose-700 font-bold' : v < 90 ? 'text-amber-700 font-bold' : ''}">${v}%</span>`;
+  box.innerHTML = `<div class="space-y-4">
+    <div class="flex flex-wrap items-center gap-3"><h2 class="text-xl font-extrabold text-gray-900">🔌 Scanners</h2>
+      <button type="button" id="scanAtualizar" class="border border-gray-300 rounded-md px-2.5 py-1.5 text-xs font-bold hover:bg-gray-50">Atualizar</button></div>
+    <p class="text-[11px] text-gray-500">Placar da planilha de avaliação (últimos 60 dias, recalculado a cada teste)${d.atualizadoEm ? ' · atualizado em <b>' + esc(d.atualizadoEm) + '</b>' : ''}.
+      Nota = conectou 40 + leu KM 25 + leu DTC 25 + tempo 10 (−10 se desatualizado) · 🟢 80+ · 🟡 60–79 · 🔴 abaixo de 60 · precisa de 3 testes.</p>
+    <div class="flex flex-wrap gap-2 text-xs font-bold">
+      <span class="rounded px-2 py-1 bg-rose-100 text-rose-800">🔴 Trocar: ${cont.t}</span><span class="rounded px-2 py-1 bg-amber-100 text-amber-800">🟡 Atenção: ${cont.a}</span>
+      <span class="rounded px-2 py-1 bg-emerald-100 text-emerald-800">🟢 OK: ${cont.o}</span><span class="rounded px-2 py-1 bg-gray-100 text-gray-600">Sem veredito: ${lista.length - cont.t - cont.a - cont.o}</span></div>
+    <div class="grid gap-3" style="grid-template-columns:repeat(auto-fit,minmax(230px,1fr))">${cards || '<p class="text-xs text-gray-500">Nenhum scanner no resumo.</p>'}</div>
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-3"><h3 class="text-xs font-bold text-gray-700 mb-2 pr-14">Modelos que não leem (${ruins.length} com alguma falha · piores primeiro)</h3>
+      ${d.semModelos ? '<p class="text-xs text-gray-500">Crie a aba <b>SCANNERS_MODELOS</b> (IMPORTRANGE da aba Modelos) para ver esta lista.</p>' : mods.length ? `<div class="overflow-x-auto"><table class="w-full text-xs"><thead><tr class="text-gray-500 text-left">
+        <th class="font-semibold pb-1 pr-3">Carro</th><th class="font-semibold pb-1 pr-3 text-right">Testes</th><th class="font-semibold pb-1 pr-3 text-right">Conectou</th>
+        <th class="font-semibold pb-1 pr-3 text-right">Leu KM</th><th class="font-semibold pb-1 pr-3 text-right">Leu DTC</th><th class="font-semibold pb-1">Scanners que falharam</th></tr></thead><tbody>
+        ${mods.map(m => `<tr class="border-t border-gray-100"><td class="py-1.5 pr-3 font-semibold">${esc((m.marca + ' ' + m.modelo).trim() || '—')}</td><td class="py-1.5 pr-3 text-right tabular-nums">${m.testes}</td>
+          <td class="py-1.5 pr-3 text-right tabular-nums">${pc(m.con)}</td><td class="py-1.5 pr-3 text-right tabular-nums">${pc(m.km)}</td><td class="py-1.5 pr-3 text-right tabular-nums">${pc(m.dtc)}</td>
+          <td class="py-1.5 text-gray-600">${esc(m.falharam || '—')}</td></tr>`).join('')}</tbody></table></div>
+        ${d.modelos.length > mods.length || SCAN.todosModelos ? `<button type="button" id="scanTodos" class="mt-2 text-xs font-bold text-blue-700 hover:underline">${SCAN.todosModelos ? 'Mostrar só os com falha' : 'Ver todos os ' + d.modelos.length + ' modelos'}</button>` : ''}`
+        : '<p class="text-xs text-gray-500">Nenhum modelo com falha. 🎉</p>'}
+    </div></div>`;
+  $('scanAtualizar').onclick = () => carregarScanners();
+  if ($('scanTodos')) $('scanTodos').onclick = () => { SCAN.todosModelos = !SCAN.todosModelos; renderScanners(); };
+}
+
 // ---------- 💡 Coincidências ----------
 // Fonte: api('coincidencias') (Coincidencias.gs): um item por post do Kavaki no período, já cruzado por placa com
 // sistema, ano/KM/modelo, rejeitadas, compras e novos achados. A escala (quem trabalhou em cada loja) vem do próprio site (S).
@@ -3692,7 +3762,8 @@ const VST = {
     { id: 'rej', titulo: 'Rejeições', c: 12, min: 6, sup: true },
     { id: 'rep', titulo: 'Reprovações', c: 12, min: 6, sup: true },
     { id: 'div', titulo: 'Divergências (Slack × planilha)', c: 12, min: 6, sup: true },
-    { id: 'coin', titulo: 'Coincidências', c: 12, min: 6, sup: true }
+    { id: 'coin', titulo: 'Coincidências', c: 12, min: 6, sup: true },
+    { id: 'scan', titulo: 'Scanners', c: 12, min: 6 }
   ],
   SPANS: [3, 4, 6, 8, 12]
 };
