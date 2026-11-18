@@ -2758,7 +2758,25 @@ function semiModal(motivo) {
 
 // ---------- Rejeições ----------
 // Fonte: api('rejeicoes') (Rejeicoes.gs): planilha do Bruno (aba REJEITADAS) + Dados Veículos (carros que chegaram, para a %).
-const REJ = { seq: 0, dados: null, hub: '', motivo: '' };
+const REJ = { seq: 0, dados: null, hub: '', motivo: '', tipo: 'rej', iv: null };
+// (18/11) ❌ Reprovados: api('reprovacoes') (aba REPROVADAS = IMPORTRANGE da INSPEÇÕES 2.0, aba REPROVAS). Mesma tela, outro botão.
+const REJ_TXT = {
+  rej: { titulo: '🔴 Rejeições', nome: 'Rejeitados', taxa: 'Taxa de rejeição', pal: 'rejeição', pl: 'rejeitados', pls: 'rejeições', acao: 'rejeicoes' },
+  rep: { titulo: '❌ Reprovações', nome: 'Reprovados', taxa: 'Taxa de reprovação', pal: 'reprovação', pl: 'reprovados', pls: 'reprovações', acao: 'reprovacoes' }
+};
+const rejT = () => REJ_TXT[REJ.tipo] || REJ_TXT.rej;
+// Reprovados: o motivo é texto livre -> peça/tema (um carro pode cair em vários)
+const REP_TEMAS = [
+  ['Longarina', /LONGAR/], ['Coluna', /COLUNA/], ['Assoalho', /ASS[OAI]+L[HD]O|ASSOALH/],
+  ['Painel traseiro', /PAINEL TRA[SZ]/], ['Painel dianteiro / corta-fogo', /PAINEL DIANT|CORTA[ -]?FOGO/],
+  ['Folha lateral', /FOLHA/], ['Caixa de ar / caixa de roda', /CAIXAS? (DE )?(AR|RODA)/],
+  ['Quadro do radiador / travessa', /QUADRO|QUADDO|QIADRO|TRAVESSA|RADIADOR/], ['Teto', /\bTETO\b/],
+  ['Estrutura (geral)', /ESTRUTUR/], ['Colisão', /COLIS/],
+  ['Solda / pontos não originais', /SOLDA|PONTOS? (DE SOLDA )?NAO ORIGIN|NAO ORIGINA|CALAFET/],
+  ['Massa / repintura', /MASSA|REPINT/], ['Corrosão / ferrugem', /CORROS|OXID|FERRUG|PODRE/],
+  ['Sinistro / roubo e furto / histórico', /SINISTRO|ROUBO|FURTO|HISTORIC|LEILAO/], ['Recall', /RECALL/],
+  ['Numeração motor / chassi', /NUMERA|ILEGIV|REMARC/], ['Vazamento', /VAZAMENT/], ['Vidros', /VIDRO/], ['Rastreador', /TRACKER|RASTREAD/]
+];
 const REJ_FAIXAS_ANO = [['até 2010', a => a <= 2010], ['2011–2014', a => a >= 2011 && a <= 2014], ['2015–2018', a => a >= 2015 && a <= 2018],
                         ['2019–2022', a => a >= 2019 && a <= 2022], ['2023 ou mais', a => a >= 2023]];
 const REJ_FAIXAS_KM = [['até 50 mil', k => k <= 50000], ['50–100 mil', k => k > 50000 && k <= 100000], ['100–150 mil', k => k > 100000 && k <= 150000],
@@ -2780,30 +2798,48 @@ const REJ_TEMAS = [
   ['Sem interesse comercial', /SEM INTERESSE/]
 ];
 const rejNorm = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
-const rejTemas = x => { const t = rejNorm(x.m + ' ' + x.t); const r = REJ_TEMAS.filter(([, re]) => re.test(t)).map(([n]) => n); return r.length ? r : ['Outros']; };
+const rejTemas = x => { const t = rejNorm(x.m + ' ' + x.t); const r = (REJ.tipo === 'rep' ? REP_TEMAS : REJ_TEMAS).filter(([, re]) => re.test(t)).map(([n]) => n); return r.length ? r : ['Outros']; };
 const rejKm = k => k >= 0 ? Math.round(k / 1000).toLocaleString('pt-BR') + ' mil' : '—';
 
 async function carregarRejeicoes(iv) {
   const box = $('rejConteudo'); if (!box) return;
   if (MODO_LOCAL || !ehSupervisor()) { box.innerHTML = ''; return; }
+  if (iv) REJ.iv = iv; else iv = REJ.iv;
   const seq = ++REJ.seq;
-  box.innerHTML = '<p class="text-xs text-gray-500">Carregando rejeições…</p>';
+  box.innerHTML = '<p class="text-xs text-gray-500">Carregando ' + rejT().pls + '…</p>';
   let r;
-  try { r = await api('rejeicoes', iv); } catch (e) { if (e && e.sessaoExpirada) return; r = { erro: e && e.message === 'timeout' ? 'demorou demais' : 'rede' }; }
+  try { r = await api(rejT().acao, iv); } catch (e) { if (e && e.sessaoExpirada) return; r = { erro: e && e.message === 'timeout' ? 'demorou demais' : 'rede' }; }
   if (seq !== REJ.seq) return;
   if (!r || r.erro || !Array.isArray(r.rejeitados)) {
     const m = {
       acao_desconhecida: 'O Apps Script ainda não tem a ação <b>rejeicoes</b>: cole o Rejeicoes.gs, troque a rotear_ e publique uma nova versão.',
       rej_acesso: 'O EscalaPro não conseguiu abrir a planilha base.',
       rej_aba: 'Não achei a aba <b>REJEITADAS</b> (IMPORTRANGE da planilha do Bruno) na planilha base do EscalaPro.',
-      rej_colunas: 'A aba REJEITADAS mudou de formato (não achei as colunas DATA e PLACA).'
+      rej_colunas: 'A aba REJEITADAS mudou de formato (não achei as colunas DATA e PLACA).',
+      rep_aba: 'Não achei a aba <b>REPROVADAS</b> (IMPORTRANGE da INSPEÇÕES 2.0, aba REPROVAS) na planilha base do EscalaPro.',
+      rep_colunas: 'A aba REPROVADAS mudou de formato (não achei as colunas DATA e PLACA).'
     };
-    box.innerHTML = `<div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-4 text-xs">Não foi possível carregar as rejeições. ${m[r && r.erro] || 'Tente atualizar em instantes.' + (r && r.erro ? ' <span class="text-amber-600">(' + esc(String(r.erro)) + ')</span>' : '')}</div>`;
+    box.innerHTML = rejBotoesTipo() + `<div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-4 text-xs mt-3">Não foi possível carregar as ${rejT().pls}. ${m[r && r.erro] || 'Tente atualizar em instantes.' + (r && r.erro ? ' <span class="text-amber-600">(' + esc(String(r.erro)) + ')</span>' : '')}</div>`;
+    rejLigarTipo();
     return;
   }
   r.rejeitados.forEach(x => { x.i = inspNomePadrao(x.i) || x.i; x.temas = rejTemas(x); });
   REJ.dados = r;
   renderRejeicoes();
+}
+
+// botões 🔴 Rejeitados | ❌ Reprovados (troca a fonte e recarrega)
+function rejBotoesTipo() {
+  const b = (t, txt) => `<button type="button" data-rejtipo="${t}" class="px-3 py-1.5 text-xs font-bold ${REJ.tipo === t ? 'bg-rose-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}">${txt}</button>`;
+  return `<div class="flex flex-wrap items-center gap-3"><h2 class="text-xl font-extrabold text-gray-900">${rejT().titulo}</h2>
+    <div class="inline-flex rounded-md border border-gray-300 overflow-hidden">${b('rej', '🔴 Rejeitados')}${b('rep', '❌ Reprovados')}</div></div>`;
+}
+function rejLigarTipo() {
+  document.querySelectorAll('#rejConteudo [data-rejtipo]').forEach(el => { el.onclick = () => {
+    if (REJ.tipo === el.dataset.rejtipo) return;
+    REJ.tipo = el.dataset.rejtipo; REJ.hub = ''; REJ.motivo = ''; REJ.dados = null;
+    carregarRejeicoes();
+  }; });
 }
 
 // lista com os filtros de hub e motivo
@@ -2825,7 +2861,7 @@ function renderRejeicoes() {
     const lin = defs.map(([nome, ok]) => { const rj = lista.filter(x => x[campo] > 0 && ok(x[campo])).length, ch = comBase ? d.base.filter(b => b[idxBase] > 0 && ok(b[idxBase])).length : 0; return { nome, rj, ch, tx: ch ? rj / ch : 0 }; });
     const pior = comBase ? lin.reduce((m, l, i) => (l.ch >= 5 && l.rj >= 2 && l.tx >= REJ_DESTAQUE_X * mediaGeral && (m < 0 || l.tx > lin[m].tx)) ? i : m, -1) : -1;
     return `<table class="w-full text-xs"><thead><tr class="text-gray-500"><th class="text-left font-semibold pb-1">Faixa</th>
-      <th class="text-right font-semibold pb-1 px-2">Rejeitados</th>${comBase ? '<th class="text-right font-semibold pb-1 px-2">Chegaram</th><th class="text-right font-semibold pb-1 pl-2">% rejeição</th>' : ''}</tr></thead><tbody>
+      <th class="text-right font-semibold pb-1 px-2">${rejT().nome}</th>${comBase ? '<th class="text-right font-semibold pb-1 px-2">Chegaram</th><th class="text-right font-semibold pb-1 pl-2">% ' + rejT().pal + '</th>' : ''}</tr></thead><tbody>
       ${lin.map((l, i) => `<tr class="border-t border-gray-100 hover:bg-gray-50 cursor-pointer ${i === pior ? 'bg-rose-50' : ''}" data-rej="${tipo}" data-v="${i}"><td class="py-1.5 pr-2 font-semibold ${i === pior ? 'text-rose-700' : 'text-gray-800'}">${l.nome}${i === pior ? ' <span class="ml-1 text-[10px] font-bold text-rose-700 bg-rose-100 rounded px-1">⚠ acima da média</span>' : ''}</td>
           <td class="py-1.5 px-2 text-right tabular-nums font-bold text-rose-600">${l.rj}</td>${comBase ? `<td class="py-1.5 px-2 text-right tabular-nums">${l.ch}</td><td class="py-1.5 pl-2 text-right tabular-nums font-bold ${i === pior ? 'text-rose-700' : ''}">${pct(l.rj, l.ch)}</td>` : ''}</tr>`).join('')}
       </tbody></table>`; };
@@ -2836,37 +2872,44 @@ function renderRejeicoes() {
   const card = (rot, val, sub, cor) => `<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4"><h3 class="text-[11px] font-bold uppercase tracking-wider text-gray-500 pr-14">${rot}</h3>
       <div class="text-2xl font-bold mt-1 ${cor || 'text-gray-900'}">${val}</div><div class="text-[11px] text-gray-500 mt-0.5">${sub}</div></div>`;
   const bloco = (titulo, corpo) => `<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-3"><h3 class="text-xs font-bold text-gray-700 mb-2 pr-14">${titulo}</h3>${corpo}</div>`;
+  const T = rejT(), rep = REJ.tipo === 'rep';
+  const ate = rep && d.atualizadoAte ? ` · <b>Reprovados atualizados até ${esc(fmtData(d.atualizadoAte).slice(0, 5))}</b> (a planilha de reprovas é atualizada no fim ou começo do dia)` : '';
+  const fonte = rep ? `Reprovados da INSPEÇÕES 2.0 (aba REPROVAS), no período do painel${ate}. O motivo é texto livre: o EscalaPro separa por peça/tema.`
+                    : 'Rejeitados da planilha do Bruno (aba REJEITADAS), no período do painel.';
+  const temaTop1 = temas.filter(([t]) => t !== 'Outros')[0] || temas[0];
 
   box.innerHTML = `<div class="space-y-4">
-    <h2 class="text-xl font-extrabold text-gray-900">🔴 Rejeições</h2>
+    ${rejBotoesTipo()}
     <div class="flex flex-wrap items-center gap-2">
       ${sel('rejHub', [['', 'Todos os hubs'], ...[...new Set(todos.map(x => x.h).filter(Boolean))].sort().map(h => [h, h])], REJ.hub)}
-      ${sel('rejMotivo', [['', 'Todos os motivos'], ...[...new Set(todos.map(x => x.m))].sort().map(m => [m, m])], REJ.motivo)}
+      ${rep ? '' : sel('rejMotivo', [['', 'Todos os motivos'], ...[...new Set(todos.map(x => x.m))].sort().map(m => [m, m])], REJ.motivo)}
       <button id="rejLista" class="border border-gray-300 rounded-md px-2.5 py-1.5 text-xs font-bold hover:bg-gray-50">Ver lista completa</button>
       <button id="rejCopiar" class="border border-gray-300 rounded-md px-2.5 py-1.5 text-xs font-bold hover:bg-gray-50">Copiar lista</button>
       <span id="rejInfo" class="text-xs text-gray-500"></span>
     </div>
-    <p class="text-[11px] text-gray-500">Rejeitados da planilha do Bruno (aba REJEITADAS), no período do painel. Carro "Sem dados": ano e KM vêm do Kavaki.
-      ${comBase ? `A <b>% de rejeição</b> é rejeitados ÷ carros que chegaram naquela faixa (pelo Kavaki)${baseCobre ? '' : ` · <b>atenção:</b> os carros que chegaram só estão completos a partir de ${esc(fmtData(d.baseDe))}`}.` : 'Com filtro de hub ou motivo, a % de rejeição não aparece (a base de carros que chegaram não tem hub).'}
+    <p class="text-[11px] text-gray-500">${fonte} Carro "Sem dados": ano e KM vêm do Kavaki.
+      ${comBase ? `A <b>% de ${T.pal}</b> é ${T.pl} ÷ carros que chegaram naquela faixa (pelo Kavaki)${baseCobre ? '' : ` · <b>atenção:</b> os carros que chegaram só estão completos a partir de ${esc(fmtData(d.baseDe))}`}.` : `Com filtro de hub${rep ? '' : ' ou motivo'}, a % de ${T.pal} não aparece (a base de carros que chegaram não tem hub).`}
       Clique em qualquer linha para ver as placas.</p>
     <div class="grid gap-3" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr))">
-      ${card('Rejeitados', lista.length, 'carros no período', 'text-rose-600')}
-      ${card('Taxa de rejeição', comBase ? pct(lista.length, d.base.length) : '—', comBase ? 'dos ' + d.base.length + ' carros que chegaram' : 'só sem filtro')}
-      ${card('Motivo mais comum', motivos.length ? esc(motivos[0][0]) : '—', motivos.length ? motivos[0][1] + ' carros (' + pct(motivos[0][1], lista.length) + ')' : '')}
+      ${card(T.nome, lista.length, 'carros no período', 'text-rose-600')}
+      ${card(T.taxa, comBase ? pct(lista.length, d.base.length) : '—', comBase ? 'dos ' + d.base.length + ' carros que chegaram' : 'só sem filtro')}
+      ${rep ? card('Tema mais comum', temaTop1 ? esc(temaTop1[0]) : '—', temaTop1 ? temaTop1[1] + ' carros (' + pct(temaTop1[1], lista.length) + ')' : '')
+            : card('Motivo mais comum', motivos.length ? esc(motivos[0][0]) : '—', motivos.length ? motivos[0][1] + ' carros (' + pct(motivos[0][1], lista.length) + ')' : '')}
     </div>
     ${bloco('💡 Destaques', rejDestaques(d, lista, comBase))}
     <div class="grid gap-4" style="grid-template-columns:repeat(auto-fit,minmax(340px,1fr))">
-      ${bloco('Por motivo (categoria)', barras(motivos, 'motivo'))}
-      ${bloco('Por tema (o que foi escrito)', barras(temas, 'tema'))}
+      ${rep ? '' : bloco('Por motivo (categoria)', barras(motivos, 'motivo'))}
+      ${bloco(rep ? 'Por peça / tema (do motivo escrito)' : 'Por tema (o que foi escrito)', barras(temas, 'tema'))}
       ${bloco('Por ano do carro', faixas(REJ_FAIXAS_ANO, 'a', 0, 'ano') + faixasNota('a'))}
       ${bloco('Por KM', faixas(REJ_FAIXAS_KM, 'km', 1, 'km') + faixasNota('km'))}
-      ${bloco('Marcas / modelos mais rejeitados', barras(carros, 'carro', 10))}
+      ${bloco('Marcas / modelos mais ' + T.pl, barras(carros, 'carro', 10))}
       ${bloco('Por hub', barras(hubs, 'hub', 12))}
       ${bloco('Por inspetor', barras(insps, 'insp', 15))}
     </div></div>`;
 
   $('rejHub').onchange = e => { REJ.hub = e.target.value; renderRejeicoes(); };
-  $('rejMotivo').onchange = e => { REJ.motivo = e.target.value; renderRejeicoes(); };
+  if ($('rejMotivo')) $('rejMotivo').onchange = e => { REJ.motivo = e.target.value; renderRejeicoes(); };
+  rejLigarTipo();
   $('rejLista').onclick = () => rejModal('todos', '');
   $('rejCopiar').onclick = rejCopiar;
   box.querySelectorAll('[data-rej]').forEach(b => { b.onclick = () => rejModal(b.dataset.rej, b.dataset.v); });
@@ -2880,6 +2923,7 @@ function rejDestaques(d, lista, comBase) {
   const vezes = v => (Math.round(v * 10) / 10).toString().replace('.', ',') + 'x';
   const media = comBase ? lista.length / d.base.length : 0;
   const itens = [];   // [peso, html]
+  const T = rejT();
   const temaTop = arr => { const o = {}; arr.forEach(x => x.temas.forEach(t => { o[t] = (o[t] || 0) + 1; })); const e = Object.entries(o).sort((a, b) => b[1] - a[1])[0]; return e ? { t: e[0], p: e[1] / arr.length } : null; };
 
   if (comBase && media > 0) {
@@ -2890,7 +2934,7 @@ function rejDestaques(d, lista, comBase) {
         const rj = lista.filter(x => x[campo] > 0 && ok(x[campo])).length, ch = d.base.filter(b => b[ib] > 0 && ok(b[ib])).length;
         if (ch >= 5 && rj >= 3 && rj / ch >= REJ_DESTAQUE_X * media && (!melhor || rj / ch > melhor.tx)) melhor = { nome, rj, ch, tx: rj / ch };
       });
-      if (melhor) itens.push([melhor.tx / media, `🔺 <b>${prefixo} ${melhor.nome}${campo === 'km' ? ' rodados' : ''}</b> são rejeitados <b>${vezes(melhor.tx / media)} mais</b> que a média (${pct(melhor.tx)} contra ${pct(media)} · ${melhor.rj} de ${melhor.ch}).`]);
+      if (melhor) itens.push([melhor.tx / media, `🔺 <b>${prefixo} ${melhor.nome}${campo === 'km' ? ' rodados' : ''}</b> são ${T.pl} <b>${vezes(melhor.tx / media)} mais</b> que a média (${pct(melhor.tx)} contra ${pct(media)} · ${melhor.rj} de ${melhor.ch}).`]);
     });
     // combinação ano × KM
     let combo = null;
@@ -2899,32 +2943,32 @@ function rejDestaques(d, lista, comBase) {
       if (ch >= 8 && rjs.length >= 3 && rjs.length / ch >= 2 * media && (!combo || rjs.length / ch > combo.tx)) combo = { na, nk, rjs, ch, tx: rjs.length / ch };
     }));
     if (combo) { const tt = temaTop(combo.rjs);
-      itens.push([combo.tx / media + 0.5, `🔗 <b>Carros de ${combo.na} com ${combo.nk}</b>: <b>${pct(combo.tx)}</b> de rejeição (${combo.rjs.length} de ${combo.ch}), ${vezes(combo.tx / media)} a média.${tt ? ` O mais citado: <b>${esc(tt.t)}</b> (${pct(tt.p)}).` : ''}`]); }
+      itens.push([combo.tx / media + 0.5, `🔗 <b>Carros de ${combo.na} com ${combo.nk}</b>: <b>${pct(combo.tx)}</b> de ${T.pal} (${combo.rjs.length} de ${combo.ch}), ${vezes(combo.tx / media)} a média.${tt ? ` O mais citado: <b>${esc(tt.t)}</b> (${pct(tt.p)}).` : ''}`]); }
     // modelos que se repetem, com a % de rejeição do modelo
     const chegaram = {}; d.base.forEach(b => { if (b[2]) { const k = rejChaveCarro(b[2], ''); chegaram[k] = (chegaram[k] || 0) + 1; } });
     const rejM = {}; lista.forEach(x => { if (x.ma) { const k = rejChaveCarro(x.ma, x.mo); (rejM[k] = rejM[k] || { nome: x.ma + ' ' + x.mo, n: 0 }).n++; } });
     Object.entries(rejM).filter(([, v]) => v.n >= 3).map(([k, v]) => ({ ...v, ch: chegaram[k] || 0 }))
       .filter(v => v.ch >= 5 && v.n / v.ch >= REJ_DESTAQUE_X * media).sort((a, b) => b.n / b.ch - a.n / a.ch).slice(0, 2)
-      .forEach(v => itens.push([v.n / v.ch / media, `🚗 <b>${esc(v.nome)}</b>: ${v.n} rejeitados de ${v.ch} que chegaram (<b>${pct(v.n / v.ch)}</b>, ${vezes(v.n / v.ch / media)} a média).`]));
+      .forEach(v => itens.push([v.n / v.ch / media, `🚗 <b>${esc(v.nome)}</b>: ${v.n} ${T.pl} de ${v.ch} que chegaram (<b>${pct(v.n / v.ch)}</b>, ${vezes(v.n / v.ch / media)} a média).`]));
   } else {
     // sem a base (filtro de hub/motivo): só os modelos que mais se repetem
     const rejM = {}; lista.forEach(x => { if (x.ma) { const k = x.ma + ' ' + x.mo; rejM[k] = (rejM[k] || 0) + 1; } });
     Object.entries(rejM).filter(([, n]) => n >= 3).sort((a, b) => b[1] - a[1]).slice(0, 2)
-      .forEach(([nome, n]) => itens.push([1, `🚗 <b>${esc(nome)}</b> aparece <b>${n} vezes</b> nas rejeições (${pct(n / lista.length)}).`]));
+      .forEach(([nome, n]) => itens.push([1, `🚗 <b>${esc(nome)}</b> aparece <b>${n} vezes</b> nas ${T.pls} (${pct(n / lista.length)}).`]));
   }
   // tema que domina uma faixa de ano
   REJ_FAIXAS_ANO.forEach(([nome, ok]) => {
     const arr = lista.filter(x => x.a > 0 && ok(x.a)); if (arr.length < 5) return;
-    const tt = temaTop(arr); if (tt && tt.p >= 0.6) itens.push([1 + tt.p, `🔧 Nos carros de <b>${nome}</b>, <b>${pct(tt.p)}</b> das rejeições citam <b>${esc(tt.t)}</b>.`]);
+    const tt = temaTop(arr); if (tt && tt.p >= 0.6) itens.push([1 + tt.p, `🔧 Nos carros de <b>${nome}</b>, <b>${pct(tt.p)}</b> das ${T.pls} citam <b>${esc(tt.t)}</b>.`]);
   });
   // hub que concentra as rejeições
   if (!REJ.hub && lista.length >= 10) {
     const o = {}; lista.forEach(x => { o[x.h || 'Sem hub'] = (o[x.h || 'Sem hub'] || 0) + 1; });
     const [h, n] = Object.entries(o).sort((a, b) => b[1] - a[1])[0] || [];
-    if (h && n / lista.length >= 0.4) itens.push([1.2, `🏢 <b>${esc(h)}</b> concentra <b>${pct(n / lista.length)}</b> das rejeições (${n} de ${lista.length}).`]);
+    if (h && n / lista.length >= 0.4) itens.push([1.2, `🏢 <b>${esc(h)}</b> concentra <b>${pct(n / lista.length)}</b> das ${T.pls} (${n} de ${lista.length}).`]);
   }
   // "Outro" demais: o motivo de verdade está no texto
-  const outros = lista.filter(x => /^OUTRO/.test(rejNorm(x.m)));
+  const outros = REJ.tipo === 'rep' ? [] : lista.filter(x => /^OUTRO/.test(rejNorm(x.m)));
   if (lista.length >= 10 && outros.length / lista.length >= 0.25) { const tt = temaTop(outros);
     itens.push([1.1, `📝 <b>${pct(outros.length / lista.length)}</b> foram marcadas como <b>"Outro"</b>: o motivo real está no texto${tt && tt.t !== 'Outros' ? ` (o mais citado: <b>${esc(tt.t)}</b>)` : ''}.`]); }
 
@@ -2946,7 +2990,7 @@ function rejFiltro(tipo, v) {
 
 function rejModal(tipo, v) {
   const d = REJ.dados; if (!d) return;
-  const lista = rejLista().filter(rejFiltro(tipo, v));
+  const lista = rejLista().filter(rejFiltro(tipo, v)), rep = REJ.tipo === 'rep';
   const nome = tipo === 'ano' ? REJ_FAIXAS_ANO[+v][0] : tipo === 'km' ? REJ_FAIXAS_KM[+v][0] : v;
   const linhas = lista.map((x, i) => `<tr class="border-t border-gray-100 align-top">
       <td class="py-1.5 pr-3 text-gray-400">${i + 1}</td><td class="py-1.5 pr-3 whitespace-nowrap">${esc(fmtData(x.d).slice(0, 5))}</td>
@@ -2954,16 +2998,19 @@ function rejModal(tipo, v) {
       <td class="py-1.5 pr-3 whitespace-nowrap">${esc(x.i)}</td>
       <td class="py-1.5 pr-3">${esc(x.ma ? x.ma + ' ' + x.mo : '—')}${x.f === 'K' ? ' <span class="text-[10px] text-gray-400">(Kavaki)</span>' : ''}</td>
       <td class="py-1.5 pr-3 tabular-nums">${x.a || '—'}</td><td class="py-1.5 pr-3 tabular-nums whitespace-nowrap">${rejKm(x.km)}</td>
-      <td class="py-1.5 pr-3">${esc(x.m)}</td><td class="py-1.5 text-gray-600">${esc(x.t)}</td></tr>`);
-  modalTabela('Rejeições' + (tipo !== 'todos' ? ' · ' + esc(nome) : ''),
+      <td class="py-1.5 pr-3">${esc(x.m)}</td>${rep ? '' : `<td class="py-1.5 text-gray-600">${esc(x.t)}</td>`}</tr>`);
+  modalTabela(rejT().titulo.replace(/^\S+\s/, '') + (tipo !== 'todos' ? ' · ' + esc(nome) : ''),
     `${lista.length} carro${lista.length === 1 ? '' : 's'} · ${esc(fmtData(d.periodo.inicio))} a ${esc(fmtData(d.periodo.fim))}${REJ.hub ? ' · ' + esc(REJ.hub) : ''}${REJ.motivo ? ' · ' + esc(REJ.motivo) : ''}`,
-    ['#', 'Dia', 'Placa', 'Hub', 'Inspetor', 'Carro', 'Ano', 'KM', 'Motivo', 'Descrição'], linhas, 'Nenhum carro.');
+    ['#', 'Dia', 'Placa', 'Hub', 'Inspetor', 'Carro', 'Ano', 'KM', 'Motivo'].concat(rep ? [] : ['Descrição']), linhas, 'Nenhum carro.');
   const m = document.querySelector('#modalTabela > div'); if (m) m.classList.replace('max-w-3xl', 'max-w-6xl');
 }
 
 function rejCopiar() {
-  const cab = ['Data', 'Placa', 'Hub', 'Inspetor', 'Marca', 'Modelo', 'Ano', 'KM', 'Motivo', 'Descrição', 'Temas', 'Resultado B2B'];
-  const linhas = rejLista().map(x => [fmtData(x.d), x.p, x.h, x.i, x.ma, x.mo, x.a || '', x.km >= 0 ? x.km : '', x.m, x.t, x.temas.join(', '), x.b]
+  const rep = REJ.tipo === 'rep';
+  const cab = rep ? ['Data', 'Placa', 'Hub', 'Inspetor', 'Marca', 'Modelo', 'Ano', 'KM', 'Motivo', 'Peça / tema']
+                  : ['Data', 'Placa', 'Hub', 'Inspetor', 'Marca', 'Modelo', 'Ano', 'KM', 'Motivo', 'Descrição', 'Temas', 'Resultado B2B'];
+  const linhas = rejLista().map(x => (rep ? [fmtData(x.d), x.p, x.h, x.i, x.ma, x.mo, x.a || '', x.km >= 0 ? x.km : '', x.m, x.temas.join(', ')]
+                                          : [fmtData(x.d), x.p, x.h, x.i, x.ma, x.mo, x.a || '', x.km >= 0 ? x.km : '', x.m, x.t, x.temas.join(', '), x.b])
     .map(c => String(c).replace(/[\t\n]+/g, ' ')).join('\t'));
   const txt = [cab.join('\t')].concat(linhas).join('\n');
   const ok = () => { $('rejInfo').textContent = linhas.length + ' linha(s) copiada(s): cole numa planilha.'; };
