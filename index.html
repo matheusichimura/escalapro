@@ -60,7 +60,7 @@ button:disabled{cursor:not-allowed}
 .rec-desfazer:hover{background:#f3f4f6}
 .rec-x{position:absolute;top:4px;right:8px;background:none;border:0;color:#374151;font-size:16px;line-height:1;cursor:pointer}
 @keyframes recVoa{from{transform:translateY(8px) scale(.94);opacity:0}to{transform:none;opacity:1}}
-/* Jeepelson (assistente com IA) */
+/* Jeepnelson (assistente com IA) */
 .jp-off #jpBtn,.jp-off #jpVolta,.jp-off #jpPainel{display:none!important}
 #jpBtn.hidden,#jpVolta.hidden,.jp-chat .hidden,#jpArq{display:none!important}
 .jp-btn{position:fixed;right:18px;bottom:18px;z-index:70;width:74px;height:66px;border:0;background:#fff;border-radius:22px;padding:4px;
@@ -92,7 +92,7 @@ button:disabled{cursor:not-allowed}
 .jp-jeepelson .jp-bolha{background:#fff;border:1px solid #e5e7eb;border-bottom-left-radius:4px}
 .jp-pensando .jp-bolha{color:#2f5bea;font-weight:700;letter-spacing:2px;animation:jpPisca 1s infinite}
 .jp-meta{font-size:10px;color:#9ca3af;margin-top:2px}
-/* (18/11) Jeepelson visual: gráficos, números e apresentação */
+/* (18/11) Jeepnelson visual: gráficos, números e apresentação */
 .jp-msg.jp-largo{max-width:100%;width:100%}
 .jp-vis{margin-top:8px;padding:10px;border:1px solid #e5e7eb;border-radius:10px;background:#fff;color:#111827}
 .jp-vis-tit{font-size:12px;font-weight:800;color:#111827;margin-bottom:2px}.jp-vis-sub{font-size:10.5px;color:#6b7280;margin-bottom:6px}
@@ -293,7 +293,7 @@ html.escuro .text-black{color:#f1f5f9}
     <button data-act="tab" data-tab="equipe" id="btn-equipe" class="py-3 px-4 border-b-2 text-xs font-bold flex items-center gap-2 transition whitespace-nowrap text-gray-500 border-transparent hover:text-kavak-blue"><i data-ic="users"></i> Equipe</button>
     <button data-act="tab" data-tab="lojas" id="btn-lojas" class="py-3 px-4 border-b-2 text-xs font-bold flex items-center gap-2 transition whitespace-nowrap text-gray-500 border-transparent hover:text-kavak-blue"><i data-ic="store"></i> Lojas</button>
     <button data-act="tab" data-tab="inspecoes" id="btn-inspecoes" class="py-3 px-4 border-b-2 text-xs font-bold flex items-center gap-2 transition whitespace-nowrap text-gray-500 border-transparent hover:text-kavak-blue"><i data-ic="chart"></i> Inspeções</button>
-    <button data-act="tab" data-tab="chat" id="btn-chat" style="display:none" class="py-3 px-4 border-b-2 text-xs font-bold flex items-center gap-2 transition whitespace-nowrap text-gray-500 border-transparent hover:text-kavak-blue"><span aria-hidden="true">🚙</span> Jeepelson</button>
+    <button data-act="tab" data-tab="chat" id="btn-chat" style="display:none" class="py-3 px-4 border-b-2 text-xs font-bold flex items-center gap-2 transition whitespace-nowrap text-gray-500 border-transparent hover:text-kavak-blue"><span aria-hidden="true">🚙</span> Jeepnelson</button>
     <button data-act="tab" data-tab="acessos" id="btn-acessos" style="display:none" class="py-3 px-4 border-b-2 text-xs font-bold flex items-center gap-2 transition whitespace-nowrap text-gray-500 border-transparent hover:text-kavak-blue"><i data-ic="users"></i> Acessos</button>
   </div>
 </nav>
@@ -1288,7 +1288,7 @@ function temaGraficos() {
   Chart.__temaOk = true;
   // Antes de desenhar, troca as cores de eixo/grade/legenda conforme o tema (sem mexer em cada gráfico)
   Chart.register({ id: 'temaEscalaPro', beforeUpdate(ch) {
-    if (ch.canvas && ch.canvas.dataset.semTema === '1') return;   // gráficos do Jeepelson: fundo sempre claro
+    if (ch.canvas && ch.canvas.dataset.semTema === '1') return;   // gráficos do Jeepnelson: fundo sempre claro
     const e = temaEscuro(), sc = ch.options.scales || {};
     if (!ch.$temaOrig) ch.$temaOrig = {};
     Object.keys(sc).forEach(k => {
@@ -6657,8 +6657,8 @@ document.addEventListener('drop', e => {
 document.addEventListener('dragend', () => { setTimeout(() => { REC.origem = null; }, 0); });
 
 // ======================================================================
-// JEEPELSON — assistente com IA (Groq pelo Apps Script, ação 'ia_chat')
-// Botão no canto (todo mundo vê) + aba "Jeepelson". Conversa salva por usuário na aba "Chat IA".
+// JEEPNELSON — assistente com IA (Groq pelo Apps Script, ação 'ia_chat')
+// Botão no canto (todo mundo vê) + aba "Jeepnelson". Conversa salva por usuário na aba "Chat IA".
 // Para DESLIGAR tudo: JP.LIGADO = false.
 // ======================================================================
 const JP = { LIGADO: true, aberto: false, naAba: false, carregou: false, msgs: [], imgs: [], som: true, ouvindo: false,
@@ -6699,17 +6699,17 @@ function jpEstado(st) { document.querySelectorAll('.jp-mascote').forEach(m => m.
 function jpMontar() {
   if ($('jpBtn')) return;
   document.body.insertAdjacentHTML('beforeend', `
-    <button type="button" id="jpBtn" class="jp-btn jp-mascote" data-st="parado" title="Falar com o Jeepelson">${jpSVG()}
-      <span id="jpEsconder" class="jp-esconder" title="Esconder o Jeepelson">×</span></button>
-    <button type="button" id="jpVolta" class="jp-volta" title="Mostrar o Jeepelson">🚙</button>
+    <button type="button" id="jpBtn" class="jp-btn jp-mascote" data-st="parado" title="Falar com o Jeepnelson">${jpSVG()}
+      <span id="jpEsconder" class="jp-esconder" title="Esconder o Jeepnelson">×</span></button>
+    <button type="button" id="jpVolta" class="jp-volta" title="Mostrar o Jeepnelson">🚙</button>
     <div id="jpPainel" class="jp-painel"></div>`);
   $('jpPainel').innerHTML = `
     <div id="jpChat" class="jp-chat">
       <div class="jp-topo">
         <div class="jp-mascote jp-mini" data-st="parado">${jpSVG()}</div>
-        <div class="jp-titulo"><b>Jeepelson</b><span id="jpStatus">pronto pra ajudar</span></div>
+        <div class="jp-titulo"><b>Jeepnelson</b><span id="jpStatus">pronto pra ajudar</span></div>
         <button type="button" id="jpSom" class="jp-ico" title="Ligar/desligar a voz"></button>
-        <button type="button" id="jpTela" class="jp-ico" title="Abrir na aba Jeepelson">⤢</button>
+        <button type="button" id="jpTela" class="jp-ico" title="Abrir na aba Jeepnelson">⤢</button>
         <button type="button" id="jpFechar" class="jp-ico" title="Fechar">—</button>
       </div>
       <div id="jpAdmin" class="jp-admin hidden">Ver conversa de: <select id="jpVer"></select></div>
@@ -6774,7 +6774,7 @@ function jpAbrir(abrir) {
   $('jpPainel').classList.toggle('aberto', abrir && !JP.naAba);
   if (abrir) jpPreparar();
 }
-// a aba "Jeepelson" usa o mesmo chat (ele muda de lugar)
+// a aba "Jeepnelson" usa o mesmo chat (ele muda de lugar)
 function jpNaAba(sim) {
   if (!$('jpChat')) return;
   JP.naAba = sim;
@@ -6782,7 +6782,7 @@ function jpNaAba(sim) {
   $('jpChat').classList.toggle('jp-cheio', sim);
   $('jpPainel').classList.toggle('aberto', !sim && JP.aberto);
   $('jpTela').textContent = sim ? '⤡' : '⤢';
-  $('jpTela').title = sim ? 'Voltar para o botão' : 'Abrir na aba Jeepelson';
+  $('jpTela').title = sim ? 'Voltar para o botão' : 'Abrir na aba Jeepnelson';
   if (sim) jpPreparar();
 }
 
@@ -6813,7 +6813,7 @@ async function jpCarregarHistorico() {
     $('jpTexto').placeholder = outro ? 'Só leitura: conversa de outra pessoa' : 'Pergunte ou peça algo…';
     $('jpMsgs').innerHTML = '';
     (r.msgs || []).forEach(m => jpBolha(m.quem === 'pessoa' ? 'pessoa' : 'jeepelson', m.texto, { em: m.em, alt: m.alt, antigo: true }));
-    if (!r.msgs || !r.msgs.length) jpBolha('jeepelson', 'Fala! Eu sou o Jeepelson 🚙. Pergunta qualquer coisa da escala: quem folga, quem está onde, se a loja dá conta do movimento…' + (podeEditar() ? ' E se quiser, eu altero a escala pra você (você confirma antes).' : ''));
+    if (!r.msgs || !r.msgs.length) jpBolha('jeepelson', 'Fala! Eu sou o Jeepnelson 🚙. Pergunta qualquer coisa da escala: quem folga, quem está onde, se a loja dá conta do movimento…' + (podeEditar() ? ' E se quiser, eu altero a escala pra você (você confirma antes).' : ''));
   } catch (e) {
     if (e.sessaoExpirada) return;
     $('jpMsgs').innerHTML = '';
@@ -6837,13 +6837,13 @@ function jpBolha(quem, texto, o) {
   o = o || {};
   const div = document.createElement('div');
   div.className = 'jp-msg jp-' + quem;
-  div.innerHTML = `<div class="jp-bolha">${esc(texto).replace(/\n/g, '<br>')}</div><div class="jp-meta">${quem === 'pessoa' ? 'você' : 'Jeepelson'} · ${jpHora(o.em)}${o.antigo && o.alt ? ' · 📝 propôs alterações' : ''}</div>`;
+  div.innerHTML = `<div class="jp-bolha">${esc(texto).replace(/\n/g, '<br>')}</div><div class="jp-meta">${quem === 'pessoa' ? 'você' : 'Jeepnelson'} · ${jpHora(o.em)}${o.antigo && o.alt ? ' · 📝 propôs alterações' : ''}</div>`;
   $('jpMsgs').appendChild(div);
   $('jpMsgs').scrollTop = $('jpMsgs').scrollHeight;
   return div;
 }
 
-// ---------- (18/11) Jeepelson visual: gráficos, números e mini apresentação ----------
+// ---------- (18/11) Jeepnelson visual: gráficos, números e mini apresentação ----------
 // A IA só ESCOLHE o gráfico (id do cardápio) e escreve título/comentário; os NÚMEROS vêm dos dados reais do site.
 // Para a IA vão só TOTAIS (sem placa).
 const JP_CORES = ['#2f5bea', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#64748b', '#84cc16', '#f97316'];
@@ -6997,7 +6997,7 @@ function jpNumPlanilha(d, loja, tipo) {
            itens: [[(tipo === 'rep' ? '❌ ' : '🔴 ') + 'Carros ' + (tipo === 'rep' ? 'reprovados' : 'rejeitados'), n]].concat(poucos ? [] :
              top.map(([k, q], i) => [(i + 1) + 'º ' + k, q + ' carro' + (q === 1 ? '' : 's') + ' (' + saudePct(q, n) + ')'])) };
 }
-// Garante que os dados das abas estão carregados (o Jeepelson pode ser aberto sem passar pela aba Inspeções)
+// Garante que os dados das abas estão carregados (o Jeepnelson pode ser aberto sem passar pela aba Inspeções)
 // Carrega as abas UMA vez (compartilhado entre o "pré-carregar ao abrir" e a 1ª pergunta); espera no máx. 25 s e segue com o que veio
 let JP_CARGA = null;
 function jpGarantirDados() {
@@ -7110,7 +7110,7 @@ function jpVisuais(bolha, r) {
   if (slides.length) {
     const bt = document.createElement('button'); bt.type = 'button'; bt.className = 'jp-apresentar';
     bt.textContent = `▶ Apresentar (${slides.length} slide${slides.length > 1 ? 's' : ''})`;
-    bt.onclick = () => jpApresentar(slides, r.tituloApresentacao || 'Apresentação do Jeepelson');
+    bt.onclick = () => jpApresentar(slides, r.tituloApresentacao || 'Apresentação do Jeepnelson');
     bolha.querySelector('.jp-bolha').appendChild(bt);
   }
   if (blocos.length || slides.length) $('jpMsgs').scrollTop = $('jpMsgs').scrollHeight;
@@ -7169,7 +7169,7 @@ async function jpApresentacaoPdf(slides, titulo) {
     p.c{font-size:13px;color:#4b5563}img{max-width:100%;max-height:120mm}
     .jp-nums{display:flex;flex-wrap:wrap;gap:10px}.jp-num{border:1px solid #e5e7eb;border-radius:8px;padding:8px 12px}.jp-num span{display:block;font-size:12px;color:#6b7280}.jp-num b{font-size:20px}
     .rod{font-size:10px;color:#9ca3af;margin-top:6px}</style></head><body>${paginas.join('')}
-    <p class="rod">Gerado pelo Jeepelson · EscalaPro · ${esc(new Date().toLocaleString('pt-BR'))}</p></body></html>`);
+    <p class="rod">Gerado pelo Jeepnelson · EscalaPro · ${esc(new Date().toLocaleString('pt-BR'))}</p></body></html>`);
   w.document.close();
   setTimeout(() => { try { w.focus(); w.print(); } catch (e) {} }, 400);
   if (bt) { bt.disabled = false; bt.textContent = '⬇ Baixar PDF'; }
@@ -7270,12 +7270,12 @@ function jpPrevia(bolha, r) {
   $('jpMsgs').scrollTop = $('jpMsgs').scrollHeight;
   const sim1 = card.querySelector('.jp-sim');
   if (sim1) sim1.onclick = () => {
-    snapshot('alteração pedida ao Jeepelson');
+    snapshot('alteração pedida ao Jeepnelson');
     aplicarTudo();
     atualizarTudo();
     card.querySelector('.jp-acoes').innerHTML = '<span class="jp-bom">✔ Aplicado!</span><button type="button" class="jp-nao">↩ Desfazer</button>';
     card.querySelector('.jp-nao').onclick = () => { desfazer(); card.querySelector('.jp-acoes').innerHTML = '<span>↩ Desfeito.</span>'; };
-    toast('✅ Alterações do Jeepelson aplicadas (dá para desfazer)');
+    toast('✅ Alterações do Jeepnelson aplicadas (dá para desfazer)');
   };
   card.querySelector('.jp-nao').onclick = () => { card.querySelector('.jp-acoes').innerHTML = '<span>Descartado. Nada mudou.</span>'; };
 }
