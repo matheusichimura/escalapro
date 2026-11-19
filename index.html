@@ -66,6 +66,21 @@ button:disabled{cursor:not-allowed}
 .jp-btn{position:fixed;right:18px;bottom:18px;z-index:70;width:74px;height:66px;border:0;background:#fff;border-radius:22px;padding:4px;
   box-shadow:0 8px 24px rgba(15,23,42,.25),0 0 0 2px #2f5bea;cursor:pointer;transition:transform .15s}
 .jp-btn:hover{transform:translateY(-2px) scale(1.04)}
+.jp-atalhos{padding:6px 12px 0}
+.jp-chip{border:1px solid #2f5bea;background:#eef2ff;color:#2f5bea;border-radius:999px;padding:4px 12px;font-size:12px;font-weight:700;cursor:pointer}
+.jp-chip:hover{background:#2f5bea;color:#fff}
+.jp-q-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.jp-q-tit{font-weight:700;margin-bottom:2px}
+.jp-q-total{font-size:26px;font-weight:800;line-height:1.1;margin:2px 0 6px}
+.jp-q-lin{position:relative;display:flex;justify-content:space-between;gap:8px;font-size:13px;padding:3px 6px;margin:2px 0;border-radius:6px;overflow:hidden;background:#f1f5f9}
+.jp-q-lin span,.jp-q-lin b{position:relative;z-index:1}
+.jp-q-lin i{position:absolute;left:0;top:0;bottom:0;background:#c7d7fe;z-index:0}
+.jp-q-plc{font-size:12px;font-family:ui-monospace,monospace;padding:1px 0;border-bottom:1px dashed #e2e8f0}
+.jp-q-nota{font-size:12px;opacity:.75;margin-top:4px}
+.jp-balao{position:fixed;right:20px;bottom:98px;z-index:71;max-width:240px;background:#2f5bea;color:#fff;border-radius:16px 16px 4px 16px;padding:10px 14px;font-size:14px;font-weight:600;
+  box-shadow:0 8px 24px rgba(15,23,42,.3);cursor:pointer;animation:jpBalao .5s ease-out}
+.jp-balao small{display:block;font-weight:400;opacity:.85;margin-top:2px}
+@keyframes jpBalao{from{transform:translateY(12px) scale(.85);opacity:0}to{transform:none;opacity:1}}
 .jp-btn .jp-svg{width:100%;height:100%}
 .jp-esconder{position:absolute;top:-7px;right:-7px;width:20px;height:20px;border-radius:50%;background:#0b0b0f;color:#fff;font-size:13px;line-height:20px;text-align:center;opacity:.85}
 .jp-volta{position:fixed;right:0;bottom:90px;z-index:70;border:0;background:#2f5bea;color:#fff;border-radius:10px 0 0 10px;padding:6px 6px 6px 8px;font-size:16px;cursor:pointer;opacity:.75;box-shadow:0 4px 12px rgba(0,0,0,.2)}
@@ -124,6 +139,16 @@ button:disabled{cursor:not-allowed}
 .jp-enviar:disabled{opacity:.4}
 .jp-gravando{background:#dc2626!important;color:#fff!important;animation:jpPisca 1s infinite}
 @keyframes jpPisca{50%{opacity:.45}}
+.jp-pista{position:relative;width:210px;height:50px;overflow:hidden;border-bottom:2px dashed #c7d2fe}
+.jp-corre{position:absolute;left:0;top:2px;width:46px;height:42px;animation:jpIdaVolta 2.8s linear infinite}
+.jp-corre .jp-svg,.jp-corre svg{width:100%;height:100%;animation:jpPula .28s ease-in-out infinite alternate}
+.jp-poeira{position:absolute;bottom:4px;font-size:11px;opacity:.7;animation:jpIdaVolta 2.8s linear infinite;animation-delay:-.12s}
+.jp-pensa-txt{font-size:12px;color:#2f5bea;font-weight:700;margin-top:2px;animation:jpPisca 1s infinite}
+@keyframes jpIdaVolta{0%{left:0;transform:scaleX(1)}48%{left:calc(100% - 46px);transform:scaleX(1)}50%{left:calc(100% - 46px);transform:scaleX(-1)}98%{left:0;transform:scaleX(-1)}100%{left:0;transform:scaleX(1)}}
+@keyframes jpPula{from{transform:translateY(0) rotate(-2deg)}to{transform:translateY(-4px) rotate(2deg)}}
+@keyframes jpTrota{from{transform:translateX(-7px) rotate(-4deg)}to{transform:translateX(7px) rotate(4deg)}}
+.jp-btn[data-st=pensando]{animation:jpTrota .45s ease-in-out infinite alternate}
+@media (prefers-reduced-motion:reduce){.jp-corre,.jp-corre *,.jp-poeira,.jp-btn[data-st=pensando]{animation:none!important}}
 /* estados do carrinho */
 .jp-mascote .jp-boca,.jp-mascote .jp-pontos{display:none}
 .jp-mascote .jp-luz{fill:#9aa3b2}.jp-mascote .jp-brilho{fill:transparent}
@@ -2741,8 +2766,10 @@ async function carregarTotalSla(iv, totalCarros) {
   try { r = await api('totalSla', iv); } catch (e) { r = null; }
   const box = $('kpiSla'); if (!box) return;
   if (!r || r.erro || typeof r.inspecoes !== 'number') {
-    box.querySelector('span').textContent = '—';
-    box.querySelector('p:last-child').textContent = r && r.erro === 'acao_desconhecida' ? 'publique o SemInspecao.gs novo' : 'sem dados da SLA';
+    const motivo = r && r.erro === 'acao_desconhecida' ? 'publique o SemInspecao.gs novo' : 'sem dados da SLA' + (r && r.erro ? ' (' + String(r.erro).slice(0, 40) + ')' : '');
+    box.innerHTML = `<p class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Inspeções no sistema</p>
+    <div class="flex items-baseline justify-between mt-2"><span class="text-3xl font-extrabold text-gray-900">—</span></div>
+    <p class="text-[10px] mt-3 text-gray-400">${esc(motivo)}</p>`;
     return;
   }
   const p = totalCarros ? (r.inspecoes / totalCarros * 100).toFixed(1).replace('.', ',') + '%' : '—';
@@ -6715,6 +6742,7 @@ function jpMontar() {
       <div id="jpAdmin" class="jp-admin hidden">Ver conversa de: <select id="jpVer"></select></div>
       <div class="jp-aviso">As conversas ficam salvas e podem ser vistas pelo administrador.</div>
       <div id="jpMsgs" class="jp-msgs"></div>
+      <div id="jpAtalhos" class="jp-atalhos hidden"><button type="button" id="jpConsultar" class="jp-chip">🔎 Consultar dados</button> <button type="button" id="jpSugerir" class="jp-chip">✨ Sugerir escala da semana</button></div>
       <div id="jpThumbs" class="jp-thumbs"></div>
       <div class="jp-entrada">
         <label id="jpAnexo" class="jp-ico hidden" title="Anexar print (até 3)">📎<input type="file" id="jpArq" accept="image/*" multiple class="hidden"></label>
@@ -6734,6 +6762,8 @@ function jpMontar() {
   $('jpTela').onclick = () => JP.naAba ? mudarAba('home') : mudarAba('chat');
   $('jpSom').onclick = () => { JP.som = !JP.som; try { localStorage.setItem('jp_som', JP.som ? '1' : '0'); } catch (e) {} if (!JP.som && window.speechSynthesis) speechSynthesis.cancel(); jpPintaSom(); };
   $('jpEnviar').onclick = () => jpEnviar();
+  $('jpSugerir').onclick = () => jpSugerir();
+  $('jpConsultar').onclick = () => jpConsultar();
   $('jpTexto').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); jpEnviar(); } });
   $('jpTexto').addEventListener('input', () => { const t = $('jpTexto'); t.style.height = 'auto'; t.style.height = Math.min(110, t.scrollHeight) + 'px'; });
   $('jpMic').onclick = () => jpOuvir();
@@ -6756,6 +6786,8 @@ function jpMontar() {
   if (!(window.SpeechRecognition || window.webkitSpeechRecognition)) $('jpMic').classList.add('hidden');
   jpPintaSom();
   // pisca de vez em quando
+  setTimeout(jpChecarNovas, 3000);
+  setInterval(() => { if (!document.hidden) jpChecarNovas(); }, 60000);
   setInterval(() => document.querySelectorAll('.jp-mascote').forEach(m => { m.classList.add('jp-piscar'); setTimeout(() => m.classList.remove('jp-piscar'), 180); }), 4200);
 }
 function jpPintaSom() { if ($('jpSom')) $('jpSom').textContent = JP.som ? '🔊' : '🔇'; }
@@ -6766,6 +6798,26 @@ function jpEsconder(sim) {
 function jpThumbs() {
   $('jpThumbs').innerHTML = JP.imgs.map((im, i) => `<span class="jp-thumb"><img src="${im.url}"><button type="button" data-rm="${i}">×</button></span>`).join('');
   $('jpThumbs').querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { JP.imgs.splice(+b.dataset.rm, 1); jpThumbs(); });
+}
+
+// respostas atrasadas (quando a IA estava no limite): balão no mascote
+async function jpChecarNovas() {
+  if (MODO_LOCAL || !SESSAO || JP.checando) return;
+  JP.checando = true;
+  try {
+    const r = await api('ia_chat_novas', {});
+    if (r && r.ok && (r.prontas || []).length) jpBalao(r.prontas);
+  } catch (e) {} finally { JP.checando = false; }
+}
+function jpBalao(prontas) {
+  const velho = $('jpBalao'); if (velho) velho.remove();
+  const n = prontas.length;
+  const b = document.createElement('div');
+  b.id = 'jpBalao'; b.className = 'jp-balao';
+  b.innerHTML = '🔔 ' + (n > 1 ? n + ' respostas prontas!' : 'Tenho uma resposta pra você!') + '<small>' + esc(prontas[0].pergunta || '') + '</small>';
+  b.onclick = () => { b.remove(); JP.carregou = false; jpEstado('parado'); jpAbrir(true); if (JP.naAba || JP.aberto) jpCarregarHistorico(); };
+  document.body.appendChild(b);
+  if (!JP.aberto) jpEstado('falando'), setTimeout(() => jpEstado('parado'), 1800);
 }
 
 // abre/fecha o painel flutuante
@@ -6788,6 +6840,7 @@ function jpNaAba(sim) {
 
 async function jpPreparar() {
   $('jpAnexo').classList.toggle('hidden', !podeEditar());
+  $('jpAtalhos').classList.toggle('hidden', !podeEditar());
   if (MODO_LOCAL) { if (!JP.carregou) { JP.carregou = true; jpBolha('jeepelson', 'Eu só funciono com o servidor ligado (modo local não tem IA). 😅'); } return; }
   if (typeof recCarregar === 'function') recCarregar();   // números de movimento/tempo para os conselhos
   try { jpGarantirDados().catch(() => {}); } catch (e) {}   // já puxa as abas enquanto a pessoa digita
@@ -6833,6 +6886,11 @@ function jpSaudar() {
 }
 
 function jpHora(ms) { const d = ms ? new Date(ms) : new Date(); return d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }); }
+// bolha de "pensando": o Jeepnelson corre de um lado para o outro
+function jpCorre(msg, texto) {
+  const b = msg.querySelector('.jp-bolha');
+  if (b) { b.style.animation = 'none'; b.style.letterSpacing = 'normal'; b.innerHTML = `<div class="jp-pista"><div class="jp-corre">${jpSVG()}</div></div><div class="jp-pensa-txt">${esc(texto || 'pensando…')}</div>`; }
+}
 function jpBolha(quem, texto, o) {
   o = o || {};
   const div = document.createElement('div');
@@ -6974,7 +7032,7 @@ const JP_NUMEROS = {
     const dHoje = INSP.d && INSP.d.dias && INSP.d.periodo && INSP.d.periodo.fim === h ? INSP.d.dias[INSP.d.dias.length - 1] : null;
     if (dHoje && canal) itens.push(['🚗 Carros hoje', (dHoje.c || {})[canal] || 0]);
     const sd = SAUDE.dados && canal ? SAUDE.dados.lojas.find(x => x.loja === canal) : null;
-    if (sd) itens.push(['⏳ Espera média (' + jpPer(SAUDE.dados.periodo) + ')', sd.espera ? saudeMin(sd.espera.media) : '—'], ['🔴 Rejeitados · ❌ Reprovados', sd.rej + ' · ' + sd.rep + ' de ' + sd.carros + ' carros']);
+    if (sd) itens.push(['⏳ Espera média (' + jpPer(SAUDE.dados.periodo) + ')', sd.espera ? saudeMin(sd.espera.media) : '—'], ['🔴 Rejeitados · ❌ Reprovados (' + jpPer(SAUDE.dados.periodo) + ')', sd.rej + ' · ' + sd.rep + ' de ' + sd.carros + ' carros']);
     return { titulo: l + ' · hoje ' + DIAS[diaIdx(h)] + ' ' + fmtData(h).slice(0, 5) + (canal && rejNorm(canal) !== rejNorm(l) ? ' (Slack: ' + canal + ')' : ''), itens }; } },
   escala_hoje: { desc: 'EQUIPE TODA hoje (todas as lojas somadas): quantos trabalham e folgam. NÃO use para uma loja: para uma loja use loja_hoje', monta: () => {
     const h = hoje(), ativos = S.funcs.filter(f => !f.afastado);
@@ -7062,7 +7120,7 @@ async function jpDesenhaBloco(alvo, b, grande, pdf) {
     if (!def || (def.sup && !jpSup())) { caixa.remove(); return; }
     const n = def.monta(b.loja);
     if (n.erro) { caixa.innerHTML = titulo + `<div class="jp-vis-com">${esc(n.erro)}</div>`; return; }
-    caixa.innerHTML = (titulo || `<div class="jp-vis-tit">${esc(n.titulo)}</div>`) + (n.sub ? `<div class="jp-vis-sub">${esc(n.sub)}</div>` : '') +
+    caixa.innerHTML = `<div class="jp-vis-tit">${esc(n.titulo)}</div>` + (n.sub ? `<div class="jp-vis-sub">${esc(n.sub)}</div>` : '') +
       `<div class="jp-nums">${n.itens.map(([r, v]) => `<div class="jp-num"><span>${esc(r)}</span><b>${esc(String(v))}</b></div>`).join('')}</div>` +
       (n.poucos ? `<div class="jp-poucos" style="margin-top:6px">${n.poucos.map(([dia, placa, t]) => `<div><b>${esc(placa)}</b> <span>${esc(dia)}</span><br>${esc(t)}</div>`).join('')}</div>` : '') + coment;
     return;
@@ -7210,12 +7268,16 @@ async function jpEnviar() {
   const texto = $('jpTexto').value.trim();
   if (!texto && !JP.imgs.length) return;
   if (MODO_LOCAL) return toast('A IA exige o modo servidor.');
+  if (podeEditar() && !JP.imgs.length) {   // pedido de sugestão de escala: resolvido aqui, sem gastar IA
+    const tn = semNorm(texto);
+    if (/(sugir|sugest)/.test(tn) && /escala/.test(tn)) { $('jpTexto').value = ''; $('jpTexto').style.height = 'auto'; return jpSugerir(); }
+  }
   JP.enviando = true;
   if (JP.ouvindo && JP.rec) try { JP.rec.stop(); } catch (e) {}
   jpBolha('pessoa', texto + (JP.imgs.length ? `\n📎 ${JP.imgs.length} print(s)` : ''));
   $('jpTexto').value = ''; $('jpTexto').style.height = 'auto';
   const imagens = JP.imgs.map(i => ({ mime: i.mime, data: i.data })); JP.imgs = []; jpThumbs();
-  const pensando = jpBolha('jeepelson', '…'); pensando.classList.add('jp-pensando');
+  const pensando = jpBolha('jeepelson', '…'); pensando.classList.add('jp-pensando'); jpCorre(pensando);
   jpEstado('pensando'); $('jpStatus').textContent = 'pensando…';
   try {
     let resumos = {}, cardapio = {};
@@ -7223,10 +7285,17 @@ async function jpEnviar() {
     try { await jpGarantirDados(); } catch (e) {}
     $('jpStatus').textContent = 'pensando…';
     try { resumos = jpResumos(); cardapio = jpCardapio(); } catch (e) {}
-    const r = await api('ia_chat', { pergunta: texto, imagens, contexto: jpContexto(), resumos, cardapio, hoje: hoje() + ' (' + DIAS[diaIdx(hoje())] + ')' });
+    let pessoas = null, busca = '';
+    try { pessoas = jpPessoasCitadas(texto); } catch (e) {}
+    if (!imagens.length) { try { $('jpStatus').textContent = 'buscando os dados…'; const bb = await jpBuscar(texto); if (bb) { busca = bb.texto; cardapio = {}; } } catch (e) {} $('jpStatus').textContent = 'pensando…'; }
+    // Com busca, a IA só precisa dos dados buscados: manda pedido leve (poupa o limite por minuto da IA)
+    let ctxEnvio = null;
+    if (busca) { resumos = {}; ctxEnvio = { hoje: hoje(), usuario: SESSAO ? SESSAO.nome : '', papel: SESSAO ? SESSAO.papel : '' }; }
+    const r = await api('ia_chat', { pergunta: texto, imagens, contexto: ctxEnvio || jpContexto(), resumos, cardapio, pessoas, busca, hoje: hoje() + ' (' + DIAS[diaIdx(hoje())] + ')' });
     pensando.remove();
     if (!r || !r.ok) throw new Error((r && (MSG_ERRO[r.erro] || r.erro)) || 'erro');
     const txt = r.resposta + ((r.avisos || []).length ? '\n⚠️ ' + r.avisos.join('\n⚠️ ') : '');
+    if (busca) r.blocos = (r.blocos || []).filter(b => b && b.tipo === 'texto');   // com busca não há cardápio de gráficos: evita o aviso "gráfico que não sei fazer"
     const bolha = jpBolha('jeepelson', txt || '(sem resposta)');
     if ((r.blocos || []).length || (r.slides || []).length) { bolha.classList.add('jp-largo'); jpVisuais(bolha, r); }
     if (podeEditar()) jpPrevia(bolha, r);
@@ -7254,15 +7323,16 @@ function jpPrevia(bolha, r) {
     if (temRegra) regras = gerarEscalaLocal([semanaAtiva], RG).regras;
     return { regras, ...aplicarOpsIA(ops, todas) };
   };
+  const semBase = r.semana || semanaAtiva;
   const antes = JSON.stringify(S);
   let sim, falhas;
-  try { sim = aplicarTudo(); falhas = conferirMinimo([semanaAtiva]); } finally { S = JSON.parse(antes); normalizar(); }
+  try { sim = aplicarTudo(); falhas = conferirMinimo([semBase]); } finally { S = JSON.parse(antes); normalizar(); }
   const card = document.createElement('div');
   card.className = 'jp-card';
   card.innerHTML = `
     <b>📝 O que vai mudar</b>
     ${temRegra ? `<p>🔄 Redistribui as folgas da semana ${semanaAtiva}: ${RG.folgas ? RG.folgas + ' folga(s)' : 'folgas padrão'}${RG.consecutivas ? ', seguidas' : ''}${RG.diasSemFolga.length ? ', sem folga em ' + RG.diasSemFolga.map(i => DIAS[i]).join('/') : ''}.</p>` : ''}
-    ${sim.detalhes.length ? `<ul>${sim.detalhes.map(x => `<li>${x}</li>`).join('')}</ul>` : ''}
+    ${sim.detalhes.length ? `<ul style="max-height:200px;overflow:auto">${sim.detalhes.map(x => `<li>${x}</li>`).join('')}</ul>` : ''}
     ${sim.ignoradas.length ? `<p class="jp-ruim">Não dá para aplicar:</p><ul class="jp-ruim">${sim.ignoradas.map(x => `<li>${x}</li>`).join('')}</ul>` : ''}
     ${falhas.length ? `<p class="jp-ruim">⛔ Depois disso, ${falhas.length} dia(s) abaixo do mínimo na semana ${semanaAtiva}.</p>` : '<p class="jp-bom">✅ Nenhuma loja abaixo do mínimo na semana ' + semanaAtiva + '.</p>'}
     <div class="jp-acoes">${sim.aplicadas || temRegra ? '<button type="button" class="jp-sim">✅ Aplicar</button>' : ''}<button type="button" class="jp-nao">Descartar</button></div>`;
@@ -7278,6 +7348,424 @@ function jpPrevia(bolha, r) {
     toast('✅ Alterações do Jeepnelson aplicadas (dá para desfazer)');
   };
   card.querySelector('.jp-nao').onclick = () => { card.querySelector('.jp-acoes').innerHTML = '<span>Descartado. Nada mudou.</span>'; };
+}
+
+// ---------- Sugestão de escala da semana (aprende o jeito do supervisor) ----------
+// Tudo é calculado aqui, só com números da própria escala. Nada de placa ou dado de cliente vai para a IA.
+const SUG_SEMANAS = 8;                 // semanas passadas observadas
+const SUG_SUP = 'Bruno';               // nome mostrado no texto
+
+// Hábitos de cada pessoa nas últimas semanas fechadas (sem = 0, -1, -2 ...)
+function sugHabitos() {
+  const pessoas = {}, diasFolgaEquipe = Array(7).fill(0);
+  let semanasComFeriado = 0;
+  const feriadosSem = {};
+  for (let k = 0; k < SUG_SEMANAS; k++) {
+    const sem = -k, seg = getDataDaSemana(sem);
+    const datas = DIAS.map((_, i) => somaDias(seg, i));
+    feriadosSem[sem] = S.lojas.some(l => datas.some(iso => { try { return feriadosDaLoja(l, iso).length; } catch (e) { return false; } }));
+    if (feriadosSem[sem]) semanasComFeriado++;
+  }
+  S.funcs.forEach(f => {
+    if (f.isInspetor || f.afastado) return;
+    const p = { nome: f.nome, loja: f.loja || '', semanas: 0, nFolgas: {}, pesos: Array(7).fill(0), seguidas: 0, semSeg: 0, maxSeq: 0, seq: 0 };
+    for (let k = SUG_SEMANAS - 1; k >= 0; k--) {          // da mais antiga para a mais nova (para a sequência)
+      const seg = getDataDaSemana(-k);
+      const st = DIAS.map((_, i) => statusDia(f, somaDias(seg, i)));
+      if (st.includes('FÉ')) { p.seq = 0; continue; }       // semana com férias/afastamento não conta
+      p.semanas++;
+      const folgas = st.map((s, i) => s === 'F' ? i : -1).filter(i => i >= 0);
+      p.nFolgas[folgas.length] = (p.nFolgas[folgas.length] || 0) + 1;
+      folgas.forEach(i => { p.pesos[i]++; diasFolgaEquipe[i]++; });
+      if (folgas.length >= 2) { p.semSeg++; if (folgas.some((d, j) => j && d === folgas[j - 1] + 1)) p.seguidas++; }
+      st.forEach(s => { if (s === 'T') { p.seq++; p.maxSeq = Math.max(p.maxSeq, p.seq); } else p.seq = 0; });
+    }
+    pessoas[f.nome + '|' + f.id] = p;
+  });
+  return { pessoas, diasFolgaEquipe, semanasComFeriado };
+}
+
+function sugFolgasTipica(p) {   // quantidade de folgas por semana mais comum (padrão da empresa se não há histórico)
+  let melhor = null, n = 0;
+  Object.keys(p.nFolgas).forEach(k => { if (p.nFolgas[k] > n && +k >= 1) { n = p.nFolgas[k]; melhor = +k; } });
+  return melhor || S.cfg.folgas || 1;
+}
+
+// Monta a escala de uma semana (sem = 2 é a próxima) imitando os hábitos
+function sugGerar(sem) {
+  const H = sugHabitos();
+  const seg = getDataDaSemana(sem), datas = DIAS.map((_, i) => somaDias(seg, i));
+  const novo = {};                                   // id -> array de 7 status
+  const falhas = [];
+  const min = S.cfg.min || 0;
+  const grupos = {};
+  S.funcs.forEach(f => {
+    if (f.isInspetor || afastadoNaSemana(f, sem)) return;
+    (grupos[f.loja || ''] = grupos[f.loja || ''] || []).push(f);
+  });
+  Object.keys(grupos).forEach(loja => {
+    const grupo = grupos[loja].sort((a, b) => a.id - b.id);
+    const abre = datas.map(iso => loja === '' ? true : lojaAbre(loja, iso));
+    const exige = datas.map((iso, i) => loja !== '' && abre[i] && !lojaSemAlerta(loja));
+    const feriado = datas.map(iso => { try { return loja !== '' && feriadosDaLoja(loja, iso).length > 0; } catch (e) { return false; } });
+    const cov = datas.map(iso => grupo.filter(f => !indispEm(f, iso)).length);   // quantos podem trabalhar cada dia
+    const giro = (sem - 1) % Math.max(1, grupo.length);
+    const ordem = grupo.slice(giro).concat(grupo.slice(0, giro));
+    ordem.forEach(f => {
+      const h = H.pessoas[f.nome + '|' + f.id] || { pesos: Array(7).fill(0), nFolgas: {}, seguidas: 0, semSeg: 0, semanas: 0 };
+      const status = datas.map(iso => indispEm(f, iso) ? 'FÉ' : 'T');
+      const alvo = Math.min(3, sugFolgasTipica(h));
+      const jaFolga = status.filter(s => s === 'FÉ').length;
+      const faltam = Math.max(0, alvo - jaFolga);
+      const gosta = h.semSeg >= 2 && h.seguidas / h.semSeg >= 0.6;
+      const ok = i => status[i] === 'T' && abre[i] && !(exige[i] && cov[i] - 1 < min);
+      const peso = i => h.pesos[i] * 10 + (h.semanas ? 0 : 1) - (feriado[i] ? 1000 : 0) + (diaIdx(datas[i]) === 5 ? -2 : 0) - (cov[i] <= min ? 50 : 0) + cov[i] * 0.1;
+      let escolhidos = [];
+      if (faltam >= 2 && gosta) {                    // prefere folgas seguidas
+        let melhor = null;
+        for (let i = 0; i + faltam - 1 < 7; i++) {
+          const dias = Array.from({ length: faltam }, (_, j) => i + j);
+          if (!dias.every(ok)) continue;
+          const sc = dias.reduce((s, d) => s + peso(d), 0);
+          if (!melhor || sc > melhor.sc) melhor = { dias, sc };
+        }
+        if (melhor) escolhidos = melhor.dias;
+      }
+      if (!escolhidos.length) {
+        const cand = [0, 1, 2, 3, 4, 5, 6].filter(ok).sort((a, b) => peso(b) - peso(a));
+        escolhidos = cand.slice(0, faltam);
+        if (escolhidos.length < faltam) falhas.push({ loja: loja || 'Volante', pessoa: f.nome, motivo: 'sem dia livre para toda a folga sem faltar gente' });
+      }
+      escolhidos.forEach(i => { status[i] = 'F'; cov[i]--; });
+      novo[f.id] = status;
+    });
+  });
+  const ops = [];
+  S.funcs.forEach(f => {
+    const st = novo[f.id];
+    if (!st) return;
+    datas.forEach((iso, i) => {
+      if (st[i] === 'FÉ') return;
+      const agora = statusDia(f, iso);
+      if (agora !== st[i]) ops.push({ tipo: 'dia', func: f.nome, data: iso, status: st[i] });
+    });
+  });
+  return { ops, falhas, H, seg, datas };
+}
+
+// Frases curtas com o "jeito" aprendido
+function sugResumoHabitos(H) {
+  const pes = Object.values(H.pessoas).filter(p => p.semanas);
+  if (!pes.length) return 'Ainda não há semanas suficientes no histórico para aprender o padrão.';
+  const tot = H.diasFolgaEquipe.reduce((a, b) => a + b, 0) || 1;
+  const topo = H.diasFolgaEquipe.map((n, i) => [i, n]).sort((a, b) => b[1] - a[1]).slice(0, 2).map(x => `${DIAS[x[0]]} (${Math.round(x[1] * 100 / tot)}%)`);
+  const comSeg = pes.filter(p => p.semSeg >= 2), seguidas = comSeg.length ? Math.round(comSeg.reduce((s, p) => s + p.seguidas / p.semSeg, 0) * 100 / comSeg.length) : 0;
+  const media = (pes.reduce((s, p) => s + sugFolgasTipica(p), 0) / pes.length).toFixed(1).replace('.', ',');
+  return `${SUG_SUP} costuma dar folga mais em <b>${topo.join(' e ')}</b>, em média <b>${media} folga(s)</b> por semana` + (comSeg.length ? `, e ${seguidas}% das vezes <b>seguidas</b>` : '') + `. Aprendi com ${pes.length} pessoas nas últimas ${SUG_SEMANAS} semanas.` + (H.semanasComFeriado ? ` (${H.semanasComFeriado} dessas semanas tinham feriado.)` : '');
+}
+
+async function jpSugerir() {
+  if (!podeEditar()) return toast('Só o supervisor pode pedir sugestão de escala.');
+  if (JP.enviando) return;
+  jpBolha('pessoa', '✨ Sugerir escala da semana');
+  const b = jpBolha('jeepelson', '…'); b.classList.add('jp-pensando'); jpCorre(b, 'montando a escala…');
+  try {
+    const sem = 2, r = sugGerar(sem);
+    b.classList.remove('jp-pensando');
+    const ini = fmtCurto(r.datas[0]), fim = fmtCurto(r.datas[6]);
+    let html = `<b>Semana de ${ini} a ${fim}</b><br>${sugResumoHabitos(r.H)}`;
+    if (r.falhas.length) html += `<br><span class="jp-ruim">⚠️ Não consegui encaixar a folga de: ${r.falhas.slice(0, 6).map(f => esc(f.pessoa + ' (' + f.loja + ')')).join(', ')}${r.falhas.length > 6 ? '…' : ''}.</span>`;
+    if (!r.ops.length) html += '<br>✅ A semana já está do jeito que o ' + SUG_SUP + ' faria. Nada para mudar.';
+    b.innerHTML = html;
+    if (r.ops.length) jpPrevia(b, { ops: r.ops, regras: {}, semana: sem });
+    $('jpMsgs').scrollTop = $('jpMsgs').scrollHeight;
+  } catch (e) {
+    b.classList.remove('jp-pensando');
+    b.textContent = '⚠️ Não consegui montar a sugestão agora. ' + (e && e.message || '');
+  }
+}
+
+// ---------- Consulta por botões (sem IA): assunto → período → loja. Só supervisor. Números direto dos dados ----------
+const JQ_ASSUNTOS = { carros: ['🚗', 'Carros inspecionados'], rej: ['❌', 'Rejeições'], rep: ['⛔', 'Reprovações'], scan: ['🔌', 'Scanners'], saude: ['🩺', 'Saúde das lojas'] };
+const JQ_PERIODOS = [['hoje', 'Hoje'], ['ontem', 'Ontem'], ['esta semana', 'Semana'], ['semana passada', 'Sem. passada'], ['este mes', 'Mês'], ['mes passado', 'Mês passado']];
+const jqRotulo = per => per.nome + ' (' + fmtData(per.inicio).slice(0, 5) + (per.inicio === per.fim ? '' : ' a ' + fmtData(per.fim).slice(0, 5)) + ')';
+async function jqScan() {
+  if (typeof SCAN !== 'undefined' && SCAN.dados && Array.isArray(SCAN.dados.testes)) return { testes: SCAN.dados.testes, scanners: SCAN.dados.scanners || [] };
+  const r = await api('scanners', {});
+  if (!r || r.erro || !Array.isArray(r.scanners)) throw new Error('scanners');
+  return { testes: (r.testes || []).map(x => ({ ...x, insp: (typeof inspNomePadrao === 'function' && inspNomePadrao(x.insp)) || x.insp })), scanners: r.scanners };
+}
+async function jqDados(o, iv) {
+  if (o === 'carros') {
+    const r = await jpBuscaApi_('inspecoes', iv);
+    if (!r || r.erro || !Array.isArray(r.canais)) throw new Error('inspecoes');
+    return { lojas: r.canais.map(c => [c.nome, c.total]).sort((a, b) => b[1] - a[1]), insp: (r.inspetores || []).map(x => [x.nome, x.total]).sort((a, b) => b[1] - a[1]), total: r.canais.reduce((a, c) => a + c.total, 0) };
+  }
+  const r = await jpBuscaApi_(o === 'rej' ? 'rejeicoes' : 'reprovacoes', iv);
+  if (!r || r.erro || !Array.isArray(r.rejeitados)) throw new Error('lista');
+  return { lista: r.rejeitados };
+}
+const jqTotal = (o, d, loja) => o === 'carros' ? (loja ? ((d.lojas.find(x => x[0] === loja) || [0, 0])[1]) : d.total) : (loja ? d.lista.filter(x => x.h === loja).length : d.lista.length);
+function jqAnterior(per) {
+  const n = Math.round((new Date(per.fim + 'T12:00:00') - new Date(per.inicio + 'T12:00:00')) / 864e5) + 1;
+  return { inicio: somaDias(per.inicio, -n), fim: somaDias(per.inicio, -1), nome: 'período anterior' };
+}
+function jpConsultar() {
+  if (!jpSup()) return toast('Só o supervisor usa as consultas.');
+  const b = jpBolha('jeepelson', ''); b.classList.add('jp-largo');
+  const corpo = b.querySelector('.jp-bolha'), st = { o: null, per: null, loja: null, placas: false, cmp: false, insp: false, d: null, ant: null, ocupado: false, vis: 'loja', met: 'km', fil: null, falhas: false, sm: 'carros', dias: false };
+  const zera = () => { st.loja = null; st.d = null; st.ant = null; st.placas = st.cmp = st.insp = st.falhas = false; st.vis = 'loja'; st.met = 'km'; st.fil = null; st.sm = 'carros'; st.dias = false; };
+  const chip = (a, v, t) => `<button type="button" class="jp-chip" data-a="${a}" data-v="${esc(v || '')}">${esc(t)}</button>`;
+  const chips = l => `<div class="jp-q-chips">${l.join('')}</div>`;
+  const linhas = (arr, sel) => { const mx = Math.max(1, ...arr.map(x => x[1])); return arr.map(x => `<div class="jp-q-lin"><i style="width:${Math.round(x[1] / mx * 100)}%"></i><span>${esc(x[0])}</span><b>${x[1]}</b></div>`).join(''); };
+  const rolar = () => { $('jpMsgs').scrollTop = $('jpMsgs').scrollHeight; };
+  function passo1() {
+    corpo.innerHTML = '<div class="jp-q-tit">🔎 O que você quer ver?</div>' + chips(Object.keys(JQ_ASSUNTOS).map(k => chip('ass', k, JQ_ASSUNTOS[k][0] + ' ' + JQ_ASSUNTOS[k][1])));
+    rolar();
+  }
+  function passo2() {
+    corpo.innerHTML = `<div class="jp-q-tit">${JQ_ASSUNTOS[st.o][0]} ${JQ_ASSUNTOS[st.o][1]} — de quando?</div>` + chips((st.o === 'scan' ? [chip('per', 'tudo', 'Tudo (60 dias)')] : []).concat(JQ_PERIODOS.map(p => chip('per', p[0], p[1])), [chip('voltar', '', '↩ Trocar assunto')]));
+    rolar();
+  }
+  async function resultado() {
+    if (st.o === 'scan') return resultadoScan();
+    if (st.o === 'saude') return resultadoSaude();
+    const A = JQ_ASSUNTOS[st.o], per = st.per;
+    if (!st.d) {
+      corpo.innerHTML = `<div class="jp-q-tit">${A[0]} ${A[1]} · ${esc(jqRotulo(per))}</div>⏳ buscando…`;
+      st.ocupado = true;
+      try { st.d = await jqDados(st.o, { inicio: per.inicio, fim: per.fim }); }
+      catch (e) { st.ocupado = false; corpo.innerHTML = `<div class="jp-q-tit">${A[0]} ${A[1]} · ${esc(jqRotulo(per))}</div>⚠️ Não consegui buscar agora.` + chips([chip('per', per.nome, '🔁 Tentar de novo'), chip('ass', '', '🏠 Outro assunto')]); return; }
+      st.ocupado = false;
+    }
+    const d = st.d, tot = jqTotal(st.o, d, st.loja);
+    let h = `<div class="jp-q-tit">${A[0]} ${A[1]} · ${esc(jqRotulo(per))}${st.loja ? '<br>📍 ' + esc(st.loja) : ''}</div><div class="jp-q-total">${tot}</div>`;
+    if (st.cmp) {
+      if (!st.ant) { try { st.ant = await jqDados(st.o, jqAnterior(per)); } catch (e) { st.ant = { erro: 1 }; } }
+      if (st.ant && !st.ant.erro) { const t0 = jqTotal(st.o, st.ant, st.loja), dif = tot - t0; h += `<div class="jp-q-nota">↔️ Período anterior (${esc(fmtData(jqAnterior(per).inicio).slice(0, 5))}${per.inicio === per.fim ? '' : ' a ' + esc(fmtData(jqAnterior(per).fim).slice(0, 5))}): <b>${t0}</b> · ${dif === 0 ? 'igual' : (dif > 0 ? '+' : '') + dif}</div>`; }
+      else h += '<div class="jp-q-nota">Não consegui buscar o período anterior.</div>';
+    }
+    let lojas = [];
+    if (st.o === 'carros') {
+      lojas = d.lojas;
+      if (!st.loja) { h += linhas(d.lojas.slice(0, 12)); if (st.insp) h += '<div class="jp-q-tit" style="margin-top:8px">👷 Por inspetor</div>' + (d.insp.length ? linhas(d.insp.slice(0, 15)) : 'Sem dados de inspetor.'); }
+    } else {
+      const l = st.loja ? d.lista.filter(x => x.h === st.loja) : d.lista;
+      lojas = jpConta(d.lista, x => x.h || 'Sem hub', 12);
+      if (!st.loja) h += linhas(lojas);
+      const mot = jpConta(l, x => String(x.m || 'Sem motivo').slice(0, 60), 6);
+      if (mot.length) h += '<div class="jp-q-tit" style="margin-top:8px">📊 Por motivo</div>' + linhas(mot);
+      if (st.placas) h += '<div class="jp-q-tit" style="margin-top:8px">📋 Placas</div>' + (l.length ? l.slice(0, 40).map(x => `<div class="jp-q-plc">${esc(fmtData(x.d).slice(0, 5))} · <b>${esc(x.p || '?')}</b> · ${esc(x.h || '')} · ${esc(String(x.m || '').slice(0, 50))}</div>`).join('') + (l.length > 40 ? `<div class="jp-q-nota">+${l.length - 40} outras</div>` : '') : 'Nenhuma.');
+    }
+    const bt = [];
+    if (st.loja) bt.push(chip('loja', '', '↩ Todas as lojas'));
+    else lojas.slice(0, 8).forEach(x => bt.push(chip('loja', x[0], x[0] + ' · ' + x[1])));
+    if (st.o === 'carros' && !st.loja && !st.insp) bt.push(chip('insp', '', '👷 Por inspetor'));
+    if (st.o !== 'carros' && !st.placas) bt.push(chip('placas', '', '📋 Ver placas'));
+    if (!st.cmp) bt.push(chip('cmp', '', '↔️ Comparar com anterior'));
+    bt.push(chip('voltarper', '', '🔁 Outro período'), chip('voltar', '', '🏠 Outro assunto'));
+    corpo.innerHTML = h + chips(bt);
+    rolar();
+  }
+  async function resultadoSaude() {
+    const per = st.per, tit = '🩺 Saúde das lojas · ' + esc(jqRotulo(per));
+    if (!st.d) {
+      corpo.innerHTML = `<div class="jp-q-tit">${tit}</div>⏳ buscando… (pode levar alguns segundos)`; st.ocupado = true;
+      try { const r = await jpBuscaApi_('saude', { inicio: per.inicio, fim: per.fim }); if (!r || r.erro || !Array.isArray(r.lojas)) throw new Error('saude'); st.d = r; }
+      catch (e) { st.ocupado = false; corpo.innerHTML = `<div class="jp-q-tit">${tit}</div>⚠️ Não consegui buscar a saúde das lojas agora.` + chips([chip('per', per.nome, '🔁 Tentar de novo'), chip('voltar', '', '🏠 Outro assunto')]); return; }
+      st.ocupado = false;
+    }
+    const d = st.d, L = d.lojas, g = d.geral || saudeJuntar(L, 'Total');
+    const fis = saudeJuntar(L.filter(x => saudeGrupo(x.loja) === 'loja'), 'Lojas físicas');
+    const pc = (a, b) => b ? Math.round(a / b * 1000) / 10 : null, fp = v => v === null ? '—' : String(v).replace('.', ',') + '%';
+    const nDias = Math.max(1, Math.round((Date.parse(per.fim) - Date.parse(per.inicio)) / 86400000) + 1);
+    const MS = {
+      carros: { t: '🚗 Carros', v: x => x.carros, s: x => String(x.carros) },
+      espera: { t: '⏳ Espera', v: x => x.espera ? x.espera.media : null, s: x => x.espera ? saudeMin(x.espera.media) : '—' },
+      total: { t: '⏱️ Tempo total', v: x => x.total ? x.total.media : null, s: x => x.total ? saudeMin(x.total.media) + ' · ' + saudePct(x.total.naMeta, x.total.n) + ' na meta' : '—' },
+      rej: { t: '🔴 Rejeitados', v: x => pc(x.rej, x.carros), s: x => x.rej + ' (' + fp(pc(x.rej, x.carros)) + ')' },
+      rep: { t: '❌ Reprovados', v: x => pc(x.rep, x.carros), s: x => x.rep + ' (' + fp(pc(x.rep, x.carros)) + ')' }
+    };
+    const M = MS[st.sm], x0 = st.loja ? L.find(x => x.loja === st.loja) : null;
+    let h = `<div class="jp-q-tit">${tit}${x0 ? '<br>📍 ' + esc(x0.loja) : ''}</div>`;
+    if (x0) {
+      h += `<div class="jp-q-total">${x0.carros} <span style="font-size:14px;font-weight:600">carros · ${(Math.round(x0.carros / nDias * 10) / 10).toString().replace('.', ',')}/dia</span></div>`;
+      const lin = (r, v) => `<div class="jp-q-lin"><span>${r}</span><b>${v}</b></div>`;
+      h += lin('⏳ Espera média', x0.espera ? saudeMin(x0.espera.media) + (x0.espera.mediana != null ? ' <small>(metade até ' + saudeMin(x0.espera.mediana) + ')</small>' : '') : '—') + lin('⏱️ Tempo total', MS.total.s(x0)) + lin('🔴 Rejeitados', MS.rej.s(x0)) + lin('❌ Reprovados', MS.rep.s(x0));
+      if (saudeGrupo(x0.loja) === 'loja' && fis.carros) h += `<div class="jp-q-nota">Média das lojas físicas: espera ${fis.espera ? saudeMin(fis.espera.media) : '—'} · rejeitados ${fp(pc(fis.rej, fis.carros))} · reprovados ${fp(pc(fis.rep, fis.carros))}</div>`;
+      if (x0.maiorEsp) h += `<div class="jp-q-nota">Maior espera: <b>${saudeMin(x0.maiorEsp.min)}</b> (${esc(x0.maiorEsp.placa)} · ${esc(fmtData(x0.maiorEsp.dia).slice(0, 5))} ${esc(x0.maiorEsp.hora)})</div>`;
+      try { const ab = saudeAbaixoMinimo(x0.loja); if (ab !== null) h += lin('👥 Dias abaixo do mínimo (escala)', ab); } catch (e) {}
+      if (st.dias && x0.dias) h += '<div class="jp-q-tit" style="margin-top:8px">📅 Dia a dia</div>' + Object.keys(x0.dias).sort().map(iso => { const o = x0.dias[iso]; return `<div class="jp-q-lin"><span>${esc(DIAS[diaIdx(iso)])} ${esc(fmtData(iso).slice(0, 5))}</span><b>${o.c} carros · 🔴${o.rj} · ❌${o.rp}</b></div>`; }).join('');
+    } else {
+      h += `<div class="jp-q-total">${g.carros} <span style="font-size:14px;font-weight:600">carros no total</span></div>`;
+      if (fis.carros) h += `<div class="jp-q-nota">Média das lojas físicas: espera ${fis.espera ? saudeMin(fis.espera.media) : '—'} · tempo total ${fis.total ? saudeMin(fis.total.media) : '—'} · rejeitados ${fp(pc(fis.rej, fis.carros))} · reprovados ${fp(pc(fis.rep, fis.carros))}</div>`;
+      const ord = L.slice().sort((a, b) => { const va = M.v(a), vb = M.v(b); return (vb === null ? -1 : vb) - (va === null ? -1 : va); });
+      const mx = Math.max(1, ...ord.map(x => M.v(x) || 0));
+      h += `<div class="jp-q-tit" style="margin-top:8px">${M.t} por loja</div>` + ord.slice(0, 15).map(x => { const v = M.v(x); return `<div class="jp-q-lin"><i style="width:${v === null ? 0 : Math.round(v / mx * 100)}%"></i><span>${esc(x.loja)}${saudeGrupo(x.loja) === 'loja' ? '' : ' <small>(fora da média)</small>'}</span><b>${M.s(x)}</b></div>`; }).join('');
+      if (d.esperaAte && (st.sm === 'espera' || st.sm === 'total')) h += `<div class="jp-q-nota">Espera e tempo valem até ${esc(fmtData(d.esperaAte).slice(0, 5))} (o Raio-X é refeito no dia seguinte).</div>`;
+    }
+    const bt = [];
+    if (!x0) {
+      Object.keys(MS).forEach(k => bt.push(chip('sm', k, (st.sm === k ? '✔ ' : '') + MS[k].t)));
+      L.slice().sort((a, b) => b.carros - a.carros).slice(0, 8).forEach(x => bt.push(chip('loja', x.loja, x.loja + ' · ' + x.carros)));
+    } else {
+      bt.push(chip('loja', '', '↩ Todas as lojas'));
+      if (!st.dias) bt.push(chip('dias', '', '📅 Dia a dia'));
+    }
+    bt.push(chip('voltarper', '', '🔁 Outro período'), chip('voltar', '', '🏠 Outro assunto'));
+    corpo.innerHTML = h + chips(bt);
+    rolar();
+  }
+  const SCQ = { loja: x => x.loja || 'Sem loja', ma: x => x.ma || 'Sem marca', insp: x => x.insp || 'Sem inspetor' };
+  async function resultadoScan() {
+    const per = st.per, tudo = per.nome === 'tudo', tit = '🔌 Scanners · ' + (tudo ? 'últimos 60 dias' : esc(jqRotulo(per)));
+    if (!st.d) {
+      corpo.innerHTML = `<div class="jp-q-tit">${tit}</div>⏳ buscando…`; st.ocupado = true;
+      try { st.d = await jqScan(); }
+      catch (e) { st.ocupado = false; corpo.innerHTML = `<div class="jp-q-tit">${tit}</div>⚠️ Não consegui buscar os scanners agora.` + chips([chip('per', tudo ? 'tudo' : per.nome, '🔁 Tentar de novo'), chip('voltar', '', '🏠 Outro assunto')]); return; }
+      st.ocupado = false;
+    }
+    const M = SCAN_MET[st.met], dia = x => String(x.d || '').slice(0, 10);
+    let T = st.d.testes.filter(x => tudo || (dia(x) >= per.inicio && dia(x) <= per.fim));
+    const todos = T;
+    if (st.fil) T = T.filter(x => SCQ[st.fil.t](x) === st.fil.v);
+    const ok = a => a.filter(x => M.cat(x) === 0).length, pct = (a, n) => n ? Math.round(a / n * 100) : 0;
+    const comT = T.filter(x => x.seg > 0), tmed = comT.length ? Math.round(comT.reduce((t, x) => t + x.seg, 0) / comT.length) : 0;
+    let h = `<div class="jp-q-tit">${tit}${st.fil ? '<br>📍 ' + esc(st.fil.v) : ''}</div><div class="jp-q-total">${T.length} <span style="font-size:14px;font-weight:600">teste${T.length === 1 ? '' : 's'}</span></div>`;
+    if (!T.length) h += 'Nenhum teste nesse período.';
+    else h += `<div>${M.nome === 'Conectou no carro' ? '🔌' : '✅'} <b>${ok(T)} de ${T.length}</b> (${pct(ok(T), T.length)}%) — ${esc(M.curto)}</div><div class="jp-q-nota">⏱️ Tempo médio do teste: ${esc(scanMin(tmed))}</div>`;
+    if (T.length && !st.fil) {
+      const g = {}; T.forEach(x => { const k = SCQ[st.vis](x); (g[k] = g[k] || []).push(x); });
+      const ord = Object.keys(g).sort((a, b) => g[b].length - g[a].length);
+      h += `<div class="jp-q-tit" style="margin-top:8px">${{ loja: '🏬 Por loja', ma: '🚗 Por montadora', insp: '👷 Por inspetor' }[st.vis]}</div>` +
+        ord.slice(0, 15).map(k => { const n = g[k].length, o = ok(g[k]), pc = pct(o, n); return `<div class="jp-q-lin"><i style="width:${pc}%"></i><span>${esc(k)} <small>(${n})</small></span><b>${pc}%</b></div>`; }).join('');
+      if (st.vis === 'loja') {
+        const sem = (st.d.scanners || []).map(x => x.loja).filter(l => l && !g[l]), velho = (st.d.scanners || []).filter(x => /^n[aã]o/i.test(x.atualizado || '')).map(x => x.loja);
+        if (sem.length) h += `<div class="jp-q-nota">⚠️ Sem teste no período: ${esc(sem.join(', '))}</div>`;
+        if (velho.length) h += `<div class="jp-q-nota">⚠️ Scanner desatualizado: ${esc(velho.join(', '))}</div>`;
+      }
+    }
+    if (T.length && (st.falhas || st.fil)) {
+      const f = T.filter(x => M.cat(x) !== 0);
+      h += '<div class="jp-q-tit" style="margin-top:8px">📋 Os que falharam</div>' + (f.length ? f.slice(0, 25).map(x => `<div class="jp-q-plc">${esc(fmtData(dia(x)).slice(0, 5))} · <b>${esc(x.p || '?')}</b> · ${esc((x.ma || '') + ' ' + (x.mo || '') + ' ' + (x.a || ''))} · ${esc(x.loja || '')} · ${esc(M.cats[M.cat(x)][0])}</div>`).join('') + (f.length > 25 ? `<div class="jp-q-nota">+${f.length - 25} outros</div>` : '') : 'Nenhum falhou. 🎉');
+    }
+    const bt = [];
+    [['km', '📏 Leu km'], ['con', '🔌 Conectou'], ['dtc', '🧾 Códigos de falha']].forEach(m => bt.push(chip('met', m[0], (st.met === m[0] ? '✔ ' : '') + m[1])));
+    if (!st.fil) {
+      [['loja', '🏬 Loja'], ['ma', '🚗 Montadora'], ['insp', '👷 Inspetor']].filter(v => v[0] !== st.vis).forEach(v => bt.push(chip('vis', v[0], 'Ver por ' + v[1])));
+      const g2 = {}; todos.forEach(x => { const k = SCQ[st.vis](x); g2[k] = (g2[k] || 0) + 1; });
+      Object.keys(g2).sort((a, b) => g2[b] - g2[a]).slice(0, 6).forEach(k => bt.push(chip('fil', st.vis + '|' + k, k + ' · ' + g2[k])));
+      if (!st.falhas && T.length) bt.push(chip('falhas', '', '📋 Ver os que falharam'));
+    } else bt.push(chip('semfil', '', '↩ Tirar filtro'));
+    bt.push(chip('voltarper', '', '🔁 Outro período'), chip('voltar', '', '🏠 Outro assunto'));
+    corpo.innerHTML = h + chips(bt);
+    rolar();
+  }
+  b.onclick = ev => {
+    const c = ev.target.closest('[data-a]'); if (!c || st.ocupado) return;
+    const a = c.dataset.a, v = c.dataset.v;
+    if (a === 'ass') { if (v) st.o = v; st.per = null; zera(); return st.o ? passo2() : passo1(); }
+    if (a === 'per') { st.per = v === 'tudo' ? { inicio: '0000-01-01', fim: '9999-12-31', nome: 'tudo' } : jpPeriodoDoTexto(v); if (st.o !== 'scan') st.d = null; st.loja = null; st.ant = null; st.placas = st.cmp = st.insp = st.falhas = st.dias = false; st.fil = null; return resultado(); }
+    if (a === 'voltar') { st.o = null; st.per = null; return passo1(); }
+    if (a === 'voltarper') { st.per = null; return passo2(); }
+    if (a === 'loja') { st.loja = v || null; return resultado(); }
+    if (a === 'placas') { st.placas = true; return resultado(); }
+    if (a === 'insp') { st.insp = true; return resultado(); }
+    if (a === 'cmp') { st.cmp = true; return resultado(); }
+    if (a === 'sm') { st.sm = v; return resultado(); }
+    if (a === 'dias') { st.dias = true; return resultado(); }
+    if (a === 'met') { st.met = v; return resultado(); }
+    if (a === 'vis') { st.vis = v; return resultado(); }
+    if (a === 'fil') { const i = v.indexOf('|'); st.fil = { t: v.slice(0, i), v: v.slice(i + 1) }; return resultado(); }
+    if (a === 'semfil') { st.fil = null; return resultado(); }
+    if (a === 'falhas') { st.falhas = true; return resultado(); }
+  };
+  passo1();
+}
+
+// Perguntas sobre uma pessoa: manda ao Jeepnelson só números de padrão (sem placas)
+function jpPessoasCitadas(texto) {
+  if (!jpSup()) return null;
+  const t = ' ' + semNorm(texto) + ' ';
+  const H = sugHabitos(), out = {};
+  Object.values(H.pessoas).forEach(p => {
+    const nome = semNorm(p.nome), primeiro = nome.split(' ')[0];
+    if (!(t.includes(' ' + nome + ' ') || (primeiro.length >= 3 && t.includes(' ' + primeiro + ' ')))) return;
+    if (Object.keys(out).length >= 3) return;
+    const top = p.pesos.map((n, i) => [i, n]).filter(x => x[1] > 0).sort((a, b) => b[1] - a[1]).slice(0, 3).map(x => DIAS[x[0]] + ' (' + x[1] + 'x)');
+    out[p.nome] = { loja: p.loja || 'Volante', semanasObservadas: p.semanas, folgasPorSemanaTipico: p.semanas ? sugFolgasTipica(p) : null,
+      diasDeFolgaMaisComuns: top, semanasComFolgasSeguidas: p.semSeg ? `${p.seguidas} de ${p.semSeg}` : 'n/a', maiorSequenciaDeDiasTrabalhados: p.maxSeq };
+  });
+  return Object.keys(out).length ? out : null;
+}
+
+// ---------- Busca estilo Argos: entende o período/assunto da pergunta e busca os dados certos ----------
+// Não depende do período que está na tela. A IA recebe SÓ esse recorte (placas só para supervisor e só se pedir).
+const JP_BUSCA_CACHE = {};
+let JP_BUSCA_ULT = null;   // assunto da última busca (para perguntas de continuação)
+function jpPeriodoDoTexto(texto) {
+  const t = semNorm(texto), h = hoje();
+  const dow = (new Date(h + 'T12:00:00').getDay() + 6) % 7, seg = somaDias(h, -dow);
+  let m;
+  if (/anteontem/.test(t)) { const d = somaDias(h, -2); return { inicio: d, fim: d, nome: 'anteontem' }; }
+  if (/\bontem\b/.test(t)) { const d = somaDias(h, -1); return { inicio: d, fim: d, nome: 'ontem' }; }
+  if (/\bhoje\b/.test(t)) return { inicio: h, fim: h, nome: 'hoje' };
+  if (/semana passada/.test(t)) return { inicio: somaDias(seg, -7), fim: somaDias(seg, -1), nome: 'semana passada' };
+  if (/(essa|esta) semana/.test(t)) return { inicio: seg, fim: h, nome: 'esta semana' };
+  if ((m = t.match(/ultim[oa]s? (\d{1,3}) dias/))) return { inicio: somaDias(h, -(Math.min(+m[1], 90) - 1)), fim: h, nome: 'últimos ' + m[1] + ' dias' };
+  if (/mes passado/.test(t)) { const d = new Date(h + 'T12:00:00'); return { inicio: isoDe(new Date(d.getFullYear(), d.getMonth() - 1, 1)), fim: isoDe(new Date(d.getFullYear(), d.getMonth(), 0)), nome: 'mês passado' }; }
+  if (/(esse|este) mes/.test(t)) return { inicio: h.slice(0, 8) + '01', fim: h, nome: 'este mês' };
+  if ((m = t.match(/\b(\d{1,2})\/(\d{1,2})\b/))) { const d = h.slice(0, 4) + '-' + String(m[2]).padStart(2, '0') + '-' + String(m[1]).padStart(2, '0'); if (d <= h) return { inicio: d, fim: d, nome: 'dia' }; }
+  return null;
+}
+async function jpBuscaApi_(acao, iv) {
+  const k = acao + '|' + iv.inicio + '|' + iv.fim, c = JP_BUSCA_CACHE[k];
+  if (c && Date.now() - c.t < 300000) return c.r;
+  const r = await api(acao, { inicio: iv.inicio, fim: iv.fim });
+  if (r && !r.erro) JP_BUSCA_CACHE[k] = { t: Date.now(), r };
+  return r;
+}
+// Retorna { texto, usouBusca } ou null (nada a buscar: segue como antes)
+async function jpBuscar(pergunta) {
+  let texto = pergunta, t = semNorm(pergunta); const per = jpPeriodoDoTexto(pergunta), sup = jpSup();
+  let querInsp = /(inspec|inspecion|carro|movimento|vistori|ranking|inspetor)/.test(t);
+  let querRej = sup && /rejei/.test(t), querRep = sup && /reprov/.test(t);
+  let querPlaca = sup && /placa/.test(t);
+  // Pergunta de continuação ("e de ontem?", "e na semana passada?"): tem período mas não tem assunto → herda o da pergunta anterior (até 15 min)
+  const ult = JP_BUSCA_ULT;
+  if (per && !(querInsp || querRej || querRep || querPlaca) && ult && Date.now() - ult.quando < 900000) {
+    querInsp = ult.insp; querRej = ult.rej; querRep = ult.rep; querPlaca = ult.placa;
+    texto = pergunta + ' ' + ult.texto; t = semNorm(texto);
+  }
+  if (!per || !(querInsp || querRej || querRep || querPlaca)) return null;
+  JP_BUSCA_ULT = { insp: querInsp, rej: querRej, rep: querRep, placa: querPlaca, texto: ult && texto.includes(ult.texto) ? ult.texto : pergunta, quando: Date.now() };
+  const iv = { inicio: per.inicio, fim: per.fim }, out = { periodo: per.nome + ' (' + fmtData(iv.inicio).slice(0, 5) + (iv.inicio === iv.fim ? '' : ' a ' + fmtData(iv.fim).slice(0, 5)) + ')' };
+  const tarefas = [];
+  if (querInsp && !querRej && !querRep || (querInsp && /carro|movimento|inspec/.test(t))) tarefas.push((async () => {
+    const r = await jpBuscaApi_('inspecoes', iv);
+    if (r && !r.erro && Array.isArray(r.canais)) {
+      out.inspecoes = { totalCarros: r.canais.reduce((a, c) => a + c.total, 0), inspecoesDaEquipe: r.totalEquipe, carrosPorLoja: Object.fromEntries(r.canais.map(c => [c.nome, c.total])),
+                        porInspetor: Object.fromEntries((r.inspetores || []).slice(0, 15).map(x => [x.nome, x.total])) };
+    } else out.inspecoes = { erro: 'não consegui buscar as inspeções desse período' };
+  })());
+  const lista = async (acao, rotulo) => {
+    const r = await jpBuscaApi_(acao, iv);
+    if (!r || r.erro || !Array.isArray(r.rejeitados)) { out[rotulo] = { erro: 'não consegui buscar' }; return; }
+    let l = r.rejeitados;
+    const hubs = [...new Set(l.map(x => x.h).filter(Boolean))];
+    const tU = rejNorm(texto), tW = tU.split(' '), pont = h => rejNorm(h).split(' ').filter(w => w.length >= 4 && !/^(KAVAK|LOJA|SHOPPING|HUB)$/.test(w) && tW.some(x => x === w || (x.length >= 4 && (w.startsWith(x) || x.startsWith(w))))).length;
+    const pts = hubs.map(h => [h, pont(h)]).filter(x => x[1] > 0), mx = pts.reduce((m, x) => Math.max(m, x[1]), 0);
+    const hubsSel = pts.filter(x => x[1] === mx).map(x => x[0]), hub = hubsSel.join(' + ');
+    if (hubsSel.length) l = l.filter(x => hubsSel.includes(x.h));
+    const o = { total: l.length, hub: hub || 'todos os hubs', porHub: Object.fromEntries(jpConta(l, x => x.h || 'Sem hub', hubsSel.length ? 12 : 25)), porMotivo: Object.fromEntries(jpConta(l, x => x.m, 8)) };
+    if (querPlaca) o.carros = l.slice(0, 30).map(x => ({ placa: x.p, hub: x.h, data: fmtData(x.d).slice(0, 5), motivo: String(x.m || '').slice(0, 60) }));
+    out[rotulo] = o;
+  };
+  if (querRej || (querPlaca && !querRep)) tarefas.push(lista('rejeicoes', 'rejeicoes'));
+  if (querRep || (querPlaca && /reprov/.test(t))) tarefas.push(lista('reprovacoes', 'reprovacoes'));
+  await Promise.race([Promise.allSettled(tarefas), new Promise(ok => setTimeout(ok, 30000))]);
+  const txt = JSON.stringify(out);
+  return txt.length > 4500 ? { texto: txt.slice(0, 4400) + '"}', usouBusca: true } : { texto: txt, usouBusca: true };
 }
 
 // ---------- voz ----------
